@@ -539,6 +539,8 @@ def export_available_excel(
             for row_idx, row in enumerate(sub_df.itertuples(index=False), start=startrow + 1):
                 for col_idx, value in enumerate(row):
                     col_name = sub_df.columns[col_idx]
+                    if pd.isna(value):
+                        value = ""
                     if col_name in ('Rate Card', 'Installation & Removal'):
                         fmt = money_fmt
                     else:
