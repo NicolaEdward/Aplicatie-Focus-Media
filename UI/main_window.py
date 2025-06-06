@@ -185,14 +185,7 @@ def start_app():
         # îl folosim doar în availability()
         d0, d1 = start_dt.isoformat(), end_dt.isoformat()
 
-        # 5) Interogarea inițială doar pe tabelă locatii
-        q = """
-            SELECT id, city, county, address, type, status, ratecard
-            FROM locatii
-        """
-        if cond:
-            q += " WHERE " + " AND ".join(cond)
-
+        # 5) Interogarea inițială doar pe tabelă ``locatii``
         q = """
             SELECT id, city, county, address, type, ratecard
             FROM locatii

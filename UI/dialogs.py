@@ -24,7 +24,7 @@ def open_detail_window(tree, event):
     if not rowid:
         return
     loc_id = int(rowid)     # folosim iid-ul (id-ul real din DB), nu valoarea din coloane
-    # … restul rămâne neschimbat
+    # extrage detaliile locației și le afișează într-o fereastră dedicată
 
     # preia datele specifice
     cur = conn.cursor()
@@ -161,7 +161,7 @@ def open_add_window(root, refresh_cb):
     labels = [
         "City", "County", "Address", "Type", "GPS", "Code",
         "Size", "Photo Link", "SQM", "Illumination", "RateCard",
-        "Pret Vanzare", "Pret Flotant", "Decoration cost",
+        "Preț Vânzare", "Pret Flotant", "Decoration cost",
         "Observații", "Grup", "Față"
     ]
     entries = {}
@@ -193,7 +193,7 @@ def open_add_window(root, refresh_cb):
             vals["GPS"], vals["Code"], vals["Size"],
             vals["Photo Link"], vals["SQM"], vals["Illumination"],
             vals["RateCard"],
-            vals["Pret Vanzare"] or None,
+            vals["Preț Vânzare"] or None,
             vals["Pret Flotant"] or None,
             vals["Decoration cost"] or None,
             vals["Observații"], vals["Grup"], vals["Față"]
@@ -223,7 +223,7 @@ def open_edit_window(root, loc_id, load_cb, refresh_groups_cb):
     labels = [
         "City", "County", "Address", "Type", "GPS", "Code",
         "Size", "Photo Link", "SQM", "Illumination", "RateCard",
-        "Pret Vanzare", "Pret Flotant", "Decoration cost",
+        "Preț Vânzare", "Pret Flotant", "Decoration cost",
         "Observații", "Grup", "Față"
     ]
 
@@ -265,7 +265,7 @@ def open_edit_window(root, loc_id, load_cb, refresh_groups_cb):
             vals["GPS"], vals["Code"], vals["Size"],
             vals["Photo Link"], vals["SQM"], vals["Illumination"],
             vals["RateCard"],
-            vals["Pret Vanzare"] or None,
+            vals["Preț Vânzare"] or None,
             vals["Pret Flotant"] or None,
             vals["Decoration cost"] or None,
             vals["Observații"], vals["Grup"], vals["Față"],
@@ -310,7 +310,7 @@ def open_rent_window(root, loc_id, load_cb):
 
     Perioada aleasă trebuie să nu se suprapună peste o rezervare sau o
     închiriere existentă pentru aceeași locație. După salvare statusurile sunt
-    recalculte prin ``update_statusuri_din_rezervari``.
+    recalculate prin ``update_statusuri_din_rezervari``.
     """
 
     win = tk.Toplevel(root)
