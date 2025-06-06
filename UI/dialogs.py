@@ -602,11 +602,6 @@ def export_sales_report():
         messagebox.showinfo("Export Excel", "Nu există locații în baza de date.")
         return
 
-    sold_mask = df_loc["status"] == "Închiriat"
-    pct_sold = sold_mask.mean()
-    pct_free = 1 - pct_sold
-    sum_sold = df_loc.loc[sold_mask, "pret_vanzare"].fillna(0).sum()
-    sum_free = df_loc.loc[~sold_mask, "pret_vanzare"].fillna(0).sum()
 
     path = filedialog.asksaveasfilename(
         defaultextension=".xlsx",
@@ -670,6 +665,14 @@ def export_sales_report():
             "valign": "vcenter",
             "border": 1,
         })
+        stat_int_fmt = wb.add_format({
+            "bold": True,
+            "bg_color": "#FFF2CC",
+            "font_size": 12,
+            "align": "center",
+            "valign": "vcenter",
+            "border": 1,
+        })
 
         money_cols = {"Ratecard/month", "PRET DE VANZARE", "PRET DE INCHIRIERE"}
 
@@ -719,24 +722,29 @@ def export_sales_report():
                     max_len = max(len(col_name), df_sheet[col_name].astype(str).map(len).max())
                 ws.set_column(idx, idx, max_len + 2)
 
+            sold_mask = df_sheet["status"] == "Închiriat"
+            pct_sold = sold_mask.mean()
+            pct_free = 1 - pct_sold
+            count_sold = int(sold_mask.sum())
+            count_free = int(len(df_sheet) - count_sold)
+            sum_sale = pd.to_numeric(df_sheet["PRET DE VANZARE"], errors="coerce").fillna(0).sum()
+            sum_rent = pd.to_numeric(df_sheet["PRET DE INCHIRIERE"], errors="coerce").fillna(0).sum()
+
             start = len(df_sheet) + 2
             ws.merge_range(start, 0, start, len(df_sheet.columns) - 2, "% Locații vândute", stat_lbl_fmt)
             ws.write(start, len(df_sheet.columns) - 1, pct_sold, stat_percent_fmt)
             ws.merge_range(start + 1, 0, start + 1, len(df_sheet.columns) - 2, "% Locații nevândute", stat_lbl_fmt)
             ws.write(start + 1, len(df_sheet.columns) - 1, pct_free, stat_percent_fmt)
-            ws.merge_range(start + 2, 0, start + 2, len(df_sheet.columns) - 2, "Sumă locații vândute", stat_lbl_fmt)
-            ws.write(start + 2, len(df_sheet.columns) - 1, sum_sold, stat_money_fmt)
-            ws.merge_range(start + 3, 0, start + 3, len(df_sheet.columns) - 2, "Sumă locații libere", stat_lbl_fmt)
-            ws.write(start + 3, len(df_sheet.columns) - 1, sum_free, stat_money_fmt)
-            sum_rent = pd.to_numeric(df_sheet["PRET DE INCHIRIERE"], errors="coerce").fillna(0).sum()
-            sum_sale = pd.to_numeric(df_sheet["PRET DE VANZARE"], errors="coerce").fillna(0).sum()
-            ws.merge_range(start + 4, 0, start + 4, len(df_sheet.columns) - 2, "Sumă chirii", stat_lbl_fmt)
-            ws.write(start + 4, len(df_sheet.columns) - 1, sum_rent, stat_money_fmt)
-            ws.merge_range(start + 5, 0, start + 5, len(df_sheet.columns) - 2, "Diferență vânzare - închiriere", stat_lbl_fmt)
-            ws.write(start + 5, len(df_sheet.columns) - 1, sum_sale - sum_rent, stat_money_fmt)
+            ws.merge_range(start + 2, 0, start + 2, len(df_sheet.columns) - 2, "Locații vândute", stat_lbl_fmt)
+            ws.write(start + 2, len(df_sheet.columns) - 1, count_sold, stat_int_fmt)
+            ws.merge_range(start + 3, 0, start + 3, len(df_sheet.columns) - 2, "Locații nevândute", stat_lbl_fmt)
+            ws.write(start + 3, len(df_sheet.columns) - 1, count_free, stat_int_fmt)
+            ws.merge_range(start + 4, 0, start + 4, len(df_sheet.columns) - 2, "Sumă totală preț vânzare", stat_lbl_fmt)
+            ws.write(start + 4, len(df_sheet.columns) - 1, sum_sale, stat_money_fmt)
+            ws.merge_range(start + 5, 0, start + 5, len(df_sheet.columns) - 2, "Sumă totală preț închiriere", stat_lbl_fmt)
+            ws.write(start + 5, len(df_sheet.columns) - 1, sum_rent, stat_money_fmt)
 
         current_year = datetime.date.today().year
-        current_month = datetime.date.today().month
         df_rez = pd.read_sql_query(
             """
             SELECT l.id, l.grup, l.city, l.county, l.address, l.type, l.size, l.sqm, l.illumination,
@@ -753,6 +761,60 @@ def export_sales_report():
             "id","city","county","address","type","size","sqm","illumination",
             "ratecard","pret_vanzare","grup","status"
         ]].copy()
+        sold_count = {loc_id: 0 for loc_id in df_base["id"]}
+        for month in range(1, 13):
+            start_m = pd.Timestamp(current_year, month, 1)
+            end_m = start_m + pd.offsets.MonthEnd(0)
+            mask = (df_rez["data_end"] >= start_m) & (df_rez["data_start"] <= end_m)
+            ids = df_rez.loc[mask, "id"].unique()
+            for loc_id in ids:
+                sold_count[loc_id] += 1
+
+        # Sheet summarizing the entire year
+        df_total = df_base.copy()
+        df_total["Sold Months"] = df_total["id"].map(sold_count)
+        df_total["% Year Sold"] = df_total["Sold Months"] / 12
+        df_total["pret_vanzare"] = pd.to_numeric(df_total["pret_vanzare"], errors="coerce").fillna(0)
+        grp_order = df_total.groupby("grup")["pret_vanzare"].max().sort_values(ascending=False).index
+        order_map = {g: i for i, g in enumerate(grp_order)}
+        df_total["__grp"] = df_total["grup"].map(order_map)
+        df_total = df_total.sort_values(["__grp","pret_vanzare"], ascending=[True, False]).drop(columns="__grp")
+
+        def write_total_sheet(df_sheet):
+            df_sheet = df_sheet[[
+                "city","county","address","type","size","sqm","illumination",
+                "ratecard","pret_vanzare","Sold Months","% Year Sold"
+            ]].copy()
+            df_sheet.columns = [
+                "City","County","Address","Type","Size","SQM","Illum",
+                "Ratecard/month","PRET DE VANZARE","Luni vândută","% An vândut"
+            ]
+            df_sheet.insert(0, "Nr", range(1, len(df_sheet) + 1))
+            ws = wb.add_worksheet("Total")
+            writer.sheets["Total"] = ws
+            for col_idx, col_name in enumerate(df_sheet.columns):
+                ws.write(0, col_idx, col_name, hdr_fmt)
+            for row_idx, row in enumerate(df_sheet.itertuples(index=False), start=1):
+                for col_idx, value in enumerate(row):
+                    fmt = money_fmt if col_idx == df_sheet.columns.get_loc("PRET DE VANZARE") else text_fmt
+                    if col_idx == df_sheet.columns.get_loc("% An vândut"):
+                        ws.write(row_idx, col_idx, value, percent_fmt)
+                    else:
+                        ws.write(row_idx, col_idx, value, fmt)
+            for idx, col in enumerate(df_sheet.columns):
+                if col == "PRET DE VANZARE":
+                    vals = pd.to_numeric(df_sheet[col], errors="coerce").fillna(0)
+                    formatted = [f"€{v:,.2f}" for v in vals]
+                    width = max(len(col), *(len(v) for v in formatted)) + 2
+                else:
+                    width = max(len(col), df_sheet[col].astype(str).map(len).max()) + 2
+                ws.set_column(idx, idx, width)
+            overall_pct = df_sheet["% An vândut"].mean()
+            start = len(df_sheet) + 2
+            ws.merge_range(start, 0, start, len(df_sheet.columns)-2, "% Total an", stat_lbl_fmt)
+            ws.write(start, len(df_sheet.columns)-1, overall_pct, stat_percent_fmt)
+
+        write_total_sheet(df_total)
 
         for month in range(1, 13):
             start_m = pd.Timestamp(current_year, month, 1)
@@ -762,7 +824,11 @@ def export_sales_report():
             sub = sub.sort_values("data_start").groupby("id", as_index=False).first()
             df_month = df_base.merge(sub[["id","client","data_start","data_end","suma"]], on="id", how="left")
             df_month["status"] = df_month["client"].apply(lambda x: "Închiriat" if pd.notna(x) else "Disponibil")
-            df_month = df_month.sort_values(["pret_vanzare","grup"])
+            df_month["pret_vanzare"] = pd.to_numeric(df_month["pret_vanzare"], errors="coerce").fillna(0)
+            grp_order = df_month.groupby("grup")["pret_vanzare"].max().sort_values(ascending=False).index
+            order_map = {g: i for i, g in enumerate(grp_order)}
+            df_month["__grp"] = df_month["grup"].map(order_map)
+            df_month = df_month.sort_values(["__grp","pret_vanzare"], ascending=[True, False]).drop(columns="__grp")
             name = start_m.strftime("%B")
             write_sheet(name, df_month)
 
