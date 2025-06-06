@@ -107,27 +107,38 @@ def start_app():
 
     current_scale = [1.0]
 
+    last_size = [BASE_WIDTH, BASE_HEIGHT]
+
     def on_resize(event):
+        if event.widget is not root:
+            return
+        if event.width == last_size[0] and event.height == last_size[1]:
+            return
+        last_size[:] = [event.width, event.height]
+
         w, h = event.width, event.height
-        scale = min(w / BASE_WIDTH, h / BASE_HEIGHT, 1.0)
-        if abs(scale - current_scale[0]) >= 0.05:
-            current_scale[0] = scale
-            root.tk.call("tk", "scaling", scale)
-            default_font.configure(size=int(12 * scale))
-            style.configure(
-                "TButton",
-                padding=(int(8 * scale), int(4 * scale)),
-                font=("Segoe UI", int(12 * scale)),
-            )
-            style.configure(
-                "Treeview.Heading",
-                font=("Segoe UI", int(12 * scale), "bold"),
-            )
-            style.configure(
-                "Treeview",
-                rowheight=int(28 * scale),
-                font=("Segoe UI", int(11 * scale)),
-            )
+        scale = max(min(w / BASE_WIDTH, h / BASE_HEIGHT, 1.0), 0.8)
+        if abs(scale - current_scale[0]) < 0.05:
+            return
+
+        current_scale[0] = scale
+        root.tk.call("tk", "scaling", scale)
+        default_font.configure(size=int(12 * scale))
+        style.configure(
+            "TButton",
+            padding=(int(8 * scale), int(4 * scale)),
+            font=("Segoe UI", int(12 * scale)),
+        )
+        style.configure(
+            "Treeview.Heading",
+            font=("Segoe UI", int(12 * scale), "bold"),
+        )
+        style.configure(
+            "Treeview",
+            rowheight=max(int(28 * scale), 18),
+            font=("Segoe UI", int(11 * scale)),
+        )
+
 
     root.bind("<Configure>", on_resize)
     root.eval('tk::PlaceWindow . center')
@@ -199,6 +210,32 @@ def start_app():
     tree.tag_configure("available", background="#e8ffe8", foreground="black")
     tree.tag_configure("reserved", background="#fff5cc", foreground="black")
     tree.tag_configure("rented", background="#ffe8e8", foreground="black")
+
+    drag_select = {"start": None}
+
+    def on_tree_press(event):
+        iid = tree.identify_row(event.y)
+        if iid:
+            drag_select["start"] = iid
+            tree.selection_set(iid)
+
+    def on_tree_drag(event):
+        if not drag_select.get("start"):
+            return
+        iid = tree.identify_row(event.y)
+        if not iid:
+            return
+        children = list(tree.get_children())
+        i0 = children.index(drag_select["start"])
+        i1 = children.index(iid)
+        if i0 > i1:
+            i0, i1 = i1, i0
+        tree.selection_set(children[i0 : i1 + 1])
+        tree.see(iid)
+
+    tree.bind("<Button-1>", on_tree_press)
+    tree.bind("<B1-Motion>", on_tree_drag)
+    tree.bind("<ButtonRelease-1>", lambda e: drag_select.update(start=None))
 
     tree.bind("<Double-1>", lambda e: open_detail_window(tree, e))
     tree.bind("<<TreeviewSelect>>", lambda e: on_tree_select())
