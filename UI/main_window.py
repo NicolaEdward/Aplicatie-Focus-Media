@@ -146,6 +146,14 @@ def start_app():
     except tk.TclError:
         root.attributes('-zoomed', True)
 
+    def toggle_fullscreen(event=None):
+        """Toggle fullscreen mode."""
+        root.attributes('-fullscreen', not root.attributes('-fullscreen'))
+
+    root.bind('<F11>', toggle_fullscreen)
+    root.bind('<Escape>', lambda e: root.attributes('-fullscreen', False))
+    root.attributes('-fullscreen', True)
+
     menu = tk.Menu(root)
     view_menu = tk.Menu(menu, tearoff=0)
     for v in VIEW_SIZES:
