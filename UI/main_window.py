@@ -80,17 +80,35 @@ from UI.dialogs import (
 
 
 
-def start_app(user):
-    if Style:
-        style = Style("superhero")
-        root = style.master
+def start_app(user, root=None):
+    """Launch the main application window for *user*.
+
+    An existing ``Tk`` instance can be supplied via ``root``.  This allows the
+    application to reuse a window created earlier (for example by the login
+    dialog) and avoids initializing multiple ``Tk`` instances which can lead to
+    errors on some platforms.
+    """
+
+    if root is None:
+        if Style:
+            style = Style("superhero")
+            root = style.master
+        else:
+            root = tk.Tk()
+            style = ttk.Style(root)
+            try:
+                style.theme_use("clam")
+            except tk.TclError:
+                pass
     else:
-        root = tk.Tk()
-        style = ttk.Style(root)
-        try:
-            style.theme_use("clam")
-        except tk.TclError:
-            pass
+        if Style:
+            style = Style("superhero")
+        else:
+            style = ttk.Style(root)
+            try:
+                style.theme_use("clam")
+            except tk.TclError:
+                pass
 
     root.title("Gestionare Locații Publicitare")
 
