@@ -306,14 +306,22 @@ def cancel_reservation(root, loc_id, load_cb):
     load_cb()
 
 def open_rent_window(root, loc_id, load_cb):
+    """Dialog pentru adăugarea unei închirieri în tabelul ``rezervari``.
+
+    Perioada aleasă trebuie să nu se suprapună peste o rezervare sau o
+    închiriere existentă pentru aceeași locație. După salvare statusurile sunt
+    recalculte prin ``update_statusuri_din_rezervari``.
+    """
+
     win = tk.Toplevel(root)
     win.title(f"Închiriază locația #{loc_id}")
+
     labels = ["Client", "Data start", "Data end", "Sumă finală"]
     entries = {}
 
     for i, lbl in enumerate(labels):
         ttk.Label(win, text=lbl + ":")\
-           .grid(row=i, column=0, sticky="e", padx=5, pady=5)
+            .grid(row=i, column=0, sticky="e", padx=5, pady=5)
         if "Data" in lbl:
             e = DateEntry(win, date_pattern="yyyy-mm-dd")
         else:
@@ -323,56 +331,56 @@ def open_rent_window(root, loc_id, load_cb):
 
     def save_rent():
         client = entries["Client"].get().strip()
-        # validare client
         if not client:
             messagebox.showwarning("Lipsește client", "Completează client.")
             return
 
-        # date
         start = entries["Data start"].get_date()
-        end   = entries["Data end"].get_date()
+        end = entries["Data end"].get_date()
         if start > end:
-            messagebox.showwarning("Interval incorect", "«Data start» trebuie înainte de «Data end».")
+            messagebox.showwarning(
+                "Interval incorect",
+                "«Data start» trebuie înainte de «Data end».",
+            )
             return
 
-        # sumă finală
         fee_txt = entries["Sumă finală"].get().strip()
         try:
             fee_val = float(fee_txt)
-        except:
+        except ValueError:
             messagebox.showwarning("Sumă invalidă", "Introdu o sumă numerică.")
             return
 
-        # INSERARE ÎN TABELUL rezervari
         cur = conn.cursor()
-        cur.execute("""
-            INSERT INTO rezervari (loc_id, client, data_start, data_end, suma)
-            VALUES (?, ?, ?, ?, ?)
-        """, (loc_id, client, start.isoformat(), end.isoformat(), fee_val))
+
+        # verificăm suprapuneri cu alte perioade
+        overlap = cur.execute(
+            "SELECT 1 FROM rezervari WHERE loc_id=? AND NOT (data_end < ? OR data_start > ?)",
+            (loc_id, start.isoformat(), end.isoformat()),
+        ).fetchone()
+        if overlap:
+            messagebox.showerror(
+                "Perioadă ocupată",
+                "Locația este deja rezervată sau închiriată în intervalul ales.",
+            )
+            return
+
+        # inserăm noua închiriere
+        cur.execute(
+            "INSERT INTO rezervari (loc_id, client, data_start, data_end, suma)"
+            " VALUES (?, ?, ?, ?, ?)",
+            (loc_id, client, start.isoformat(), end.isoformat(), fee_val),
+        )
         conn.commit()
 
-        # Marcheză statusurile pentru azi
+        # actualizăm statusurile pe baza tuturor rezervărilor
         update_statusuri_din_rezervari()
 
-        # Dacă rezervarea începe în viitor, marchează-l imediat ca Rezervat
-        today = datetime.date.today()
-        if start > today:
-            cur.execute("""
-                UPDATE locatii
-                   SET status='Rezervat',
-                       client   = ?,
-                       data_start = ?,
-                       data_end   = ?
-                 WHERE id = ?
-            """, (client, start.isoformat(), end.isoformat(), loc_id))
-            conn.commit()
-
-        # Reîncarcă lista și închide dialogul
         load_cb()
         win.destroy()
 
     ttk.Button(win, text="Confirmă închiriere", command=save_rent)\
-       .grid(row=len(labels), column=0, columnspan=2, pady=10)
+        .grid(row=len(labels), column=0, columnspan=2, pady=10)
 
 
 def export_available_excel(
