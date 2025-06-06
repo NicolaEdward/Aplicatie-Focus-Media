@@ -80,7 +80,7 @@ from UI.dialogs import (
 
 def start_app():
     if Style:
-        style = Style("flatly")
+        style = Style("superhero")
         root = style.master
     else:
         root = tk.Tk()
@@ -91,16 +91,22 @@ def start_app():
             pass
 
     root.title("Gestionare Locații Publicitare")
-    root.geometry("1400x800")
-    root.minsize(1200, 600)
+
+    root.geometry("1920x1080")
+    root.minsize(1280, 720)
+
 
     default_font = tkfont.nametofont("TkDefaultFont")
-    default_font.configure(family="Segoe UI", size=11)
+    default_font.configure(family="Segoe UI", size=12)
     root.option_add("*Font", default_font)
-    style.configure("TButton", padding=(8, 4), font=("Segoe UI", 11))
-    style.configure("Treeview.Heading", font=("Segoe UI", 11, "bold"))
-    style.configure("Treeview", rowheight=24, font=("Segoe UI", 10))
+    style.configure("TButton", padding=(8, 4), font=("Segoe UI", 12))
+    style.configure("Treeview.Heading", font=("Segoe UI", 12, "bold"))
+    style.configure("Treeview", rowheight=28, font=("Segoe UI", 11))
     root.eval('tk::PlaceWindow . center')
+    try:
+        root.state("zoomed")
+    except Exception:
+        pass
 
     # --- Top: filtre Grup, Status, Căutare, Interval ---
     frm_top = ttk.Frame(root, padding=10)
