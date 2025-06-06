@@ -97,84 +97,12 @@ def open_detail_window(tree, event):
     add_field(r, "RateCard",  ttk.Label(frm, text=str(ratecard))); r += 1
     add_field(r, "Preț de vânzare",
                          ttk.Label(frm, text=str(pret_vanzare))); r += 1
-    add_field(r, "Preț Flotant", ttk.Label(frm, text=str(pret_flotant))); r += 1
-    add_field(r, "Preț de decorare",
-                         ttk.Label(frm, text=str(decoration_cost))); r += 1
-
-    add_field(r, "Observații",
-                         ttk.Label(frm, text=observatii or "-")); r += 1
-    add_field(r, "Status",    ttk.Label(frm, text=status)); r += 1
-
-    # Client și perioadă doar dacă există
-    if client:
-        add_field(r, "Client",   ttk.Label(frm, text=client)); r += 1
-        period = f"{ds} → {de}" if ds and de else "-"
-        add_field(r, "Perioadă", ttk.Label(frm, text=period)); r += 1
-        fee_row = cur.execute(
-            "SELECT suma FROM rezervari WHERE loc_id=? AND ? BETWEEN data_start AND data_end ORDER BY data_start DESC LIMIT 1",
-            (loc_id, datetime.date.today().isoformat())
-        ).fetchone()
-        if fee_row:
-            add_field(r, "Sumă închiriere", ttk.Label(frm, text=str(fee_row[0]))); r += 1
-
-    # face fereastra redimensionabilă
-    for i in range(r):
-        win.rowconfigure(i, weight=0)
-    win.columnconfigure(1, weight=1)
-def open_reserve_window(root, loc_id, load_cb):
-    """Dialog pentru rezervarea unei locații.
-
-    Rezervarea este salvată în tabela ``rezervari`` dacă intervalul ales nu se
-    suprapune peste o rezervare sau închiriere existentă.
-    """
-
-    win = tk.Toplevel(root)
-    win.title(f"Rezervă {loc_id}")
-
-    labels = ["Client", "Data start", "Data end"]
-    entries = {}
-
-    for i, lbl in enumerate(labels):
-        ttk.Label(win, text=lbl + ":")\
-            .grid(row=i, column=0, sticky="e", padx=5, pady=5)
-        if "Data" in lbl:
-            e = DateEntry(win, date_pattern="yyyy-mm-dd")
-        else:
-            e = ttk.Entry(win, width=30)
-        e.grid(row=i, column=1, padx=5, pady=5)
-        entries[lbl] = e
-
-    entries["Data start"].set_date(datetime.date.today())
-    entries["Data end"].set_date(datetime.date.today() + datetime.timedelta(days=5))
-
-    def save_reserve():
-        client = entries["Client"].get().strip()
-        if not client:
-            messagebox.showwarning("Lipsește client", "Completează client.")
-            return
-
-        start = entries["Data start"].get_date()
-        end = entries["Data end"].get_date()
-        if start > end:
-            messagebox.showwarning(
-                "Interval incorect",
-                "«Data start» trebuie înainte de «Data end».",
-            )
-            return
-
-        cur = conn.cursor()
-
-        cur.execute("INSERT OR IGNORE INTO clienti (nume) VALUES (?)", (client,))
-        client_id = cur.execute(
-            "SELECT id FROM clienti WHERE nume=?", (client,)
-        ).fetchone()[0]
-
-        overlap = cur.execute(
-            "SELECT 1 FROM rezervari WHERE loc_id=? AND NOT (data_end < ? OR data_start > ?)",
-            (loc_id, start.isoformat(), end.isoformat()),
-        ).fetchone()
-        if overlap:
-            messagebox.showerror(
+        fee_row = None
+        if ds and de:
+            fee_row = cur.execute(
+                "SELECT suma FROM rezervari WHERE loc_id=? AND data_start=? AND data_end=? ORDER BY data_start DESC LIMIT 1",
+                (loc_id, ds, de)
+            ).fetchone()
                 "Perioadă ocupată",
                 "Locația este deja rezervată sau închiriată în intervalul ales.",
             )

@@ -43,7 +43,7 @@ def test_update_statusuri(monkeypatch):
 
 
 def test_future_reservation(monkeypatch):
-    """A future reservation should mark the location as 'Rezervat'."""
+    """A future reservation should leave the location as 'Disponibil'."""
     conn = sqlite3.connect(':memory:')
     monkeypatch.setattr(db, 'conn', conn)
     monkeypatch.setattr(db, 'cursor', conn.cursor())
@@ -72,5 +72,5 @@ def test_future_reservation(monkeypatch):
     status, cid = cur.execute(
         "SELECT status, client_id FROM locatii WHERE id=?", (loc_id,)
     ).fetchone()
-    assert status == 'Rezervat'
-    assert cid == client_id
+    assert status == 'Disponibil'
+    assert cid is None

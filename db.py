@@ -109,49 +109,10 @@ def update_statusuri_din_rezervari():
             data_end=NULL
     """)
 
-    # 2) Marcăm rezervările viitoare ca 'Rezervat'
-    cur.execute("""
-        UPDATE locatii
-        SET status      = 'Rezervat',
-            client      = (
-                SELECT client
-                FROM rezervari
-                WHERE rezervari.loc_id = locatii.id
-                  AND data_start > ?
-                ORDER BY data_start ASC
-                LIMIT 1
-            ),
-            client_id   = (
-                SELECT client_id
-                FROM rezervari
-                WHERE rezervari.loc_id = locatii.id
-                  AND data_start > ?
-                ORDER BY data_start ASC
-                LIMIT 1
-            ),
-            data_start  = (
-                SELECT data_start
-                FROM rezervari
-                WHERE rezervari.loc_id = locatii.id
-                  AND data_start > ?
-                ORDER BY data_start ASC
-                LIMIT 1
-            ),
-            data_end    = (
-                SELECT data_end
-                FROM rezervari
-                WHERE rezervari.loc_id = locatii.id
-                  AND data_start > ?
-                ORDER BY data_start ASC
-                LIMIT 1
-            )
-        WHERE EXISTS (
-            SELECT 1
-            FROM rezervari
-            WHERE rezervari.loc_id = locatii.id
-              AND data_start > ?
-        )
-    """, (today, today, today, today, today))
+
+    # 2) Nu mai marcăm rezervările viitoare ca "Rezervat" pentru a permite
+    #     programarea mai multor închirieri. Locațiile rămân "Disponibil" până
+    #     începe perioada efectivă de închiriere.
 
     # 3) Marcăm închirierile curente ca 'Închiriat'
     cur.execute("""

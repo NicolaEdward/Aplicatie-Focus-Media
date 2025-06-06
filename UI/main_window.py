@@ -1,6 +1,4 @@
 
-# UI/main_window.py
-
 import os
 import shutil
 import datetime
@@ -98,8 +96,7 @@ def start_app():
     img_label = ttk.Label(details)
     img_label.pack(pady=(0,10))
 
-    btn_download = ttk.Button(details, text="Descarcă schița", state="disabled",
-                              command=lambda: download_schita())
+    for w in (btn_add, btn_edit, btn_rent, btn_delete):
     btn_download.pack(pady=(0,15))
 
     # etichete declarate fără pack()
@@ -278,7 +275,6 @@ def start_app():
             lbl_period_label, lbl_period_value,
             lbl_ratecard_label, lbl_ratecard_value,
             lbl_pret_vanz_label, lbl_pret_vanz_value,
-            lbl_pret_flot_label, lbl_pret_flot_value
         ):
             w.pack_forget()
 
@@ -334,14 +330,6 @@ def start_app():
             lbl_pret_flot_value.pack(anchor="center", pady=2)
 
         btn_edit.config(state='normal')
-        if status == 'Disponibil':
-            btn_reserve.config(text="Rezervă", state='normal',
-                               command=lambda: open_reserve_window(root, loc_id, load_locations))
-        elif status == 'Rezervat':
-            btn_reserve.config(text="Anulează rezervarea", state='normal',
-                               command=lambda: cancel_reservation(root, loc_id, load_locations))
-        else:
-            btn_reserve.config(state='disabled')
 
         if status in ('Disponibil', 'Rezervat'):
             btn_rent.config(text="Închiriază", state='normal',
@@ -369,15 +357,17 @@ def start_app():
             load_locations()
 
     def release_and_refresh():
-        if not messagebox.askyesno("Confirmă", "Eliberează și șterge istoricul?"):
+        if not messagebox.askyesno("Confirmă", "Încheie mai devreme închirierea?"):
             return
         cur = conn.cursor()
-        cur.execute("""
-            UPDATE locatii 
-            SET status='Disponibil', client=NULL, data_start=NULL, data_end=NULL, pret_vanzare=NULL 
-            WHERE id=?
-        """, (selected_id[0],))
-        cur.execute("DELETE FROM rezervari WHERE loc_id=?", (selected_id[0],))
+        cur.execute(
+            "DELETE FROM rezervari WHERE loc_id=? AND ? BETWEEN data_start AND data_end",
+            (selected_id[0], datetime.date.today().isoformat()),
+        )
+        cur.execute(
+            "UPDATE locatii SET status='Disponibil', client=NULL, client_id=NULL, data_start=NULL, data_end=NULL WHERE id=?",
+            (selected_id[0],),
+        )
         conn.commit()
         update_statusuri_din_rezervari()
         load_locations()
