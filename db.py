@@ -43,6 +43,12 @@ def init_db():
     init_clienti_table()
     init_rezervari_table()
     conn.commit()
+
+    # Indexuri pentru o interogare mai rapidă
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_locatii_grup ON locatii(grup)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_locatii_status ON locatii(status)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_rezervari_loc ON rezervari(loc_id)")
+    conn.commit()
     
     # (2) Verificăm ce coloane există deja
     existing = {col[1] for col in cursor.execute("PRAGMA table_info(locatii)").fetchall()}

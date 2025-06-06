@@ -1,10 +1,12 @@
 # utils.py
 import os
+from functools import lru_cache
 from PIL import Image, ImageTk
 
 PREVIEW_FOLDER = "previews"
 SCHITE_FOLDER  = "schite"
 
+@lru_cache(maxsize=64)
 def make_preview(code, max_w=280, max_h=180):
     path = os.path.join(PREVIEW_FOLDER, f"{code}.png")
     if not os.path.exists(path):
