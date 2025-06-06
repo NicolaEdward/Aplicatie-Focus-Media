@@ -132,7 +132,15 @@ def start_app():
         apply_scale(scale)
 
     root.minsize(800, 600)
-    set_view("Full HD")
+
+    def set_default_view():
+        sw, sh = root.winfo_screenwidth(), root.winfo_screenheight()
+        if sw >= 1920 and sh >= 1080:
+            set_view("Full HD")
+        else:
+            set_view("Compact")
+
+    set_default_view()
 
     menu = tk.Menu(root)
     view_menu = tk.Menu(menu, tearoff=0)
