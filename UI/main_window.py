@@ -4,6 +4,7 @@ import os
 import shutil
 import datetime
 import tkinter as tk
+import tkinter.font as tkfont
 from tkinter import ttk, messagebox, filedialog
 
 try:
@@ -44,7 +45,9 @@ def start_app():
     root.title("Gestionare Locații Publicitare")
     root.geometry("1200x600")
 
-    root.option_add("*Font", "Segoe UI 11")
+    default_font = tkfont.nametofont("TkDefaultFont")
+    default_font.configure(family="Segoe UI", size=11)
+    root.option_add("*Font", default_font)
     style.configure("TButton", padding=(8, 4), font=("Segoe UI", 11))
     style.configure("Treeview.Heading", font=("Segoe UI", 11, "bold"))
     style.configure("Treeview", rowheight=24, font=("Segoe UI", 10))
