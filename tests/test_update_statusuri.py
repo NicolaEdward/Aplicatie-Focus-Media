@@ -15,6 +15,11 @@ def test_update_statusuri(monkeypatch):
 
     cur = conn.cursor()
     cur.execute(
+        "INSERT INTO clienti (nume) VALUES (?)",
+        ('X',)
+    )
+    client_id = cur.lastrowid
+    cur.execute(
         "INSERT INTO locatii (city, county, address) VALUES (?,?,?)",
         ('A', 'B', 'C')
     )
@@ -23,12 +28,15 @@ def test_update_statusuri(monkeypatch):
     today = datetime.date.today()
     cur.execute(
         "INSERT INTO rezervari (loc_id, client, client_id, data_start, data_end, suma)"
-        " VALUES (?, ?, NULL, ?, ?, 100)",
-        (loc_id, 'X', today.isoformat(), (today + datetime.timedelta(days=1)).isoformat())
+        " VALUES (?, ?, ?, ?, ?, 100)",
+        (loc_id, 'X', client_id, today.isoformat(), (today + datetime.timedelta(days=1)).isoformat())
     )
     conn.commit()
 
     db.update_statusuri_din_rezervari()
 
-    status = cur.execute("SELECT status FROM locatii WHERE id=?", (loc_id,)).fetchone()[0]
+    status, cid = cur.execute(
+        "SELECT status, client_id FROM locatii WHERE id=?", (loc_id,)
+    ).fetchone()
     assert status == 'Închiriat'
+    assert cid == client_id

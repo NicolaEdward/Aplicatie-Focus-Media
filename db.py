@@ -30,6 +30,7 @@ def init_db():
         observatii TEXT,
         status TEXT DEFAULT 'Disponibil',
         client TEXT,
+        client_id INTEGER,
         data_start TEXT,
         data_end TEXT,
         grup TEXT,
@@ -47,7 +48,8 @@ def init_db():
     to_add = {
         "rental_fee":    "REAL DEFAULT 0",
         "pret_vanzare":  "REAL",
-        "pret_flotant":  "REAL"
+        "pret_flotant":  "REAL",
+        "client_id":    "INTEGER"
     }
 
     existing = {col[1] for col in cursor.execute("PRAGMA table_info(locatii)").fetchall()}
@@ -99,6 +101,7 @@ def update_statusuri_din_rezervari():
         UPDATE locatii
         SET status='Disponibil',
             client=NULL,
+            client_id=NULL,
             data_start=NULL,
             data_end=NULL
     """)
@@ -109,6 +112,14 @@ def update_statusuri_din_rezervari():
         SET status      = 'Rezervat',
             client      = (
                 SELECT client
+                FROM rezervari
+                WHERE rezervari.loc_id = locatii.id
+                  AND data_start > ?
+                ORDER BY data_start ASC
+                LIMIT 1
+            ),
+            client_id   = (
+                SELECT client_id
                 FROM rezervari
                 WHERE rezervari.loc_id = locatii.id
                   AND data_start > ?
@@ -137,7 +148,7 @@ def update_statusuri_din_rezervari():
             WHERE rezervari.loc_id = locatii.id
               AND data_start > ?
         )
-    """, (today, today, today, today))
+    """, (today, today, today, today, today))
 
     # 3) Marcăm închirierile curente ca 'Închiriat'
     cur.execute("""
@@ -145,6 +156,14 @@ def update_statusuri_din_rezervari():
         SET status      = 'Închiriat',
             client      = (
                 SELECT client
+                FROM rezervari
+                WHERE rezervari.loc_id = locatii.id
+                  AND ? BETWEEN data_start AND data_end
+                ORDER BY data_start DESC
+                LIMIT 1
+            ),
+            client_id   = (
+                SELECT client_id
                 FROM rezervari
                 WHERE rezervari.loc_id = locatii.id
                   AND ? BETWEEN data_start AND data_end
@@ -173,7 +192,7 @@ def update_statusuri_din_rezervari():
             WHERE rezervari.loc_id = locatii.id
               AND ? BETWEEN data_start AND data_end
         )
-    """, (today, today, today, today))
+    """, (today, today, today, today, today))
 
     conn.commit()
 

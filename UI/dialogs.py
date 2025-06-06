@@ -117,6 +117,12 @@ def open_detail_window(tree, event):
         add_field(r, "Client",   ttk.Label(frm, text=client)); r += 1
         period = f"{ds} → {de}" if ds and de else "-"
         add_field(r, "Perioadă", ttk.Label(frm, text=period)); r += 1
+        fee_row = cur.execute(
+            "SELECT suma FROM rezervari WHERE loc_id=? AND ? BETWEEN data_start AND data_end ORDER BY data_start DESC LIMIT 1",
+            (loc_id, datetime.date.today().isoformat())
+        ).fetchone()
+        if fee_row:
+            add_field(r, "Sumă închiriere", ttk.Label(frm, text=str(fee_row[0]))); r += 1
 
     # face fereastra redimensionabilă
     for i in range(r):
