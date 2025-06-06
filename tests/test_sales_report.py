@@ -36,19 +36,24 @@ def test_export_sales_report(tmp_path, monkeypatch):
     monkeypatch.setattr(filedialog, 'asksaveasfilename', lambda **k: str(out))
     monkeypatch.setattr(messagebox, 'showinfo', lambda *a, **k: None)
 
-    captured = []
+    sheet_names = []
+
+    class DummySheet:
+        def write(self, *a, **k):
+            pass
+        def merge_range(self, *a, **k):
+            pass
+        def set_column(self, *a, **k):
+            pass
+        def write_url(self, *a, **k):
+            pass
 
     class DummyBook:
         def add_format(self, *a, **k):
             return object()
-
-    class DummySheet:
-        def set_column(self, *a, **k):
-            pass
-        def write(self, *a, **k):
-            pass
-        def set_row(self, *a, **k):
-            pass
+        def add_worksheet(self, name):
+            sheet_names.append(name)
+            return DummySheet()
 
     class DummyWriter:
         def __init__(self, *a, **k):
@@ -61,13 +66,6 @@ def test_export_sales_report(tmp_path, monkeypatch):
 
     monkeypatch.setattr(pd, 'ExcelWriter', DummyWriter)
 
-    def fake_to_excel(self, writer, sheet_name=None, *args, **kwargs):
-        writer.sheets[sheet_name] = DummySheet()
-        captured.append((sheet_name, self.copy()))
-    monkeypatch.setattr(pd.DataFrame, 'to_excel', fake_to_excel)
-
     dialogs.export_sales_report()
 
-    sheet_names = [s for s, _ in captured]
-    assert 'Total' in sheet_names
     assert 'June' in sheet_names

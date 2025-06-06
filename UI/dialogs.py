@@ -505,69 +505,70 @@ def export_available_excel(
     # 6) Scriem Excel: câte o foaie per grup
     with pd.ExcelWriter(fp, engine='xlsxwriter') as writer:
         wb = writer.book
-        center_fmt = wb.add_format({'align':'center','valign':'vcenter','border':1})
-        money_fmt  = wb.add_format({'num_format':'€#,##0.00','align':'center','valign':'vcenter','border':1})
-        link_fmt   = wb.add_format({'font_color':'blue','underline':True,'align':'center','valign':'vcenter','border':1})
-        title_fmt  = wb.add_format({'bold':True,'font_size':14,'align':'center','valign':'vcenter'})
-        hdr_fmt    = wb.add_format({
-            'bold':True,'bg_color':'#4F81BD','font_color':'white',
-            'align':'center','valign':'vcenter','border':1
-        })
+        center_fmt = wb.add_format({'align': 'center', 'valign': 'vcenter', 'border': 1})
+        money_fmt = wb.add_format({'num_format': '€#,##0.00', 'align': 'center', 'valign': 'vcenter', 'border': 1})
+        link_fmt = wb.add_format({'font_color': 'blue', 'underline': True, 'align': 'center', 'valign': 'vcenter', 'border': 1})
+        title_fmt = wb.add_format({'bold': True, 'font_size': 14, 'align': 'center', 'valign': 'vcenter'})
+        hdr_fmt = wb.add_format({'bold': True, 'bg_color': '#4F81BD', 'font_color': 'white', 'align': 'center', 'valign': 'vcenter', 'border': 1})
 
         for grup, sub in df.groupby('grup'):
             grp_name = (grup or "").strip() or "FaraGrup"
-            sheet    = grp_name[:31]
-            title    = f"Locații {grp_name}"
+            sheet = grp_name[:31]
+            title = f"Locații {grp_name}"
 
             sub_df = sub.loc[:, write_cols].copy()
             sub_df.columns = [
-                'City','County','Address','Type',
-                'GPS','Photo Link',
-                'Size','SQM','Illum',
-                'Rate Card','Installation & Removal',
+                'City', 'County', 'Address', 'Type',
+                'GPS', 'Photo Link',
+                'Size', 'SQM', 'Illum',
+                'Rate Card', 'Installation & Removal',
                 'Availability'
             ]
             sub_df.insert(0, 'Nr', range(1, len(sub_df) + 1))
 
             startrow = 1
-            sub_df.to_excel(writer, sheet_name=sheet, startrow=startrow, index=False)
-            ws = writer.sheets[sheet]
+            ws = writer.book.add_worksheet(sheet)
+            writer.sheets[sheet] = ws
 
-            # titlu
-            last_col = chr(ord('A') + len(sub_df.columns) - 1)
-            ws.merge_range(f"A1:{last_col}1", title, title_fmt)
+            last_col = len(sub_df.columns) - 1
+            ws.merge_range(0, 0, 0, last_col, title, title_fmt)
 
-            # antet
-            for idx, name in enumerate(sub_df.columns):
-                ws.write(startrow, idx, name, hdr_fmt)
+            for col_idx, name in enumerate(sub_df.columns):
+                ws.write(startrow, col_idx, name, hdr_fmt)
+
+            for row_idx, row in enumerate(sub_df.itertuples(index=False), start=startrow + 1):
+                for col_idx, value in enumerate(row):
+                    col_name = sub_df.columns[col_idx]
+                    if col_name in ('Rate Card', 'Installation & Removal'):
+                        fmt = money_fmt
+                    else:
+                        fmt = center_fmt
+                    ws.write(row_idx, col_idx, value, fmt)
 
             for idx, col_name in enumerate(sub_df.columns):
-                if col_name == 'Rate Card' or col_name == 'Installation & Removal':
+                if col_name in ('Rate Card', 'Installation & Removal'):
                     vals = pd.to_numeric(sub_df[col_name], errors='coerce').fillna(0)
-                    max_len = max(len(col_name), *(len(f"€{v:,.2f}") for v in vals))
-                    fmt = money_fmt
+                    formatted = [f"€{v:,.2f}" for v in vals]
+                    max_len = max(len(col_name), *(len(v) for v in formatted))
                 else:
                     max_len = max(len(col_name), sub_df[col_name].astype(str).map(len).max())
-                    fmt = center_fmt
-                ws.set_column(idx, idx, max_len + 2, fmt)
+                ws.set_column(idx, idx, max_len + 2)
 
-            # hyperlink GPS → Maps
             gi = sub_df.columns.get_loc('GPS')
-            for r, coord in enumerate(sub['gps'], start=startrow+1):
+            for r, coord in enumerate(sub['gps'], start=startrow + 1):
                 if coord:
                     url = f"https://www.google.com/maps/search/?api=1&query={coord}"
                     ws.write_url(r, gi, url, link_fmt, string="Maps")
 
-            # hyperlink Photo Link
             pi = sub_df.columns.get_loc('Photo Link')
-            for r, u in enumerate(sub['photo_link'], start=startrow+1):
+            for r, u in enumerate(sub['photo_link'], start=startrow + 1):
                 if u and u.strip():
                     url = u.strip()
-                    if not url.lower().startswith(('http://','https://')):
+                    if not url.lower().startswith(('http://', 'https://')):
                         url = 'https://' + url
-                    ws.write_url(r, pi, url, link_fmt, string="Photo")
+                    ws.write_url(r, pi, url, link_fmt, string='Photo')
                 else:
-                    ws.write(r, pi, "", center_fmt)
+                    ws.write(r, pi, '', center_fmt)
 
     messagebox.showinfo("Export Excel", f"Am salvat locațiile în:\n{fp}")
 
@@ -583,10 +584,10 @@ def export_sales_report():
 
     df_loc = pd.read_sql_query(
         """
-        SELECT grup, city, county, address, status, ratecard, pret_vanzare,
-               client, data_start, data_end
+        SELECT city, county, address, type, size, sqm, illumination,
+               ratecard, pret_vanzare, client, data_start, data_end, status
           FROM locatii
-         ORDER BY grup, county, city, id
+         ORDER BY county, city, id
         """,
         conn,
         parse_dates=["data_start", "data_end"],
@@ -610,25 +611,19 @@ def export_sales_report():
     if not path:
         return
 
-    # Formatăm datele ca string fără oră
     df_loc["data_start"] = df_loc["data_start"].dt.strftime("%d.%m.%Y")
     df_loc["data_end"] = df_loc["data_end"].dt.strftime("%d.%m.%Y")
 
     with pd.ExcelWriter(path, engine="xlsxwriter") as writer:
-        df_loc.to_excel(writer, sheet_name="Total", startrow=0, index=False, header=False)
         wb = writer.book
-        ws = writer.sheets["Total"]
-
-        hdr_fmt = wb.add_format(
-            {
-                "bold": True,
-                "bg_color": "#4F81BD",
-                "font_color": "white",
-                "align": "center",
-                "valign": "vcenter",
-                "border": 1,
-            }
-        )
+        hdr_fmt = wb.add_format({
+            "bold": True,
+            "bg_color": "#4F81BD",
+            "font_color": "white",
+            "align": "center",
+            "valign": "vcenter",
+            "border": 1,
+        })
         text_fmt = wb.add_format({"align": "center", "valign": "vcenter", "border": 1})
         money_fmt = wb.add_format({
             "num_format": "€#,##0.00",
@@ -636,13 +631,15 @@ def export_sales_report():
             "valign": "vcenter",
             "border": 1,
         })
-        percent_fmt = wb.add_format({
-            "num_format": "0.00%",
+        sold_text_fmt = wb.add_format({"align": "center", "valign": "vcenter", "border": 1, "bg_color": "#D9E1F2"})
+        sold_money_fmt = wb.add_format({
+            "num_format": "€#,##0.00",
             "align": "center",
             "valign": "vcenter",
             "border": 1,
+            "bg_color": "#D9E1F2",
         })
-        sold_fmt = wb.add_format({"bg_color": "#D9E1F2"})
+        percent_fmt = wb.add_format({"num_format": "0.00%", "align": "center", "valign": "vcenter", "border": 1})
 
         stat_lbl_fmt = wb.add_format({
             "bold": True,
@@ -671,36 +668,68 @@ def export_sales_report():
             "border": 1,
         })
 
-        for col_idx, col in enumerate(df_loc.columns):
-            nice = {
-                "pret_vanzare": "Preț Vânzare",
-                "data_start": "Data start",
-                "data_end": "Data end",
-            }.get(col, col.capitalize())
-            ws.write(0, col_idx, nice, hdr_fmt)
-            max_len = max(len(str(nice)), df_loc[col].astype(str).map(len).max())
-            fmt = money_fmt if col in ("ratecard", "pret_vanzare") else text_fmt
-            ws.set_column(col_idx, col_idx, max_len + 2, fmt)
+        money_cols = {"Ratecard/month", "PRET DE VANZARE"}
 
-        for row_idx, sold in enumerate(sold_mask, start=1):
-            if sold:
-                ws.set_row(row_idx, None, sold_fmt)
+        def write_sheet(name, df_sheet):
+            df_sheet = df_sheet.copy()
+            df_sheet["Perioada"] = ""
+            mask = df_sheet["data_start"].notna() & df_sheet["data_end"].notna()
+            df_sheet.loc[mask, "Perioada"] = (
+                df_sheet.loc[mask, "data_start"].dt.strftime("%d.%m.%Y")
+                + " → "
+                + df_sheet.loc[mask, "data_end"].dt.strftime("%d.%m.%Y")
+            )
+            df_sheet = df_sheet[[
+                "city", "county", "address", "type", "size", "sqm", "illumination",
+                "ratecard", "pret_vanzare", "client", "Perioada", "status"
+            ]]
+            df_sheet.columns = [
+                "City", "County", "Address", "Type", "Size", "SQM", "Illum",
+                "Ratecard/month", "PRET DE VANZARE", "Client", "Perioada", "status"
+            ]
+            df_sheet.insert(0, "Nr", range(1, len(df_sheet) + 1))
 
-        start = len(df_loc) + 2
-        ws.write(start, 0, "% Locații vândute", stat_lbl_fmt)
-        ws.write(start, 1, pct_sold, stat_percent_fmt)
-        ws.write(start + 1, 0, "% Locații nevândute", stat_lbl_fmt)
-        ws.write(start + 1, 1, pct_free, stat_percent_fmt)
-        ws.write(start + 2, 0, "Sumă locații vândute", stat_lbl_fmt)
-        ws.write(start + 2, 1, sum_sold, stat_money_fmt)
-        ws.write(start + 3, 0, "Sumă locații libere", stat_lbl_fmt)
-        ws.write(start + 3, 1, sum_free, stat_money_fmt)
+            ws = wb.add_worksheet(name)
+            writer.sheets[name] = ws
 
-        # foi pe luni cu rezervările
+            for col_idx, col_name in enumerate(df_sheet.columns[:-1]):
+                ws.write(0, col_idx, col_name, hdr_fmt)
+
+            for row_idx, row in enumerate(df_sheet.itertuples(index=False), start=1):
+                sold = row.status == "Închiriat"
+                for col_idx, value in enumerate(row[:-1]):
+                    col_name = df_sheet.columns[col_idx]
+                    if col_name in money_cols:
+                        fmt = sold_money_fmt if sold else money_fmt
+                    else:
+                        fmt = sold_text_fmt if sold else text_fmt
+                    ws.write(row_idx, col_idx, value, fmt)
+
+            for idx, col_name in enumerate(df_sheet.columns[:-1]):
+                if col_name in money_cols:
+                    vals = pd.to_numeric(df_sheet[col_name], errors="coerce").fillna(0)
+                    formatted = [f"€{v:,.2f}" for v in vals]
+                    max_len = max(len(col_name), *(len(v) for v in formatted))
+                else:
+                    max_len = max(len(col_name), df_sheet[col_name].astype(str).map(len).max())
+                ws.set_column(idx, idx, max_len + 2)
+
+            start = len(df_sheet) + 2
+            ws.merge_range(start, 0, start, len(df_sheet.columns) - 2, "% Locații vândute", stat_lbl_fmt)
+            ws.write(start, len(df_sheet.columns) - 1, pct_sold, stat_percent_fmt)
+            ws.merge_range(start + 1, 0, start + 1, len(df_sheet.columns) - 2, "% Locații nevândute", stat_lbl_fmt)
+            ws.write(start + 1, len(df_sheet.columns) - 1, pct_free, stat_percent_fmt)
+            ws.merge_range(start + 2, 0, start + 2, len(df_sheet.columns) - 2, "Sumă locații vândute", stat_lbl_fmt)
+            ws.write(start + 2, len(df_sheet.columns) - 1, sum_sold, stat_money_fmt)
+            ws.merge_range(start + 3, 0, start + 3, len(df_sheet.columns) - 2, "Sumă locații libere", stat_lbl_fmt)
+            ws.write(start + 3, len(df_sheet.columns) - 1, sum_free, stat_money_fmt)
+
+        current_year = datetime.date.today().year
+        current_month = datetime.date.today().month
         df_rez = pd.read_sql_query(
             """
-            SELECT l.grup, l.city, l.county, l.address,
-                   r.client, r.data_start, r.data_end, r.suma
+            SELECT l.city, l.county, l.address, l.type, l.size, l.sqm, l.illumination,
+                   l.ratecard, l.pret_vanzare, r.client, r.data_start, r.data_end, l.status
               FROM rezervari r
               JOIN locatii l ON r.loc_id = l.id
              ORDER BY r.data_start
@@ -709,29 +738,25 @@ def export_sales_report():
             parse_dates=["data_start", "data_end"],
         )
 
-        if not df_rez.empty:
-            current_year = datetime.date.today().year
-            for month in range(1, 13):
-                start_m = pd.Timestamp(current_year, month, 1)
-                end_m = start_m + pd.offsets.MonthEnd(0)
-                mask = (df_rez["data_end"] >= start_m) & (df_rez["data_start"] <= end_m)
-                sub = df_rez.loc[mask]
-                if sub.empty:
-                    continue
-                name = start_m.strftime("%B")
-                sub = sub.copy()
-                sub["Perioadă"] = sub["data_start"].dt.strftime("%d.%m.%Y") + " → " + sub["data_end"].dt.strftime("%d.%m.%Y")
-                sub = sub[["grup", "city", "county", "address", "client", "Perioadă", "suma"]]
-                sub.to_excel(writer, sheet_name=name, startrow=0, index=False, header=False)
-                ws_m = writer.sheets[name]
-                for idx, col in enumerate(sub.columns):
-                    nice = {"suma": "Sumă"}.get(col, col.capitalize())
-                    ws_m.write(0, idx, nice, hdr_fmt)
-                    max_len = max(len(str(nice)), sub[col].astype(str).map(len).max())
-                    fmt = money_fmt if col == "suma" else text_fmt
-                    ws_m.set_column(idx, idx, max_len + 2, fmt)
+        # Pagina pentru luna curentă
+        m_start = pd.Timestamp(current_year, current_month, 1)
+        m_end = m_start + pd.offsets.MonthEnd(0)
+        mask = (df_rez["data_end"] >= m_start) & (df_rez["data_start"] <= m_end)
+        cur_df = df_rez.loc[mask]
+        if not cur_df.empty:
+            write_sheet(m_start.strftime("%B"), cur_df)
 
-    messagebox.showinfo("Export Excel", f"Raport salvat:\n{path}")
+        for month in range(1, 13):
+            start_m = pd.Timestamp(current_year, month, 1)
+            end_m = start_m + pd.offsets.MonthEnd(0)
+            mask = (df_rez["data_end"] >= start_m) & (df_rez["data_start"] <= end_m)
+            sub = df_rez.loc[mask]
+            if sub.empty or month == current_month:
+                continue
+            name = start_m.strftime("%B")
+            write_sheet(name, sub)
+
+        messagebox.showinfo("Export Excel", f"Raport salvat:\n{path}")
 
 
 
@@ -824,58 +849,58 @@ def open_offer_window(tree):
 
         # Funcție comună de scriere Excel
         def write_excel(df_export):
-            df_export = df_export.sort_values(by=['City','CODE'])
+            df_export = df_export.sort_values(by=['City', 'CODE'])
             df_export.insert(0, 'No.', range(1, len(df_export) + 1))
 
             fp = filedialog.asksaveasfilename(
                 defaultextension='.xlsx',
-                filetypes=[('Excel','*.xlsx')],
+                filetypes=[('Excel', '*.xlsx')],
                 title='Salvează oferta'
             )
             if not fp:
                 return
+
             with pd.ExcelWriter(fp, engine='xlsxwriter') as writer:
                 sheet = 'Ofertă'
-                df_export.to_excel(writer, sheet_name=sheet, startrow=2, header=False, index=False)
                 wb = writer.book
-                ws = writer.sheets[sheet]
+                ws = wb.add_worksheet(sheet)
+                writer.sheets[sheet] = ws
 
-                # Formate
-                title_fmt = wb.add_format({'align':'center','valign':'vcenter','bold':True,'font_size':14})
-                hdr_fmt   = wb.add_format({'align':'center','valign':'vcenter','bold':True,'bg_color':'#4F81BD','font_color':'white','border':1})
-                txt_fmt   = wb.add_format({'align':'center','valign':'vcenter','border':1})
-                money_fmt = wb.add_format({'align':'center','valign':'vcenter','num_format':'€#,##0.00','border':1})
-                link_fmt  = wb.add_format({'font_color':'blue','underline':True,'align':'center','valign':'vcenter','border':1})
+                title_fmt = wb.add_format({'align': 'center', 'valign': 'vcenter', 'bold': True, 'font_size': 14})
+                hdr_fmt = wb.add_format({'align': 'center', 'valign': 'vcenter', 'bold': True, 'bg_color': '#4F81BD', 'font_color': 'white', 'border': 1})
+                txt_fmt = wb.add_format({'align': 'center', 'valign': 'vcenter', 'border': 1})
+                money_fmt = wb.add_format({'align': 'center', 'valign': 'vcenter', 'num_format': '€#,##0.00', 'border': 1})
+                link_fmt = wb.add_format({'font_color': 'blue', 'underline': True, 'align': 'center', 'valign': 'vcenter', 'border': 1})
+                percent_fmt = wb.add_format({'align': 'center', 'valign': 'vcenter', 'num_format': '0.00%', 'border': 1})
 
-                # Titlu
-                last_col = chr(ord('A') + len(df_export.columns) - 1)
-                ws.merge_range(f'A1:{last_col}1', 'OFERTĂ PERSONALIZATĂ', title_fmt)
+                last_col = len(df_export.columns) - 1
+                ws.merge_range(0, 0, 0, last_col, 'OFERTĂ PERSONALIZATĂ', title_fmt)
 
-                # Antet
                 for col_idx, hdr in enumerate(df_export.columns):
                     ws.write(1, col_idx, hdr, hdr_fmt)
 
-                # Formatare coloane
-                # Definire formate
-                money_fmt   = wb.add_format({'align':'center','valign':'vcenter','num_format':'€#,##0.00','border':1})
-                txt_fmt     = wb.add_format({'align':'center','valign':'vcenter','border':1})
-                percent_fmt = wb.add_format({'align':'center','valign':'vcenter','num_format':'0.00%','border':1})
-            
-                # Listă coloane după format
-                money_cols   = ['Base Price','Final Price','Installation & Removal','Production']
-                percent_cols = ['% Discount']
-                for idx, col in enumerate(df_export.columns):
-                    # calculează cel mai lung text pentru auto-fit
-                    max_len = max(df_export[col].astype(str).map(len).max(), len(col))
-                    if col in money_cols:
-                        fmt = money_fmt
-                    elif col in percent_cols:
-                        fmt = percent_fmt
-                    else:
-                        fmt = txt_fmt
-                    ws.set_column(idx, idx, max_len + 2, fmt)
+                money_cols = {'Base Price', 'Final Price', 'Installation & Removal', 'Production'}
+                percent_cols = {'% Discount'}
 
-                # Hyperlink GPS
+                for row_idx, row in enumerate(df_export.itertuples(index=False), start=2):
+                    for col_idx, value in enumerate(row):
+                        col_name = df_export.columns[col_idx]
+                        if col_name in money_cols:
+                            fmt = money_fmt
+                        elif col_name in percent_cols:
+                            fmt = percent_fmt
+                        else:
+                            fmt = txt_fmt
+                        ws.write(row_idx, col_idx, value, fmt)
+
+                for idx, col in enumerate(df_export.columns):
+                    if col in money_cols:
+                        vals = pd.to_numeric(df_export[col], errors='coerce').fillna(0)
+                        width = max(len(col), *(len(f"€{v:,.2f}") for v in vals)) + 2
+                    else:
+                        width = max(len(col), df_export[col].astype(str).map(len).max()) + 2
+                    ws.set_column(idx, idx, width)
+
                 gps_idx = df_export.columns.get_loc('GPS')
                 for r, coord in enumerate(df_export['GPS'], start=2):
                     if isinstance(coord, str) and coord.strip():
@@ -883,12 +908,11 @@ def open_offer_window(tree):
                                      f"https://www.google.com/maps/search/?api=1&query={coord.strip()}",
                                      link_fmt, string='Maps')
 
-                # Hyperlink Photo Link
                 photo_idx = df_export.columns.get_loc('Photo Link')
                 for r, url in enumerate(df_export['Photo Link'], start=2):
                     if isinstance(url, str) and url.strip():
                         link = url.strip()
-                        if not link.lower().startswith(('http://','https://')):
+                        if not link.lower().startswith(('http://', 'https://')):
                             link = 'https://' + link
                         ws.write_url(r, photo_idx, link, link_fmt, string='Photo')
 
