@@ -1,25 +1,23 @@
 # UI/dialogs.py
-import webbrowser
-from utils import make_preview
 import os
-import tkinter as tk
-from tkinter import filedialog, ttk, messagebox
-from tkcalendar import DateEntry
-import pandas as pd
-from db import conn, update_statusuri_din_rezervari
 import datetime
-from db import conn
-from tkinter import messagebox, filedialog
-from tkinter import simpledialog
+import webbrowser
+import tkinter as tk
+from tkinter import filedialog, messagebox, simpledialog, ttk
+
+import pandas as pd
+from tkcalendar import DateEntry
 import xlsxwriter
-from utils import PREVIEW_FOLDER
-from db import conn
+
+from utils import PREVIEW_FOLDER, make_preview
+from db import conn, update_statusuri_din_rezervari
 def get_db_path():
     # presupunând că baza locatii.db stă în folderul de nivel superior proiectului
     base_dir = os.path.dirname(os.path.dirname(__file__))
     return os.path.join(base_dir, "locatii.db")
 
 def open_detail_window(tree, event):
+    """Display extended information about the selected location."""
     rowid = tree.identify_row(event.y)
     if not rowid:
         return
