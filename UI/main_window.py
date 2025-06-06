@@ -99,6 +99,9 @@ def start_app():
     default_font.configure(family="Segoe UI", size=12)
     root.option_add("*Font", default_font)
 
+    menu_font = tkfont.nametofont("TkMenuFont")
+    menu_font.configure(family="Segoe UI", size=14)
+
     style.configure("TButton", padding=(8, 4), font=("Segoe UI", 12))
     style.configure("Treeview.Heading", font=("Segoe UI", 12, "bold"))
     style.configure("Treeview", rowheight=28, font=("Segoe UI", 11))
@@ -106,6 +109,7 @@ def start_app():
     def apply_scale(scale):
         root.tk.call("tk", "scaling", scale)
         default_font.configure(size=int(12 * scale))
+        menu_font.configure(size=int(14 * scale))
         style.configure(
             "TButton",
             padding=(int(8 * scale), int(4 * scale)),
@@ -134,9 +138,13 @@ def start_app():
     root.minsize(800, 600)
 
     def set_default_view():
-        set_view("Compact")
+        set_view("Full HD")
 
     set_default_view()
+    try:
+        root.state('zoomed')
+    except tk.TclError:
+        root.attributes('-zoomed', True)
 
     menu = tk.Menu(root)
     view_menu = tk.Menu(menu, tearoff=0)
