@@ -552,6 +552,10 @@ def export_available_excel(
                     vals = pd.to_numeric(sub_df[col_name], errors='coerce').fillna(0)
                     formatted = [f"€{v:,.2f}" for v in vals]
                     max_len = max(len(col_name), *(len(v) for v in formatted))
+                elif col_name == 'GPS':
+                    max_len = max(len(col_name), len('Maps'))
+                elif col_name == 'Photo Link':
+                    max_len = max(len(col_name), len('Photo'))
                 else:
                     max_len = max(len(col_name), sub_df[col_name].astype(str).map(len).max())
                 ws.set_column(idx, idx, max_len + 2)
@@ -899,6 +903,10 @@ def open_offer_window(tree):
                     if col in money_cols:
                         vals = pd.to_numeric(df_export[col], errors='coerce').fillna(0)
                         width = max(len(col), *(len(f"€{v:,.2f}") for v in vals)) + 2
+                    elif col == 'GPS':
+                        width = max(len(col), len('Maps')) + 2
+                    elif col == 'Photo Link':
+                        width = max(len(col), len('Photo')) + 2
                     else:
                         width = max(len(col), df_export[col].astype(str).map(len).max()) + 2
                     ws.set_column(idx, idx, width)
