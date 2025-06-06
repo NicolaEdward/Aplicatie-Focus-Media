@@ -122,8 +122,8 @@ def start_app():
         )
 
     VIEW_SIZES = {
-        "Compact": (BASE_WIDTH, BASE_HEIGHT, 1.0),
-        "Full HD": (1920, 1080, 1.5),
+        "Compact": (BASE_WIDTH, BASE_HEIGHT, 0.9),
+        "Full HD": (1920, 1080, 1.0),
     }
 
     def set_view(view):
@@ -134,11 +134,7 @@ def start_app():
     root.minsize(800, 600)
 
     def set_default_view():
-        sw, sh = root.winfo_screenwidth(), root.winfo_screenheight()
-        if sw >= 1920 and sh >= 1080:
-            set_view("Full HD")
-        else:
-            set_view("Compact")
+        set_view("Compact")
 
     set_default_view()
 
