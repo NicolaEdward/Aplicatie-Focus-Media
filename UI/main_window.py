@@ -5,6 +5,11 @@ import shutil
 import datetime
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
+
+try:
+    from ttkbootstrap import Style
+except Exception:
+    Style = None
 from tkcalendar import DateEntry
 
 from db import conn, cursor, update_statusuri_din_rezervari
@@ -25,9 +30,25 @@ from UI.dialogs import (
 
 
 def start_app():
-    root = tk.Tk()
+    if Style:
+        style = Style("flatly")
+        root = style.master
+    else:
+        root = tk.Tk()
+        style = ttk.Style(root)
+        try:
+            style.theme_use("clam")
+        except tk.TclError:
+            pass
+
     root.title("Gestionare Locații Publicitare")
     root.geometry("1200x600")
+
+    root.option_add("*Font", "Segoe UI 11")
+    style.configure("TButton", padding=(8, 4), font=("Segoe UI", 11))
+    style.configure("Treeview.Heading", font=("Segoe UI", 11, "bold"))
+    style.configure("Treeview", rowheight=24, font=("Segoe UI", 10))
+    root.eval('tk::PlaceWindow . center')
 
     # --- Top: filtre Grup, Status, Căutare, Interval ---
     frm_top = ttk.Frame(root, padding=10)
@@ -87,6 +108,12 @@ def start_app():
     vsb.pack(side="left", fill="y")
     tree.configure(yscroll=vsb.set)
 
+    tree.tag_configure("evenrow", background="#f7f7f7")
+    tree.tag_configure("oddrow", background="#ffffff")
+    tree.tag_configure("available", background="#e8ffe8")
+    tree.tag_configure("reserved", background="#fff5cc")
+    tree.tag_configure("rented", background="#ffe8e8")
+
     tree.bind("<Double-1>", lambda e: open_detail_window(tree, e))
     tree.bind("<<TreeviewSelect>>", lambda e: on_tree_select())
 
@@ -124,9 +151,11 @@ def start_app():
     # --- Bottom: butoane principale (stânga) și export (dreapta) ---
     frm_bot = ttk.Frame(root, padding=10)
     frm_bot.pack(fill="x", side="bottom")
+    frm_bot.columnconfigure(0, weight=1)
+    frm_bot.columnconfigure(1, weight=1)
 
     primary_frame = ttk.Frame(frm_bot)
-    primary_frame.pack(side="left")
+    primary_frame.grid(row=0, column=0, sticky="w")
     btn_add     = ttk.Button(primary_frame, text="Adaugă",
                              command=lambda: open_add_window(root, load_locations))
     btn_edit    = ttk.Button(primary_frame, text="Editează", state="disabled",
@@ -139,11 +168,11 @@ def start_app():
     btn_clients = ttk.Button(primary_frame, text="Clienți",
                              command=lambda: open_clients_window(root))
     for w in (btn_add, btn_edit, btn_rent, btn_release, btn_delete, btn_clients):
-        w.pack(side="left", padx=5)
+        w.pack(side="left", padx=5, pady=5)
 
 
     export_frame = ttk.Frame(frm_bot)
-    export_frame.pack(side="right")
+    export_frame.grid(row=0, column=1, sticky="e")
     btn_xlsx  = ttk.Button(export_frame, text="Export Disponibil",
                            command=lambda: export_available_excel(
                                combo_group.get(), combo_status.get(),
@@ -156,9 +185,9 @@ def start_app():
                            command=lambda: open_offer_window(tree))
     btn_report = ttk.Button(export_frame, text="Raport Vânzări",
                            command=lambda: export_sales_report())
-    btn_xlsx.pack(side="left", padx=5)
-    btn_offer.pack(side="left", padx=5)
-    btn_report.pack(side="left", padx=5)
+    btn_xlsx.pack(side="left", padx=5, pady=5)
+    btn_offer.pack(side="left", padx=5, pady=5)
+    btn_report.pack(side="left", padx=5, pady=5)
 
 
 
