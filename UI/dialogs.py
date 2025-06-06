@@ -505,9 +505,9 @@ def export_available_excel(
     # 6) Scriem Excel: câte o foaie per grup
     with pd.ExcelWriter(fp, engine='xlsxwriter') as writer:
         wb = writer.book
-        center_fmt = wb.add_format({'align':'center','valign':'vcenter'})
-        money_fmt  = wb.add_format({'num_format':'€#,##0.00','align':'center','valign':'vcenter'})
-        link_fmt   = wb.add_format({'font_color':'blue','underline':True,'align':'center','valign':'vcenter'})
+        center_fmt = wb.add_format({'align':'center','valign':'vcenter','border':1})
+        money_fmt  = wb.add_format({'num_format':'€#,##0.00','align':'center','valign':'vcenter','border':1})
+        link_fmt   = wb.add_format({'font_color':'blue','underline':True,'align':'center','valign':'vcenter','border':1})
         title_fmt  = wb.add_format({'bold':True,'font_size':14,'align':'center','valign':'vcenter'})
         hdr_fmt    = wb.add_format({
             'bold':True,'bg_color':'#4F81BD','font_color':'white',
@@ -541,35 +541,15 @@ def export_available_excel(
             for idx, name in enumerate(sub_df.columns):
                 ws.write(startrow, idx, name, hdr_fmt)
 
-            # coloanele A–J
-            widths = {"A":5,"B":12,"C":12,"D":30,
-                      "E":12,"F":15,"G":15,"H":15,
-                      "I": 8,"J": 12}
-            for col, w in widths.items():
-                ws.set_column(f"{col}:{col}", w, center_fmt)
-
-            # Rate Card (K)
-            k = sub_df.columns.get_loc('Rate Card')
-            col_k = chr(ord('A') + k)
-            ws.set_column(f"{col_k}:{col_k}", 12, money_fmt)
-
-            # Installation & Removal (L) – auto-fit numeric values
-            l = sub_df.columns.get_loc('Installation & Removal')
-            col_l = chr(ord('A') + l)
-            # Convertim la numeric și completăm cu 0
-            install_vals = pd.to_numeric(sub_df['Installation & Removal'], errors='coerce').fillna(0)
-            max_len = max(
-                len("Installation & Removal"),
-                *(len(f"€{v:,.2f}") for v in install_vals)
-            )
-            ws.set_column(f"{col_l}:{col_l}", max_len + 2, money_fmt)
-
-            # Availability (M) – auto-fit
-            a = sub_df.columns.get_loc('Availability')
-            col_a = chr(ord('A') + a)
-            texts = sub_df['Availability'].tolist()
-            max_len = max(len("Availability"), *(len(t) for t in texts))
-            ws.set_column(f"{col_a}:{col_a}", max_len + 2, center_fmt)
+            for idx, col_name in enumerate(sub_df.columns):
+                if col_name == 'Rate Card' or col_name == 'Installation & Removal':
+                    vals = pd.to_numeric(sub_df[col_name], errors='coerce').fillna(0)
+                    max_len = max(len(col_name), *(len(f"€{v:,.2f}") for v in vals))
+                    fmt = money_fmt
+                else:
+                    max_len = max(len(col_name), sub_df[col_name].astype(str).map(len).max())
+                    fmt = center_fmt
+                ws.set_column(idx, idx, max_len + 2, fmt)
 
             # hyperlink GPS → Maps
             gi = sub_df.columns.get_loc('GPS')
@@ -630,8 +610,12 @@ def export_sales_report():
     if not path:
         return
 
+    # Formatăm datele ca string fără oră
+    df_loc["data_start"] = df_loc["data_start"].dt.strftime("%d.%m.%Y")
+    df_loc["data_end"] = df_loc["data_end"].dt.strftime("%d.%m.%Y")
+
     with pd.ExcelWriter(path, engine="xlsxwriter") as writer:
-        df_loc.to_excel(writer, sheet_name="Total", startrow=0, index=False)
+        df_loc.to_excel(writer, sheet_name="Total", startrow=0, index=False, header=False)
         wb = writer.book
         ws = writer.sheets["Total"]
 
@@ -645,9 +629,47 @@ def export_sales_report():
                 "border": 1,
             }
         )
-        money_fmt = wb.add_format({"num_format": "€#,##0.00", "align": "center"})
-        percent_fmt = wb.add_format({"num_format": "0.00%", "align": "center"})
+        text_fmt = wb.add_format({"align": "center", "valign": "vcenter", "border": 1})
+        money_fmt = wb.add_format({
+            "num_format": "€#,##0.00",
+            "align": "center",
+            "valign": "vcenter",
+            "border": 1,
+        })
+        percent_fmt = wb.add_format({
+            "num_format": "0.00%",
+            "align": "center",
+            "valign": "vcenter",
+            "border": 1,
+        })
         sold_fmt = wb.add_format({"bg_color": "#D9E1F2"})
+
+        stat_lbl_fmt = wb.add_format({
+            "bold": True,
+            "bg_color": "#FFF2CC",
+            "font_size": 12,
+            "align": "center",
+            "valign": "vcenter",
+            "border": 1,
+        })
+        stat_money_fmt = wb.add_format({
+            "num_format": "€#,##0.00",
+            "bold": True,
+            "bg_color": "#FFF2CC",
+            "font_size": 12,
+            "align": "center",
+            "valign": "vcenter",
+            "border": 1,
+        })
+        stat_percent_fmt = wb.add_format({
+            "num_format": "0.00%",
+            "bold": True,
+            "bg_color": "#FFF2CC",
+            "font_size": 12,
+            "align": "center",
+            "valign": "vcenter",
+            "border": 1,
+        })
 
         for col_idx, col in enumerate(df_loc.columns):
             nice = {
@@ -657,7 +679,7 @@ def export_sales_report():
             }.get(col, col.capitalize())
             ws.write(0, col_idx, nice, hdr_fmt)
             max_len = max(len(str(nice)), df_loc[col].astype(str).map(len).max())
-            fmt = money_fmt if col in ("ratecard", "pret_vanzare") else None
+            fmt = money_fmt if col in ("ratecard", "pret_vanzare") else text_fmt
             ws.set_column(col_idx, col_idx, max_len + 2, fmt)
 
         for row_idx, sold in enumerate(sold_mask, start=1):
@@ -665,14 +687,14 @@ def export_sales_report():
                 ws.set_row(row_idx, None, sold_fmt)
 
         start = len(df_loc) + 2
-        ws.write(start, 0, "% Locații vândute")
-        ws.write(start, 1, pct_sold, percent_fmt)
-        ws.write(start + 1, 0, "% Locații nevândute")
-        ws.write(start + 1, 1, pct_free, percent_fmt)
-        ws.write(start + 2, 0, "Sumă locații vândute")
-        ws.write(start + 2, 1, sum_sold, money_fmt)
-        ws.write(start + 3, 0, "Sumă locații libere")
-        ws.write(start + 3, 1, sum_free, money_fmt)
+        ws.write(start, 0, "% Locații vândute", stat_lbl_fmt)
+        ws.write(start, 1, pct_sold, stat_percent_fmt)
+        ws.write(start + 1, 0, "% Locații nevândute", stat_lbl_fmt)
+        ws.write(start + 1, 1, pct_free, stat_percent_fmt)
+        ws.write(start + 2, 0, "Sumă locații vândute", stat_lbl_fmt)
+        ws.write(start + 2, 1, sum_sold, stat_money_fmt)
+        ws.write(start + 3, 0, "Sumă locații libere", stat_lbl_fmt)
+        ws.write(start + 3, 1, sum_free, stat_money_fmt)
 
         # foi pe luni cu rezervările
         df_rez = pd.read_sql_query(
@@ -700,12 +722,14 @@ def export_sales_report():
                 sub = sub.copy()
                 sub["Perioadă"] = sub["data_start"].dt.strftime("%d.%m.%Y") + " → " + sub["data_end"].dt.strftime("%d.%m.%Y")
                 sub = sub[["grup", "city", "county", "address", "client", "Perioadă", "suma"]]
-                sub.to_excel(writer, sheet_name=name, index=False)
+                sub.to_excel(writer, sheet_name=name, startrow=0, index=False, header=False)
                 ws_m = writer.sheets[name]
-                for i, col in enumerate(sub.columns):
-                    fmt = money_fmt if col == "suma" else None
-                    max_len = max(len(col), sub[col].astype(str).map(len).max())
-                    ws_m.set_column(i, i, max_len + 2, fmt)
+                for idx, col in enumerate(sub.columns):
+                    nice = {"suma": "Sumă"}.get(col, col.capitalize())
+                    ws_m.write(0, idx, nice, hdr_fmt)
+                    max_len = max(len(str(nice)), sub[col].astype(str).map(len).max())
+                    fmt = money_fmt if col == "suma" else text_fmt
+                    ws_m.set_column(idx, idx, max_len + 2, fmt)
 
     messagebox.showinfo("Export Excel", f"Raport salvat:\n{path}")
 
@@ -819,9 +843,9 @@ def open_offer_window(tree):
                 # Formate
                 title_fmt = wb.add_format({'align':'center','valign':'vcenter','bold':True,'font_size':14})
                 hdr_fmt   = wb.add_format({'align':'center','valign':'vcenter','bold':True,'bg_color':'#4F81BD','font_color':'white','border':1})
-                txt_fmt   = wb.add_format({'align':'center','valign':'vcenter'})
-                money_fmt = wb.add_format({'align':'center','valign':'vcenter','num_format':'€#,##0.00'})
-                link_fmt  = wb.add_format({'font_color':'blue','underline':True,'align':'center','valign':'vcenter'})
+                txt_fmt   = wb.add_format({'align':'center','valign':'vcenter','border':1})
+                money_fmt = wb.add_format({'align':'center','valign':'vcenter','num_format':'€#,##0.00','border':1})
+                link_fmt  = wb.add_format({'font_color':'blue','underline':True,'align':'center','valign':'vcenter','border':1})
 
                 # Titlu
                 last_col = chr(ord('A') + len(df_export.columns) - 1)
@@ -833,9 +857,9 @@ def open_offer_window(tree):
 
                 # Formatare coloane
                 # Definire formate
-                money_fmt   = wb.add_format({'align':'center','valign':'vcenter','num_format':'€#,##0.00'})
-                txt_fmt     = wb.add_format({'align':'center','valign':'vcenter'})
-                percent_fmt = wb.add_format({'align':'center','valign':'vcenter','num_format':'0.00%'})
+                money_fmt   = wb.add_format({'align':'center','valign':'vcenter','num_format':'€#,##0.00','border':1})
+                txt_fmt     = wb.add_format({'align':'center','valign':'vcenter','border':1})
+                percent_fmt = wb.add_format({'align':'center','valign':'vcenter','num_format':'0.00%','border':1})
             
                 # Listă coloane după format
                 money_cols   = ['Base Price','Final Price','Installation & Removal','Production']
