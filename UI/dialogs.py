@@ -558,6 +558,86 @@ def export_available_excel(
     messagebox.showinfo("Export Excel", f"Am salvat locațiile în:\n{fp}")
 
 
+def export_sales_report():
+    """Exportă un raport cu toate locațiile și statisticile de vânzări.
+
+    Rândurile cu status ``Închiriat`` sunt evidențiate cu albastru deschis.
+    La final sunt afișate procentele și sumele pentru locațiile vândute și
+    cele nevândute.
+    """
+    import pandas as pd
+    from tkinter import messagebox, filedialog
+    from db import conn
+
+    df = pd.read_sql_query(
+        """
+        SELECT city, county, address, status, ratecard, pret_vanzare
+          FROM locatii
+         ORDER BY county, city, id
+        """,
+        conn,
+    )
+
+    if df.empty:
+        messagebox.showinfo("Export Excel", "Nu există locații în baza de date.")
+        return
+
+    sold_mask = df["status"] == "Închiriat"
+    pct_sold = sold_mask.mean()
+    pct_free = 1 - pct_sold
+    sum_sold = df.loc[sold_mask, "pret_vanzare"].fillna(0).sum()
+    sum_free = df.loc[~sold_mask, "pret_vanzare"].fillna(0).sum()
+
+    path = filedialog.asksaveasfilename(
+        defaultextension=".xlsx",
+        filetypes=[("Excel", "*.xlsx")],
+        title="Salvează raportul Excel",
+    )
+    if not path:
+        return
+
+    with pd.ExcelWriter(path, engine="xlsxwriter") as writer:
+        df.to_excel(writer, sheet_name="Raport", startrow=0, index=False)
+        wb = writer.book
+        ws = writer.sheets["Raport"]
+
+        hdr_fmt = wb.add_format(
+            {
+                "bold": True,
+                "bg_color": "#4F81BD",
+                "font_color": "white",
+                "align": "center",
+                "valign": "vcenter",
+                "border": 1,
+            }
+        )
+        money_fmt = wb.add_format({"num_format": "€#,##0.00", "align": "center"})
+        percent_fmt = wb.add_format({"num_format": "0.00%", "align": "center"})
+        sold_fmt = wb.add_format({"bg_color": "#D9E1F2"})
+
+        for col_idx, col in enumerate(df.columns):
+            ws.write(0, col_idx, col.replace("pret_vanzare", "Preț Vânzare"), hdr_fmt)
+            max_len = max(len(col), df[col].astype(str).map(len).max())
+            fmt = money_fmt if col in ("ratecard", "pret_vanzare") else None
+            ws.set_column(col_idx, col_idx, max_len + 2, fmt)
+
+        for row_idx, sold in enumerate(sold_mask, start=1):
+            if sold:
+                ws.set_row(row_idx, None, sold_fmt)
+
+        start = len(df) + 2
+        ws.write(start, 0, "% Locații vândute")
+        ws.write(start, 1, pct_sold, percent_fmt)
+        ws.write(start + 1, 0, "% Locații nevândute")
+        ws.write(start + 1, 1, pct_free, percent_fmt)
+        ws.write(start + 2, 0, "Sumă locații vândute")
+        ws.write(start + 2, 1, sum_sold, money_fmt)
+        ws.write(start + 3, 0, "Sumă locații libere")
+        ws.write(start + 3, 1, sum_free, money_fmt)
+
+    messagebox.showinfo("Export Excel", f"Raport salvat:\n{path}")
+
+
 
 
 

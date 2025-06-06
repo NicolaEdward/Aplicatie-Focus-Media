@@ -17,7 +17,8 @@ from UI.dialogs import (
     open_rent_window,
     cancel_reservation,
     open_offer_window,
-    export_available_excel
+    export_available_excel,
+    export_sales_report
 )
 
 def start_app():
@@ -139,8 +140,11 @@ def start_app():
                            ))
     btn_offer = ttk.Button(export_frame, text="Export Ofertă",
                            command=lambda: open_offer_window(tree))
+    btn_report = ttk.Button(export_frame, text="Raport Vânzări",
+                           command=lambda: export_sales_report())
     btn_xlsx.pack(side="left", padx=5)
     btn_offer.pack(side="left", padx=5)
+    btn_report.pack(side="left", padx=5)
 
     selected_id = [None]
 
