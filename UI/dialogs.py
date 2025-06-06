@@ -376,7 +376,7 @@ def open_rent_window(root, loc_id, load_cb):
         win.destroy()
 
     ttk.Button(win, text="Confirmă închiriere", command=save_rent)\
-        .grid(row=len(labels)+1, column=0, columnspan=3, pady=10)
+        .grid(row=len(labels)+2, column=0, columnspan=3, pady=10)
 
 
 def open_release_window(root, loc_id, load_cb):
@@ -977,7 +977,7 @@ def open_add_client_window(parent, refresh_cb=None):
             refresh_cb()
         win.destroy()
 
-    ttk.Button(win, text="Salvează", command=save).grid(row=len(labels), column=0, columnspan=2, pady=10)
+    ttk.Button(win, text="Salvează", command=save).grid(row=len(labels)+1, column=0, columnspan=2, pady=10)
 
 
 def export_client_backup(month, year, client_id=None):
