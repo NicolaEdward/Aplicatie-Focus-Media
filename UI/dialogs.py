@@ -671,7 +671,7 @@ def export_sales_report():
             "border": 1,
         })
 
-        money_cols = {"Ratecard/month", "PRET DE VANZARE"}
+        money_cols = {"Ratecard/month", "PRET DE VANZARE", "PRET DE INCHIRIERE"}
 
         def write_sheet(name, df_sheet):
             df_sheet = df_sheet.copy()
@@ -684,11 +684,11 @@ def export_sales_report():
             )
             df_sheet = df_sheet[[
                 "city", "county", "address", "type", "size", "sqm", "illumination",
-                "ratecard", "pret_vanzare", "client", "Perioada", "status"
+                "ratecard", "pret_vanzare", "suma", "client", "Perioada", "status"
             ]]
             df_sheet.columns = [
                 "City", "County", "Address", "Type", "Size", "SQM", "Illum",
-                "Ratecard/month", "PRET DE VANZARE", "Client", "Perioada", "status"
+                "Ratecard/month", "PRET DE VANZARE", "PRET DE INCHIRIERE", "Client", "Perioada", "status"
             ]
             df_sheet.insert(0, "Nr", range(1, len(df_sheet) + 1))
 
@@ -702,6 +702,8 @@ def export_sales_report():
                 sold = row.status == "Închiriat"
                 for col_idx, value in enumerate(row[:-1]):
                     col_name = df_sheet.columns[col_idx]
+                    if pd.isna(value):
+                        value = ""
                     if col_name in money_cols:
                         fmt = sold_money_fmt if sold else money_fmt
                     else:
@@ -726,13 +728,19 @@ def export_sales_report():
             ws.write(start + 2, len(df_sheet.columns) - 1, sum_sold, stat_money_fmt)
             ws.merge_range(start + 3, 0, start + 3, len(df_sheet.columns) - 2, "Sumă locații libere", stat_lbl_fmt)
             ws.write(start + 3, len(df_sheet.columns) - 1, sum_free, stat_money_fmt)
+            sum_rent = pd.to_numeric(df_sheet["PRET DE INCHIRIERE"], errors="coerce").fillna(0).sum()
+            sum_sale = pd.to_numeric(df_sheet["PRET DE VANZARE"], errors="coerce").fillna(0).sum()
+            ws.merge_range(start + 4, 0, start + 4, len(df_sheet.columns) - 2, "Sumă chirii", stat_lbl_fmt)
+            ws.write(start + 4, len(df_sheet.columns) - 1, sum_rent, stat_money_fmt)
+            ws.merge_range(start + 5, 0, start + 5, len(df_sheet.columns) - 2, "Diferență vânzare - închiriere", stat_lbl_fmt)
+            ws.write(start + 5, len(df_sheet.columns) - 1, sum_sale - sum_rent, stat_money_fmt)
 
         current_year = datetime.date.today().year
         current_month = datetime.date.today().month
         df_rez = pd.read_sql_query(
             """
             SELECT l.id, l.grup, l.city, l.county, l.address, l.type, l.size, l.sqm, l.illumination,
-                   l.ratecard, l.pret_vanzare, r.client, r.data_start, r.data_end
+                   l.ratecard, l.pret_vanzare, r.client, r.data_start, r.data_end, r.suma
               FROM rezervari r
               JOIN locatii l ON r.loc_id = l.id
              ORDER BY r.data_start
@@ -752,7 +760,7 @@ def export_sales_report():
             mask = (df_rez["data_end"] >= start_m) & (df_rez["data_start"] <= end_m)
             sub = df_rez.loc[mask]
             sub = sub.sort_values("data_start").groupby("id", as_index=False).first()
-            df_month = df_base.merge(sub[["id","client","data_start","data_end"]], on="id", how="left")
+            df_month = df_base.merge(sub[["id","client","data_start","data_end","suma"]], on="id", how="left")
             df_month["status"] = df_month["client"].apply(lambda x: "Închiriat" if pd.notna(x) else "Disponibil")
             df_month = df_month.sort_values(["pret_vanzare","grup"])
             name = start_m.strftime("%B")
