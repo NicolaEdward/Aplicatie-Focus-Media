@@ -13,11 +13,10 @@ from UI.dialogs import (
     open_detail_window,
     open_add_window,
     open_edit_window,
-    open_reserve_window,
     open_rent_window,
-    cancel_reservation,
     open_offer_window,
-    export_available_excel
+    export_available_excel,
+    export_sales_report
 )
 
 def start_app():
@@ -109,6 +108,8 @@ def start_app():
     lbl_pret_vanz_value    = ttk.Label(details, text="-")
     lbl_pret_flot_label    = ttk.Label(details, text="Preț flotant:")
     lbl_pret_flot_value    = ttk.Label(details, text="-")
+    lbl_sum_label          = ttk.Label(details, text="Sumă închiriere:")
+    lbl_sum_value          = ttk.Label(details, text="-")
 
     # --- Bottom: butoane principale (stânga) și export (dreapta) ---
     frm_bot = ttk.Frame(root, padding=10)
@@ -120,11 +121,10 @@ def start_app():
                              command=lambda: open_add_window(root, load_locations))
     btn_edit    = ttk.Button(primary_frame, text="Editează", state="disabled",
                              command=lambda: open_edit_window(root, selected_id[0], load_locations, refresh_groups))
-    btn_reserve = ttk.Button(primary_frame, text="Rezervă", state="disabled")
     btn_rent    = ttk.Button(primary_frame, text="Închiriază", state="disabled")
     btn_delete  = ttk.Button(primary_frame, text="Șterge", state="disabled",
                              command=lambda: delete_location())
-    for w in (btn_add, btn_edit, btn_reserve, btn_rent, btn_delete):
+    for w in (btn_add, btn_edit, btn_rent, btn_delete):
         w.pack(side="left", padx=5)
 
     export_frame = ttk.Frame(frm_bot)
@@ -139,8 +139,11 @@ def start_app():
                            ))
     btn_offer = ttk.Button(export_frame, text="Export Ofertă",
                            command=lambda: open_offer_window(tree))
+    btn_report = ttk.Button(export_frame, text="Raport Vânzări",
+                           command=lambda: export_sales_report())
     btn_xlsx.pack(side="left", padx=5)
     btn_offer.pack(side="left", padx=5)
+    btn_report.pack(side="left", padx=5)
 
     selected_id = [None]
 
@@ -181,14 +184,7 @@ def start_app():
         # îl folosim doar în availability()
         d0, d1 = start_dt.isoformat(), end_dt.isoformat()
 
-        # 5) Interogarea inițială doar pe tabelă locatii
-        q = """
-            SELECT id, city, county, address, type, status, ratecard
-            FROM locatii
-        """
-        if cond:
-            q += " WHERE " + " AND ".join(cond)
-
+        # 5) Interogarea inițială doar pe tabelă ``locatii``
         q = """
             SELECT id, city, county, address, type, ratecard
             FROM locatii
@@ -219,22 +215,27 @@ def start_app():
         # 6) Funcție locală pentru a afla disponibilitatea pe interval
         def availability(loc_id):
             rez = cursor.execute(
-                "SELECT data_start, data_end FROM rezervari WHERE loc_id=? ORDER BY data_start",
-                (loc_id,)
+                "SELECT client, data_start, data_end FROM rezervari WHERE loc_id=? ORDER BY data_start",
+                (loc_id,),
             ).fetchall()
-            periods = [(datetime.date.fromisoformat(ds), datetime.date.fromisoformat(de)) for ds,de in rez]
-            overl = [(ds,de) for ds,de in periods if not (de < start_dt or ds > end_dt)]
+            periods = [
+                (c, datetime.date.fromisoformat(ds), datetime.date.fromisoformat(de))
+                for c, ds, de in rez
+            ]
+            overl = [p for p in periods if not (p[2] < start_dt or p[1] > end_dt)]
             if not overl:
                 return "Disponibil"
-            first_ds = overl[0][0]
+            first_c, first_ds, first_de = overl[0]
+            if start_dt >= first_ds and end_dt <= first_de:
+                return f"Închiriat de {first_c}"
             if first_ds > start_dt:
                 until = (first_ds - datetime.timedelta(days=1)).strftime('%d.%m.%Y')
                 return f"Disponibil până la {until}"
-            last_de = overl[-1][1]
+            last_c, last_ds, last_de = overl[-1]
             if last_de < end_dt:
                 frm = (last_de + datetime.timedelta(days=1)).strftime('%d.%m.%Y')
                 return f"Disponibil din {frm}"
-            return ""  # complet acoperit
+            return f"Închiriat de {first_c}"
 
         # 7) Populează TreeView, aplicând filtrul de date doar când "Toate datele" NU e bifat
         display_index = 0
@@ -274,14 +275,14 @@ def start_app():
             lbl_period_label, lbl_period_value,
             lbl_ratecard_label, lbl_ratecard_value,
             lbl_pret_vanz_label, lbl_pret_vanz_value,
-            lbl_pret_flot_label, lbl_pret_flot_value
+            lbl_pret_flot_label, lbl_pret_flot_value,
+            lbl_sum_label, lbl_sum_value
         ):
             w.pack_forget()
 
         sel = tree.selection()
         if not sel:
             btn_edit.config(state='disabled')
-            btn_reserve.config(state='disabled')
             btn_rent.config(state='disabled')
             btn_delete.config(state='disabled')
             img_label.config(image="", text="")
@@ -295,6 +296,11 @@ def start_app():
             "SELECT code, client, data_start, data_end, ratecard, pret_vanzare, pret_flotant "
             "FROM locatii WHERE id=?", (loc_id,)
         ).fetchone()
+        rent_sum = cursor.execute(
+            "SELECT suma FROM rezervari WHERE loc_id=? AND ? BETWEEN data_start AND data_end ORDER BY data_start DESC LIMIT 1",
+            (loc_id, datetime.date.today().isoformat())
+        ).fetchone()
+        lbl_sum_value.config(text=str(rent_sum[0]) if rent_sum else "-")
 
         # actualizare valori
         lbl_client_value.config(text=client or "-")
@@ -319,6 +325,8 @@ def start_app():
             lbl_client_value.pack(anchor="center", pady=2)
             lbl_period_label.pack(anchor="center", pady=2)
             lbl_period_value.pack(anchor="center", pady=2)
+            lbl_sum_label.pack(anchor="center", pady=2)
+            lbl_sum_value.pack(anchor="center", pady=2)
             lbl_pret_vanz_label.pack(anchor="center", pady=2)
             lbl_pret_vanz_value.pack(anchor="center", pady=2)
         else:
@@ -330,14 +338,6 @@ def start_app():
             lbl_pret_flot_value.pack(anchor="center", pady=2)
 
         btn_edit.config(state='normal')
-        if status == 'Disponibil':
-            btn_reserve.config(text="Rezervă", state='normal',
-                               command=lambda: open_reserve_window(root, loc_id, load_locations))
-        elif status == 'Rezervat':
-            btn_reserve.config(text="Anulează rezervarea", state='normal',
-                               command=lambda: cancel_reservation(root, loc_id, load_locations))
-        else:
-            btn_reserve.config(state='disabled')
 
         if status in ('Disponibil', 'Rezervat'):
             btn_rent.config(text="Închiriază", state='normal',
@@ -365,15 +365,17 @@ def start_app():
             load_locations()
 
     def release_and_refresh():
-        if not messagebox.askyesno("Confirmă", "Eliberează și șterge istoricul?"):
+        if not messagebox.askyesno("Confirmă", "Încheie mai devreme închirierea?"):
             return
         cur = conn.cursor()
-        cur.execute("""
-            UPDATE locatii 
-            SET status='Disponibil', client=NULL, data_start=NULL, data_end=NULL, pret_vanzare=NULL 
-            WHERE id=?
-        """, (selected_id[0],))
-        cur.execute("DELETE FROM rezervari WHERE loc_id=?", (selected_id[0],))
+        cur.execute(
+            "DELETE FROM rezervari WHERE loc_id=? AND ? BETWEEN data_start AND data_end",
+            (selected_id[0], datetime.date.today().isoformat()),
+        )
+        cur.execute(
+            "UPDATE locatii SET status='Disponibil', client=NULL, client_id=NULL, data_start=NULL, data_end=NULL WHERE id=?",
+            (selected_id[0],),
+        )
         conn.commit()
         update_statusuri_din_rezervari()
         load_locations()
