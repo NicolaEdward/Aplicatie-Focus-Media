@@ -1316,26 +1316,33 @@ def open_clients_window(root):
     refresh()
 
 def export_vendor_report():
-    """Export monthly sales totals per vendor."""
+    """Exporta un raport detaliat pentru fiecare vânzător."""
     import pandas as pd
     from tkinter import filedialog, messagebox
     from db import conn
-    users = pd.read_sql_query("SELECT username, comune FROM users WHERE role='seller'", conn)
+
+    users = pd.read_sql_query(
+        "SELECT username, comune FROM users WHERE role='seller'", conn
+    )
     if users.empty:
         messagebox.showinfo("Raport", "Nu există vânzători.")
         return
+
     df = pd.read_sql_query(
         """
-        SELECT r.created_by, r.suma, r.data_start, l.county
+        SELECT r.created_by, r.suma, r.data_start, r.data_end,
+               l.city, l.county, l.address
           FROM rezervari r
           JOIN locatii l ON r.loc_id = l.id
         """,
         conn,
-        parse_dates=["data_start"],
+        parse_dates=["data_start", "data_end"],
     )
+
     if df.empty:
         messagebox.showinfo("Raport", "Nu există închirieri.")
         return
+
     path = filedialog.asksaveasfilename(
         defaultextension=".xlsx",
         filetypes=[("Excel", "*.xlsx")],
@@ -1343,19 +1350,73 @@ def export_vendor_report():
     )
     if not path:
         return
+
     with pd.ExcelWriter(path, engine="xlsxwriter") as writer:
+        wb = writer.book
+        hdr_fmt = wb.add_format({
+            "bold": True,
+            "bg_color": "#4F81BD",
+            "font_color": "white",
+            "align": "center",
+        })
+        money_fmt = wb.add_format({"num_format": "€#,##0.00", "align": "center"})
+        center_fmt = wb.add_format({"align": "center"})
+
         for _, row in users.iterrows():
             uname = row["username"]
-            comune = set((row["comune"] or "").split(','))
+            comune = {c for c in (row["comune"] or "").split(',') if c}
             sub = df[df["created_by"] == uname]
             if comune:
                 sub = sub[sub["county"].isin(comune)]
             if sub.empty:
                 continue
+
+            sub = sub.copy()
+            days = (sub["data_end"] - sub["data_start"]).dt.days + 1
+            sub["Luni"] = days / 30
+            sub["Chirie/lună"] = sub["suma"] / sub["Luni"]
+            sub["Valoare"] = sub["suma"]
+
+            df_det = sub[[
+                "city",
+                "county",
+                "address",
+                "Chirie/lună",
+                "Luni",
+                "Valoare",
+            ]].copy()
+            df_det.columns = [
+                "Oraș",
+                "Județ",
+                "Adresă",
+                "Chirie/lună",
+                "Luni",
+                "Valoare",
+            ]
+            df_det.insert(0, "Nr.crt", range(1, len(df_det) + 1))
+
+            sheet = uname[:31]
+            df_det.to_excel(writer, sheet_name=sheet, index=False, startrow=0)
+
+            ws = writer.sheets[sheet]
+            for col_idx, col in enumerate(df_det.columns):
+                width = max(len(str(col)), df_det[col].astype(str).map(len).max()) + 2
+                fmt = money_fmt if col in {"Chirie/lună", "Valoare"} else center_fmt
+                ws.set_column(col_idx, col_idx, width, fmt)
+                ws.write(0, col_idx, col, hdr_fmt)
+
             sub["Month"] = sub["data_start"].dt.to_period("M").dt.strftime("%B")
-            summary = sub.groupby("Month")["suma"].sum().reset_index()
-            summary.columns = ["Luna", "Total"]
-            summary.to_excel(writer, sheet_name=uname[:31], index=False)
+            stats = sub.groupby("Month")["suma"].sum().reset_index()
+            stats.columns = ["Luna", "Total"]
+
+            start = len(df_det) + 3
+            ws.write(start - 1, 0, "Statistici lunare", hdr_fmt)
+            ws.write_row(start, 0, stats.columns, hdr_fmt)
+            for i, r in stats.iterrows():
+                ws.write(start + 1 + i, 0, r["Luna"], center_fmt)
+                ws.write(start + 1 + i, 1, r["Total"], money_fmt)
+            ws.set_column(0, 1, 15)
+
     messagebox.showinfo("Raport", f"Raport salvat:\n{path}")
 
 def open_users_window(root):
