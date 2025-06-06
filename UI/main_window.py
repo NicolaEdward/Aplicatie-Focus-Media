@@ -9,9 +9,57 @@ from tkinter import ttk, messagebox, filedialog
 
 try:
     from ttkbootstrap import Style
+    from ttkbootstrap import style as _ttkstyle
 except Exception:
     Style = None
-from tkcalendar import DateEntry
+from tkcalendar import DateEntry as _DateEntry, Calendar as _Calendar
+
+# Work around a compatibility issue between ``tkcalendar.DateEntry`` and
+# ``ttkbootstrap``.  The style patches applied by ``ttkbootstrap`` call the
+# widget ``configure`` method before ``tkcalendar.DateEntry`` has initialised
+# its internal ``_calendar`` attribute which results in an ``AttributeError``
+# at construction time.  We intercept the call and delegate to ``ttk.Entry``
+# until the calendar component is available.
+from tkinter import ttk
+
+def _safe_dateentry_config(self, cnf=None, **kw):
+    if not hasattr(self, "_calendar"):
+        return ttk.Entry.configure(self, cnf, **kw)
+    if cnf is None:
+        cnf = {}
+    return _orig_dateentry_config(self, cnf, **kw)
+
+_orig_dateentry_config = _DateEntry.configure
+_DateEntry.configure = _safe_dateentry_config
+_DateEntry.config = _safe_dateentry_config
+
+# ``ttkbootstrap`` triggers ``Calendar.configure`` before the widget is fully
+# initialised which causes ``_properties`` to be undefined.  Apply the same
+# protective wrapper used for ``DateEntry``.
+_orig_calendar_config = _Calendar.configure
+
+def _safe_calendar_config(self, cnf=None, **kw):
+    if not hasattr(self, "_properties"):
+        return ttk.Frame.configure(self, cnf, **kw)
+    if cnf is None:
+        cnf = {}
+    return _orig_calendar_config(self, cnf, **kw)
+
+_Calendar.configure = _safe_calendar_config
+_Calendar.config = _safe_calendar_config
+
+DateEntry = _DateEntry
+
+if Style:
+    _orig_update_style = _ttkstyle.Bootstyle.update_ttk_widget_style
+
+    def _safe_update_ttk_widget_style(widget=None, style_string=None, **kwargs):
+        try:
+            return _orig_update_style(widget, style_string, **kwargs)
+        except Exception:
+            return style_string
+
+    _ttkstyle.Bootstyle.update_ttk_widget_style = staticmethod(_safe_update_ttk_widget_style)
 
 from db import conn, cursor, update_statusuri_din_rezervari
 from utils import make_preview, get_schita_path
