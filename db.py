@@ -36,6 +36,7 @@ def init_db():
         face TEXT DEFAULT 'Fața A'
     )
     """)
+    init_clienti_table()
     init_rezervari_table()
     conn.commit()
     
@@ -60,18 +61,34 @@ def init_db():
             cursor.execute(f"ALTER TABLE locatii ADD COLUMN {col} {definition}")
             conn.commit()
 
+def init_clienti_table():
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS clienti (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            nume TEXT UNIQUE NOT NULL
+        )
+    """)
+    conn.commit()
+
 def init_rezervari_table():
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS rezervari (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         loc_id INTEGER NOT NULL,
         client TEXT NOT NULL,
+        client_id INTEGER,
         data_start TEXT NOT NULL,
         data_end TEXT NOT NULL,
         suma REAL,
-        FOREIGN KEY(loc_id) REFERENCES locatii(id)
+        FOREIGN KEY(loc_id) REFERENCES locatii(id),
+        FOREIGN KEY(client_id) REFERENCES clienti(id)
     )
     """)
+    # Adăugare coloana client_id dacă lipsește (migrare simplă)
+    cols = {c[1] for c in cursor.execute("PRAGMA table_info(rezervari)").fetchall()}
+    if "client_id" not in cols:
+        cursor.execute("ALTER TABLE rezervari ADD COLUMN client_id INTEGER")
+        conn.commit()
     conn.commit()
 def update_statusuri_din_rezervari():
     today = datetime.date.today().isoformat()
