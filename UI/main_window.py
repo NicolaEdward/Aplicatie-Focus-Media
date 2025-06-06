@@ -146,13 +146,30 @@ def start_app():
     except tk.TclError:
         root.attributes('-zoomed', True)
 
+    def _maximize():
+        """Maximize the application window."""
+        try:
+            root.state('zoomed')
+        except tk.TclError:
+            root.attributes('-zoomed', True)
+
+    def _normalize():
+        """Restore window to the default size."""
+        try:
+            root.state('normal')
+        except tk.TclError:
+            root.attributes('-zoomed', False)
+        set_view("Compact")
+
     def toggle_fullscreen(event=None):
-        """Toggle fullscreen mode."""
-        root.attributes('-fullscreen', not root.attributes('-fullscreen'))
+        """Toggle maximized mode."""
+        if root.state() == 'normal' and not root.attributes('-zoomed'):
+            _maximize()
+        else:
+            _normalize()
 
     root.bind('<F11>', toggle_fullscreen)
-    root.bind('<Escape>', lambda e: root.attributes('-fullscreen', False))
-    root.attributes('-fullscreen', True)
+    root.bind('<Escape>', lambda e: _normalize())
 
     menu = tk.Menu(root)
     view_menu = tk.Menu(menu, tearoff=0)
