@@ -92,8 +92,8 @@ def start_app():
 
     root.title("Gestionare Locații Publicitare")
 
-    BASE_WIDTH = 1280
-    BASE_HEIGHT = 720
+    BASE_WIDTH = 1920
+    BASE_HEIGHT = 1080
 
     default_font = tkfont.nametofont("TkDefaultFont")
     default_font.configure(family="Segoe UI", size=12)
@@ -125,22 +125,14 @@ def start_app():
             font=("Segoe UI", int(11 * scale)),
         )
 
-    VIEW_SIZES = {
-        "Compact": (BASE_WIDTH, BASE_HEIGHT, 0.9),
-        "Full HD": (1920, 1080, 1.0),
-    }
-
-    def set_view(view):
-        w, h, scale = VIEW_SIZES[view]
-        root.geometry(f"{w}x{h}")
-        apply_scale(scale)
+    def _set_geometry():
+        """Configure the window geometry for a full HD layout."""
+        root.geometry(f"{BASE_WIDTH}x{BASE_HEIGHT}")
+        apply_scale(1.0)
 
     root.minsize(800, 600)
 
-    def set_default_view():
-        set_view("Full HD")
-
-    set_default_view()
+    _set_geometry()
     try:
         root.state('zoomed')
     except tk.TclError:
@@ -159,7 +151,7 @@ def start_app():
             root.state('normal')
         except tk.TclError:
             root.attributes('-zoomed', False)
-        set_view("Compact")
+        _set_geometry()
 
     def toggle_fullscreen(event=None):
         """Toggle maximized mode."""
@@ -171,12 +163,6 @@ def start_app():
     root.bind('<F11>', toggle_fullscreen)
     root.bind('<Escape>', lambda e: _normalize())
 
-    menu = tk.Menu(root)
-    view_menu = tk.Menu(menu, tearoff=0)
-    for v in VIEW_SIZES:
-        view_menu.add_command(label=v, command=lambda v=v: set_view(v))
-    menu.add_cascade(label="View", menu=view_menu)
-    root.config(menu=menu)
 
     root.eval('tk::PlaceWindow . center')
 
