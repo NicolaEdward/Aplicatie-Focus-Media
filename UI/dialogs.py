@@ -292,9 +292,13 @@ def open_rent_window(root, loc_id, load_cb):
     cb_client.grid(row=0, column=1, padx=5, pady=5)
     ttk.Button(win, text="+", command=lambda: (open_add_client_window(win, lambda: cb_client.configure(values=client_list())))).grid(row=0, column=2, padx=2, pady=5)
 
+    ttk.Label(win, text="Client final (dacă agenție):").grid(row=1, column=0, sticky="e", padx=5, pady=5)
+    entry_final = ttk.Entry(win, width=30)
+    entry_final.grid(row=1, column=1, padx=5, pady=5)
+
     labels = ["Data start", "Data end", "Sumă finală"]
     entries = {}
-    for i, lbl in enumerate(labels, start=1):
+    for i, lbl in enumerate(labels, start=2):
         ttk.Label(win, text=lbl + ":").grid(row=i, column=0, sticky="e", padx=5, pady=5)
         if "Data" in lbl:
             e = DateEntry(win, date_pattern="yyyy-mm-dd")
@@ -308,6 +312,24 @@ def open_rent_window(root, loc_id, load_cb):
         if not client:
             messagebox.showwarning("Lipsește client", "Completează client.")
             return
+
+        cur = conn.cursor()
+        row = cur.execute("SELECT id, tip FROM clienti WHERE nume=?", (client,)).fetchone()
+        if row:
+            client_id, tip = row
+        else:
+            cur.execute("INSERT INTO clienti (nume) VALUES (?)", (client,))
+            conn.commit()
+            client_id = cur.lastrowid
+            tip = "direct"
+
+        final_client = entry_final.get().strip()
+        client_display = client
+        if tip == "agency":
+            if not final_client:
+                messagebox.showwarning("Lipsește client final", "Completează clientul final.")
+                return
+            client_display = f"{client} - {final_client}"
 
         start = entries["Data start"].get_date()
         end = entries["Data end"].get_date()
@@ -327,12 +349,6 @@ def open_rent_window(root, loc_id, load_cb):
 
         cur = conn.cursor()
 
-        # adaugă clientul în tabela dedicată dacă nu există
-        cur.execute("INSERT OR IGNORE INTO clienti (nume) VALUES (?)", (client,))
-        client_id = cur.execute(
-            "SELECT id FROM clienti WHERE nume=?", (client,)
-        ).fetchone()[0]
-
         # verificăm suprapuneri cu alte perioade
         overlap = cur.execute(
             "SELECT 1 FROM rezervari WHERE loc_id=? AND NOT (data_end < ? OR data_start > ?)",
@@ -349,7 +365,7 @@ def open_rent_window(root, loc_id, load_cb):
         cur.execute(
             "INSERT INTO rezervari (loc_id, client, client_id, data_start, data_end, suma)"
             " VALUES (?, ?, ?, ?, ?, ?)",
-            (loc_id, client, client_id, start.isoformat(), end.isoformat(), fee_val),
+            (loc_id, client_display, client_id, start.isoformat(), end.isoformat(), fee_val),
         )
         conn.commit()
 
@@ -896,6 +912,11 @@ def open_add_client_window(parent, refresh_cb=None):
         e.grid(row=i, column=1, padx=5, pady=2)
         entries[lbl] = e
 
+    ttk.Label(win, text="Tip:").grid(row=len(labels), column=0, sticky="e", padx=5, pady=2)
+    cb_tip = ttk.Combobox(win, values=["direct", "agency"], state="readonly", width=37)
+    cb_tip.current(0)
+    cb_tip.grid(row=len(labels), column=1, padx=5, pady=2)
+
     def save():
         nume = entries["Nume companie"].get().strip()
         if not nume:
@@ -903,13 +924,14 @@ def open_add_client_window(parent, refresh_cb=None):
             return
         cur = conn.cursor()
         cur.execute(
-            "INSERT INTO clienti (nume, contact, email, phone, observatii) VALUES (?,?,?,?,?)",
+            "INSERT INTO clienti (nume, contact, email, phone, observatii, tip) VALUES (?,?,?,?,?,?)",
             (
                 nume,
                 entries["Persoană contact"].get().strip(),
                 entries["Email"].get().strip(),
                 entries["Telefon"].get().strip(),
                 entries["Observații"].get().strip(),
+                cb_tip.get() or "direct",
             ),
         )
         conn.commit()
@@ -921,8 +943,9 @@ def open_add_client_window(parent, refresh_cb=None):
 
 
 def export_client_backup(month, year, client_id=None):
-    """Exportă un backup de facturare pentru luna dată."""
+    """Exportă un backup de facturare pentru luna dată, formatat în Excel."""
     import calendar
+    import pandas as pd
 
     days_in_month = calendar.monthrange(year, month)[1]
     start_m = datetime.date(year, month, 1)
@@ -930,7 +953,8 @@ def export_client_backup(month, year, client_id=None):
 
     cur = conn.cursor()
     sql = (
-        "SELECT c.nume, l.address, r.data_start, r.data_end, r.suma, r.client_id "
+        "SELECT c.nume, l.city, l.address, l.code, l.type, l.sqm, "
+        "r.data_start, r.data_end, r.suma, r.client_id "
         "FROM rezervari r "
         "JOIN locatii l ON r.loc_id = l.id "
         "JOIN clienti c ON r.client_id = c.id "
@@ -940,29 +964,92 @@ def export_client_backup(month, year, client_id=None):
     if client_id:
         sql += " AND r.client_id=?"
         params.append(client_id)
+
     rows = cur.execute(sql, params).fetchall()
     if not rows:
         messagebox.showinfo("Export", "Nu există închirieri pentru perioada aleasă.")
         return
 
     data = []
-    for nume, addr, ds, de, price, cid in rows:
-        ds = datetime.date.fromisoformat(ds)
-        de = datetime.date.fromisoformat(de)
-        ov_start = max(ds, start_m)
-        ov_end = min(de, end_m)
+    for nume, city, addr, code, typ, sqm, ds, de, price, cid in rows:
+        ds_dt = datetime.date.fromisoformat(ds)
+        de_dt = datetime.date.fromisoformat(de)
+        ov_start = max(ds_dt, start_m)
+        ov_end = min(de_dt, end_m)
         days = (ov_end - ov_start).days + 1
-        amount = price * days / days_in_month
-        data.append([nume, addr, ds, de, price, days, amount])
+        frac = days / days_in_month
+        amount = price * frac
+        data.append([
+            city,
+            addr,
+            code,
+            typ,
+            sqm,
+            ds_dt,
+            de_dt,
+            frac,
+            "EUR",
+            price,
+            amount,
+            0.0,
+            0.0,
+            nume,
+        ])
 
     df = pd.DataFrame(
         data,
-        columns=["Client", "Address", "Start", "End", "Monthly Price", "Days", "Amount"],
+        columns=[
+            "City",
+            "Address",
+            "Code",
+            "Type",
+            "SQM",
+            "Data start",
+            "Data end",
+            "Perioada",
+            "Valuta",
+            "Preț chirie/lună",
+            "Chirie net",
+            "Decoration",
+            "Production",
+            "Client",
+        ],
     )
+
+    df["Perioada"] = df["Perioada"].round(2)
+
+    df.insert(0, "Nr. Crt", range(1, len(df) + 1))
+
+    total_rent = df["Chirie net"].sum()
+    total_deco = df["Decoration"].sum()
+    total_prod = df["Production"].sum()
+
     path = filedialog.asksaveasfilename(defaultextension=".xlsx", filetypes=[("Excel", "*.xlsx")])
     if not path:
         return
-    df.to_excel(path, index=False, engine="xlsxwriter")
+
+    with pd.ExcelWriter(path, engine="xlsxwriter") as writer:
+        df.to_excel(writer, sheet_name="Backup", index=False, startrow=0)
+        wb = writer.book
+        ws = writer.sheets["Backup"]
+
+        hdr_fmt = wb.add_format({"bold": True, "bg_color": "#4F81BD", "font_color": "white", "align": "center"})
+        euro_fmt = wb.add_format({"num_format": "€#,##0.00", "align": "center"})
+        center_fmt = wb.add_format({"align": "center"})
+
+        money_cols = {"Preț chirie/lună", "Chirie net", "Decoration", "Production"}
+        for col_idx, col in enumerate(df.columns):
+            width = max(len(str(col)), df[col].astype(str).map(len).max()) + 2
+            fmt = euro_fmt if col in money_cols else center_fmt
+            ws.set_column(col_idx, col_idx, width, fmt)
+            ws.write(0, col_idx, col, hdr_fmt)
+
+        row_tot = len(df) + 1
+        ws.write(row_tot, 0, "Total", wb.add_format({"bold": True}))
+        ws.write(row_tot, df.columns.get_loc("Chirie net"), total_rent, euro_fmt)
+        ws.write(row_tot, df.columns.get_loc("Decoration"), total_deco, euro_fmt)
+        ws.write(row_tot, df.columns.get_loc("Production"), total_prod, euro_fmt)
+
     messagebox.showinfo("Export", f"Backup salvat:\n{path}")
 
 
@@ -971,7 +1058,7 @@ def open_clients_window(root):
     win = tk.Toplevel(root)
     win.title("Clienți")
 
-    cols = ("Nume", "Contact", "Email", "Telefon", "Observații")
+    cols = ("Nume", "Tip", "Contact", "Email", "Telefon", "Observații")
     tree = ttk.Treeview(win, columns=cols, show="headings")
     for col in cols:
         tree.heading(col, text=col)
@@ -988,10 +1075,10 @@ def open_clients_window(root):
     def refresh():
         tree.delete(*tree.get_children())
         rows = conn.cursor().execute(
-            "SELECT id, nume, contact, email, phone, observatii FROM clienti ORDER BY nume"
+            "SELECT id, nume, tip, contact, email, phone, observatii FROM clienti ORDER BY nume"
         ).fetchall()
-        for cid, nume, contact, email, phone, obs in rows:
-            tree.insert("", "end", iid=str(cid), values=(nume, contact, email, phone, obs or ""))
+        for cid, nume, tip, contact, email, phone, obs in rows:
+            tree.insert("", "end", iid=str(cid), values=(nume, tip or "direct", contact, email, phone, obs or ""))
 
     def add_client():
         open_add_client_window(win, refresh)

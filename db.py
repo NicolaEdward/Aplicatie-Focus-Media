@@ -75,7 +75,8 @@ def init_clienti_table():
             contact TEXT,
             email TEXT,
             phone TEXT,
-            observatii TEXT
+            observatii TEXT,
+            tip TEXT DEFAULT 'direct'
         )
         """
     )
@@ -86,6 +87,7 @@ def init_clienti_table():
         "email": "TEXT",
         "phone": "TEXT",
         "observatii": "TEXT",
+        "tip": "TEXT DEFAULT 'direct'",
     }
     for col, definition in to_add.items():
         if col not in cols:
