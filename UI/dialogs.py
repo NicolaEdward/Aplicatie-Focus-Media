@@ -24,7 +24,7 @@ def open_detail_window(tree, event):
     if not rowid:
         return
     loc_id = int(rowid)     # folosim iid-ul (id-ul real din DB), nu valoarea din coloane
-    # … restul rămâne neschimbat
+    # extrage detaliile locației și le afișează într-o fereastră dedicată
 
     # preia datele specifice
     cur = conn.cursor()
@@ -161,7 +161,7 @@ def open_add_window(root, refresh_cb):
     labels = [
         "City", "County", "Address", "Type", "GPS", "Code",
         "Size", "Photo Link", "SQM", "Illumination", "RateCard",
-        "Pret Vanzare", "Pret Flotant", "Decoration cost",
+        "Preț Vânzare", "Pret Flotant", "Decoration cost",
         "Observații", "Grup", "Față"
     ]
     entries = {}
@@ -193,7 +193,7 @@ def open_add_window(root, refresh_cb):
             vals["GPS"], vals["Code"], vals["Size"],
             vals["Photo Link"], vals["SQM"], vals["Illumination"],
             vals["RateCard"],
-            vals["Pret Vanzare"] or None,
+            vals["Preț Vânzare"] or None,
             vals["Pret Flotant"] or None,
             vals["Decoration cost"] or None,
             vals["Observații"], vals["Grup"], vals["Față"]
@@ -223,7 +223,7 @@ def open_edit_window(root, loc_id, load_cb, refresh_groups_cb):
     labels = [
         "City", "County", "Address", "Type", "GPS", "Code",
         "Size", "Photo Link", "SQM", "Illumination", "RateCard",
-        "Pret Vanzare", "Pret Flotant", "Decoration cost",
+        "Preț Vânzare", "Pret Flotant", "Decoration cost",
         "Observații", "Grup", "Față"
     ]
 
@@ -265,7 +265,7 @@ def open_edit_window(root, loc_id, load_cb, refresh_groups_cb):
             vals["GPS"], vals["Code"], vals["Size"],
             vals["Photo Link"], vals["SQM"], vals["Illumination"],
             vals["RateCard"],
-            vals["Pret Vanzare"] or None,
+            vals["Preț Vânzare"] or None,
             vals["Pret Flotant"] or None,
             vals["Decoration cost"] or None,
             vals["Observații"], vals["Grup"], vals["Față"],
@@ -306,14 +306,22 @@ def cancel_reservation(root, loc_id, load_cb):
     load_cb()
 
 def open_rent_window(root, loc_id, load_cb):
+    """Dialog pentru adăugarea unei închirieri în tabelul ``rezervari``.
+
+    Perioada aleasă trebuie să nu se suprapună peste o rezervare sau o
+    închiriere existentă pentru aceeași locație. După salvare statusurile sunt
+    recalculate prin ``update_statusuri_din_rezervari``.
+    """
+
     win = tk.Toplevel(root)
     win.title(f"Închiriază locația #{loc_id}")
+
     labels = ["Client", "Data start", "Data end", "Sumă finală"]
     entries = {}
 
     for i, lbl in enumerate(labels):
         ttk.Label(win, text=lbl + ":")\
-           .grid(row=i, column=0, sticky="e", padx=5, pady=5)
+            .grid(row=i, column=0, sticky="e", padx=5, pady=5)
         if "Data" in lbl:
             e = DateEntry(win, date_pattern="yyyy-mm-dd")
         else:
@@ -323,56 +331,62 @@ def open_rent_window(root, loc_id, load_cb):
 
     def save_rent():
         client = entries["Client"].get().strip()
-        # validare client
         if not client:
             messagebox.showwarning("Lipsește client", "Completează client.")
             return
 
-        # date
         start = entries["Data start"].get_date()
-        end   = entries["Data end"].get_date()
+        end = entries["Data end"].get_date()
         if start > end:
-            messagebox.showwarning("Interval incorect", "«Data start» trebuie înainte de «Data end».")
+            messagebox.showwarning(
+                "Interval incorect",
+                "«Data start» trebuie înainte de «Data end».",
+            )
             return
 
-        # sumă finală
         fee_txt = entries["Sumă finală"].get().strip()
         try:
             fee_val = float(fee_txt)
-        except:
+        except ValueError:
             messagebox.showwarning("Sumă invalidă", "Introdu o sumă numerică.")
             return
 
-        # INSERARE ÎN TABELUL rezervari
         cur = conn.cursor()
-        cur.execute("""
-            INSERT INTO rezervari (loc_id, client, data_start, data_end, suma)
-            VALUES (?, ?, ?, ?, ?)
-        """, (loc_id, client, start.isoformat(), end.isoformat(), fee_val))
+
+        # adaugă clientul în tabela dedicată dacă nu există
+        cur.execute("INSERT OR IGNORE INTO clienti (nume) VALUES (?)", (client,))
+        client_id = cur.execute(
+            "SELECT id FROM clienti WHERE nume=?", (client,)
+        ).fetchone()[0]
+
+        # verificăm suprapuneri cu alte perioade
+        overlap = cur.execute(
+            "SELECT 1 FROM rezervari WHERE loc_id=? AND NOT (data_end < ? OR data_start > ?)",
+            (loc_id, start.isoformat(), end.isoformat()),
+        ).fetchone()
+        if overlap:
+            messagebox.showerror(
+                "Perioadă ocupată",
+                "Locația este deja rezervată sau închiriată în intervalul ales.",
+            )
+            return
+
+        # inserăm noua închiriere
+        cur.execute(
+            "INSERT INTO rezervari (loc_id, client, client_id, data_start, data_end, suma)"
+            " VALUES (?, ?, ?, ?, ?, ?)",
+            (loc_id, client, client_id, start.isoformat(), end.isoformat(), fee_val),
+        )
         conn.commit()
 
-        # Marcheză statusurile pentru azi
+        # actualizăm statusurile pe baza tuturor rezervărilor
         update_statusuri_din_rezervari()
 
-        # Dacă rezervarea începe în viitor, marchează-l imediat ca Rezervat
-        today = datetime.date.today()
-        if start > today:
-            cur.execute("""
-                UPDATE locatii
-                   SET status='Rezervat',
-                       client   = ?,
-                       data_start = ?,
-                       data_end   = ?
-                 WHERE id = ?
-            """, (client, start.isoformat(), end.isoformat(), loc_id))
-            conn.commit()
-
-        # Reîncarcă lista și închide dialogul
         load_cb()
         win.destroy()
 
     ttk.Button(win, text="Confirmă închiriere", command=save_rent)\
-       .grid(row=len(labels), column=0, columnspan=2, pady=10)
+        .grid(row=len(labels), column=0, columnspan=2, pady=10)
 
 
 def export_available_excel(
@@ -548,6 +562,124 @@ def export_available_excel(
                     ws.write(r, pi, "", center_fmt)
 
     messagebox.showinfo("Export Excel", f"Am salvat locațiile în:\n{fp}")
+
+
+def export_sales_report():
+    """Exportă un raport structurat pe luni cu informații despre vânzări."""
+    import pandas as pd
+    import datetime
+    from tkinter import messagebox, filedialog
+    from db import conn, update_statusuri_din_rezervari
+
+    update_statusuri_din_rezervari()
+
+    df_loc = pd.read_sql_query(
+        """
+        SELECT grup, city, county, address, status, ratecard, pret_vanzare,
+               client, data_start, data_end
+          FROM locatii
+         ORDER BY grup, county, city, id
+        """,
+        conn,
+        parse_dates=["data_start", "data_end"],
+    )
+
+    if df_loc.empty:
+        messagebox.showinfo("Export Excel", "Nu există locații în baza de date.")
+        return
+
+    sold_mask = df_loc["status"] == "Închiriat"
+    pct_sold = sold_mask.mean()
+    pct_free = 1 - pct_sold
+    sum_sold = df_loc.loc[sold_mask, "pret_vanzare"].fillna(0).sum()
+    sum_free = df_loc.loc[~sold_mask, "pret_vanzare"].fillna(0).sum()
+
+    path = filedialog.asksaveasfilename(
+        defaultextension=".xlsx",
+        filetypes=[("Excel", "*.xlsx")],
+        title="Salvează raportul Excel",
+    )
+    if not path:
+        return
+
+    with pd.ExcelWriter(path, engine="xlsxwriter") as writer:
+        df_loc.to_excel(writer, sheet_name="Total", startrow=0, index=False)
+        wb = writer.book
+        ws = writer.sheets["Total"]
+
+        hdr_fmt = wb.add_format(
+            {
+                "bold": True,
+                "bg_color": "#4F81BD",
+                "font_color": "white",
+                "align": "center",
+                "valign": "vcenter",
+                "border": 1,
+            }
+        )
+        money_fmt = wb.add_format({"num_format": "€#,##0.00", "align": "center"})
+        percent_fmt = wb.add_format({"num_format": "0.00%", "align": "center"})
+        sold_fmt = wb.add_format({"bg_color": "#D9E1F2"})
+
+        for col_idx, col in enumerate(df_loc.columns):
+            nice = {
+                "pret_vanzare": "Preț Vânzare",
+                "data_start": "Data start",
+                "data_end": "Data end",
+            }.get(col, col.capitalize())
+            ws.write(0, col_idx, nice, hdr_fmt)
+            max_len = max(len(str(nice)), df_loc[col].astype(str).map(len).max())
+            fmt = money_fmt if col in ("ratecard", "pret_vanzare") else None
+            ws.set_column(col_idx, col_idx, max_len + 2, fmt)
+
+        for row_idx, sold in enumerate(sold_mask, start=1):
+            if sold:
+                ws.set_row(row_idx, None, sold_fmt)
+
+        start = len(df_loc) + 2
+        ws.write(start, 0, "% Locații vândute")
+        ws.write(start, 1, pct_sold, percent_fmt)
+        ws.write(start + 1, 0, "% Locații nevândute")
+        ws.write(start + 1, 1, pct_free, percent_fmt)
+        ws.write(start + 2, 0, "Sumă locații vândute")
+        ws.write(start + 2, 1, sum_sold, money_fmt)
+        ws.write(start + 3, 0, "Sumă locații libere")
+        ws.write(start + 3, 1, sum_free, money_fmt)
+
+        # foi pe luni cu rezervările
+        df_rez = pd.read_sql_query(
+            """
+            SELECT l.grup, l.city, l.county, l.address,
+                   r.client, r.data_start, r.data_end, r.suma
+              FROM rezervari r
+              JOIN locatii l ON r.loc_id = l.id
+             ORDER BY r.data_start
+            """,
+            conn,
+            parse_dates=["data_start", "data_end"],
+        )
+
+        if not df_rez.empty:
+            current_year = datetime.date.today().year
+            for month in range(1, 13):
+                start_m = datetime.date(current_year, month, 1)
+                end_m = (start_m.replace(day=28) + datetime.timedelta(days=4)).replace(day=1) - datetime.timedelta(days=1)
+                mask = (df_rez["data_end"] >= start_m) & (df_rez["data_start"] <= end_m)
+                sub = df_rez.loc[mask]
+                if sub.empty:
+                    continue
+                name = start_m.strftime("%B")
+                sub = sub.copy()
+                sub["Perioadă"] = sub["data_start"].dt.strftime("%d.%m.%Y") + " → " + sub["data_end"].dt.strftime("%d.%m.%Y")
+                sub = sub[["grup", "city", "county", "address", "client", "Perioadă", "suma"]]
+                sub.to_excel(writer, sheet_name=name, index=False)
+                ws_m = writer.sheets[name]
+                for i, col in enumerate(sub.columns):
+                    fmt = money_fmt if col == "suma" else None
+                    max_len = max(len(col), sub[col].astype(str).map(len).max())
+                    ws_m.set_column(i, i, max_len + 2, fmt)
+
+    messagebox.showinfo("Export Excel", f"Raport salvat:\n{path}")
 
 
 
