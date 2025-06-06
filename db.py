@@ -1,7 +1,10 @@
 import os
 import sqlite3
 import datetime
+
+
 def get_db_path():
+    """Return the absolute path to the local ``locatii.db`` database."""
     base_dir = os.path.dirname(__file__)
     return os.path.join(base_dir, "locatii.db")
 

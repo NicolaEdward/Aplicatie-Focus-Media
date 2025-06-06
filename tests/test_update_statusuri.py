@@ -40,3 +40,37 @@ def test_update_statusuri(monkeypatch):
     ).fetchone()
     assert status == 'Închiriat'
     assert cid == client_id
+
+
+def test_future_reservation(monkeypatch):
+    """A future reservation should mark the location as 'Rezervat'."""
+    conn = sqlite3.connect(':memory:')
+    monkeypatch.setattr(db, 'conn', conn)
+    monkeypatch.setattr(db, 'cursor', conn.cursor())
+    db.init_db()
+
+    cur = conn.cursor()
+    cur.execute("INSERT INTO clienti (nume) VALUES (?)", ('Y',))
+    client_id = cur.lastrowid
+    cur.execute(
+        "INSERT INTO locatii (city, county, address) VALUES (?,?,?)",
+        ('A', 'B', 'C')
+    )
+    loc_id = cur.lastrowid
+
+    start = datetime.date.today() + datetime.timedelta(days=1)
+    end = start + datetime.timedelta(days=1)
+    cur.execute(
+        "INSERT INTO rezervari (loc_id, client, client_id, data_start, data_end, suma)"
+        " VALUES (?, ?, ?, ?, ?, 50)",
+        (loc_id, 'Y', client_id, start.isoformat(), end.isoformat())
+    )
+    conn.commit()
+
+    db.update_statusuri_din_rezervari()
+
+    status, cid = cur.execute(
+        "SELECT status, client_id FROM locatii WHERE id=?", (loc_id,)
+    ).fetchone()
+    assert status == 'Rezervat'
+    assert cid == client_id

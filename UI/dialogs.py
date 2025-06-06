@@ -1,5 +1,4 @@
 # UI/dialogs.py
-import os
 import datetime
 import webbrowser
 import tkinter as tk
@@ -11,10 +10,6 @@ import xlsxwriter
 
 from utils import PREVIEW_FOLDER, make_preview
 from db import conn, update_statusuri_din_rezervari
-def get_db_path():
-    # presupunând că baza locatii.db stă în folderul de nivel superior proiectului
-    base_dir = os.path.dirname(os.path.dirname(__file__))
-    return os.path.join(base_dir, "locatii.db")
 
 def open_detail_window(tree, event):
     """Display extended information about the selected location."""
@@ -102,7 +97,7 @@ def open_detail_window(tree, event):
     add_field(r, "RateCard",  ttk.Label(frm, text=str(ratecard))); r += 1
     add_field(r, "Preț de vânzare",
                          ttk.Label(frm, text=str(pret_vanzare))); r += 1
-    add_field(r, "Preț flotant", ttk.Label(frm, text=str(pret_flotant))); r += 1
+    add_field(r, "Preț Flotant", ttk.Label(frm, text=str(pret_flotant))); r += 1
     add_field(r, "Preț de decorare",
                          ttk.Label(frm, text=str(decoration_cost))); r += 1
 
