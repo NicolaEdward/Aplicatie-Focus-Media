@@ -166,11 +166,11 @@ def start_app():
     vsb.pack(side="left", fill="y")
     tree.configure(yscroll=vsb.set)
 
-    tree.tag_configure("evenrow", background="#f7f7f7")
-    tree.tag_configure("oddrow", background="#ffffff")
-    tree.tag_configure("available", background="#e8ffe8")
-    tree.tag_configure("reserved", background="#fff5cc")
-    tree.tag_configure("rented", background="#ffe8e8")
+    tree.tag_configure("evenrow", background="#f7f7f7", foreground="black")
+    tree.tag_configure("oddrow", background="#ffffff", foreground="black")
+    tree.tag_configure("available", background="#e8ffe8", foreground="black")
+    tree.tag_configure("reserved", background="#fff5cc", foreground="black")
+    tree.tag_configure("rented", background="#ffe8e8", foreground="black")
 
     tree.bind("<Double-1>", lambda e: open_detail_window(tree, e))
     tree.bind("<<TreeviewSelect>>", lambda e: on_tree_select())
@@ -264,8 +264,9 @@ def start_app():
         update_statusuri_din_rezervari()
 
         # 2) Golește TreeView
-        for iid in tree.get_children():
-            tree.delete(iid)
+        items = tree.get_children()
+        if items:
+            tree.delete(*items)
 
         # 3) Construiește condițiile de filtrare pe Grup, Status și Căutare
         params, cond = [], []
@@ -290,7 +291,7 @@ def start_app():
 
         # 5) Interogarea inițială doar pe tabelă ``locatii``
         q = """
-            SELECT id, city, county, address, type, ratecard
+            SELECT id, city, county, address, type, ratecard, status
             FROM locatii
         """
         if cond:
@@ -340,7 +341,7 @@ def start_app():
 
         # 7) Populează TreeView, aplicând filtrul de date doar când "Toate datele" NU e bifat
         display_index = 0
-        for loc_id, city, county, addr, typ, rate in rows:
+        for loc_id, city, county, addr, typ, rate, status in rows:
             if not var_ignore.get():
                 avail = availability(loc_id)
                 if not avail:
@@ -350,13 +351,10 @@ def start_app():
                 tag = "available" if avail.startswith("Disponibil") else ""
             else:
                 # afișare fără filtrul de date
-                status_row = cursor.execute(
-                    "SELECT status FROM locatii WHERE id=?", (loc_id,)
-                ).fetchone()[0]
-                status_text = status_row
+                status_text = status
                 tag = ("available","reserved","rented")[
-                    ["Disponibil","Rezervat","Închiriat"].index(status_row)
-                ] if status_row in ("Disponibil","Rezervat","Închiriat") else ""
+                    ["Disponibil","Rezervat","Închiriat"].index(status)
+                ] if status in ("Disponibil","Rezervat","Închiriat") else ""
 
             zebra = "evenrow" if display_index % 2 == 0 else "oddrow"
             display_index += 1
