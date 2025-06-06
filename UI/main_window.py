@@ -94,34 +94,16 @@ def start_app():
 
     BASE_WIDTH = 1280
     BASE_HEIGHT = 720
-    root.geometry(f"{BASE_WIDTH}x{BASE_HEIGHT}")
-    root.minsize(800, 600)
-
 
     default_font = tkfont.nametofont("TkDefaultFont")
     default_font.configure(family="Segoe UI", size=12)
     root.option_add("*Font", default_font)
+
     style.configure("TButton", padding=(8, 4), font=("Segoe UI", 12))
     style.configure("Treeview.Heading", font=("Segoe UI", 12, "bold"))
     style.configure("Treeview", rowheight=28, font=("Segoe UI", 11))
 
-    current_scale = [1.0]
-
-    last_size = [BASE_WIDTH, BASE_HEIGHT]
-
-    def on_resize(event):
-        if event.widget is not root:
-            return
-        if event.width == last_size[0] and event.height == last_size[1]:
-            return
-        last_size[:] = [event.width, event.height]
-
-        w, h = event.width, event.height
-        scale = max(min(w / BASE_WIDTH, h / BASE_HEIGHT, 1.0), 0.8)
-        if abs(scale - current_scale[0]) < 0.05:
-            return
-
-        current_scale[0] = scale
+    def apply_scale(scale):
         root.tk.call("tk", "scaling", scale)
         default_font.configure(size=int(12 * scale))
         style.configure(
@@ -139,13 +121,27 @@ def start_app():
             font=("Segoe UI", int(11 * scale)),
         )
 
+    VIEW_SIZES = {
+        "Compact": (BASE_WIDTH, BASE_HEIGHT, 1.0),
+        "Full HD": (1920, 1080, 1.5),
+    }
 
-    root.bind("<Configure>", on_resize)
+    def set_view(view):
+        w, h, scale = VIEW_SIZES[view]
+        root.geometry(f"{w}x{h}")
+        apply_scale(scale)
+
+    root.minsize(800, 600)
+    set_view("Full HD")
+
+    menu = tk.Menu(root)
+    view_menu = tk.Menu(menu, tearoff=0)
+    for v in VIEW_SIZES:
+        view_menu.add_command(label=v, command=lambda v=v: set_view(v))
+    menu.add_cascade(label="View", menu=view_menu)
+    root.config(menu=menu)
+
     root.eval('tk::PlaceWindow . center')
-    try:
-        root.state("zoomed")
-    except Exception:
-        pass
 
     # --- Top: filtre Grup, Status, Căutare, Interval ---
     frm_top = ttk.Frame(root, padding=10)
