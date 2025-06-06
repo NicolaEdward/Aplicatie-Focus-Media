@@ -81,7 +81,7 @@ def start_app():
     tree.heading("County", text="County");  tree.column("County", width=100, anchor="w")
     tree.heading("Address", text="Address")
     tree.column("Address", width=300, anchor="w", stretch=True)
-    tree.heading("Type", text="Type");      tree.column("Type", width=100, anchor="w")
+    lbl_pret_flot_label    = ttk.Label(details, text="Preț Flotant:")
     tree.heading("Status", text="Status");  tree.column("Status", width=120, anchor="w")
     tree.heading("RateCard", text="RateCard")
     tree.column("RateCard", width=100, anchor="e")

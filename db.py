@@ -49,17 +49,11 @@ def init_db():
 
     # (3) Pentru fiecare coloană nouă, adăugăm dacă lipsește
     to_add = {
-        "rental_fee":    "REAL DEFAULT 0",
-        "pret_vanzare":  "REAL",
-        "pret_flotant":  "REAL",
-        "client_id":    "INTEGER"
+        "pret_vanzare": "REAL",
+        "pret_flotant": "REAL",
+        "client_id":    "INTEGER",
+        "face":         "TEXT DEFAULT 'Fața A'"
     }
-
-    existing = {col[1] for col in cursor.execute("PRAGMA table_info(locatii)").fetchall()}
-    if "face" not in existing:
-        cursor.execute("ALTER TABLE locatii ADD COLUMN face TEXT DEFAULT 'Fața A'")
-        conn.commit()
-
 
     for col, definition in to_add.items():
         if col not in existing:
