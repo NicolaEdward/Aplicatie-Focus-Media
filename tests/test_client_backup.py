@@ -33,12 +33,34 @@ def test_export_client_backup(tmp_path, monkeypatch):
     monkeypatch.setattr(messagebox, 'showinfo', lambda *a, **k: None)
 
     captured = {}
-    def fake_to_excel(self, path, index=False, engine=None):
+
+    class DummyBook:
+        def add_format(self, *a, **k):
+            return object()
+
+    class DummySheet:
+        def set_column(self, *a, **k):
+            pass
+        def write(self, *a, **k):
+            pass
+
+    class DummyWriter:
+        def __init__(self, *a, **k):
+            self.book = DummyBook()
+            self.sheets = {"Backup": DummySheet()}
+        def __enter__(self):
+            return self
+        def __exit__(self, exc_type, exc, tb):
+            pass
+
+    monkeypatch.setattr(pd, 'ExcelWriter', DummyWriter)
+
+    def fake_to_excel(self, writer, *a, **k):
         captured['df'] = self.copy()
     monkeypatch.setattr(pd.DataFrame, 'to_excel', fake_to_excel)
 
     dialogs.export_client_backup(6, 2025, cid)
 
     df = captured['df']
-    assert round(df['Amount'].iloc[0], 2) == round(1000 * 16 / 30, 2)
+    assert round(df['Chirie net'].iloc[0], 2) == round(1000 * 16 / 30, 2)
 
