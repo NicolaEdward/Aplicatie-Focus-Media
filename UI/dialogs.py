@@ -123,36 +123,78 @@ def open_detail_window(tree, event):
         win.rowconfigure(i, weight=0)
     win.columnconfigure(1, weight=1)
 def open_reserve_window(root, loc_id, load_cb):
+    """Dialog pentru rezervarea unei locații.
+
+    Rezervarea este salvată în tabela ``rezervari`` dacă intervalul ales nu se
+    suprapune peste o rezervare sau închiriere existentă.
+    """
+
     win = tk.Toplevel(root)
     win.title(f"Rezervă {loc_id}")
 
-    ttk.Label(win, text="Client:").grid(row=0, column=0, sticky="e", padx=5, pady=5)
-    ent = ttk.Entry(win, width=30)
-    ent.grid(row=0, column=1, padx=5, pady=5)
+    labels = ["Client", "Data start", "Data end"]
+    entries = {}
 
-    start = datetime.date.today()
-    end = start + datetime.timedelta(days=5)
+    for i, lbl in enumerate(labels):
+        ttk.Label(win, text=lbl + ":")\
+            .grid(row=i, column=0, sticky="e", padx=5, pady=5)
+        if "Data" in lbl:
+            e = DateEntry(win, date_pattern="yyyy-mm-dd")
+        else:
+            e = ttk.Entry(win, width=30)
+        e.grid(row=i, column=1, padx=5, pady=5)
+        entries[lbl] = e
 
-    ttk.Label(win, text="Perioadă:").grid(row=1, column=0, sticky="e", padx=5, pady=5)
-    ttk.Label(win, text=f"{start} → {end}").grid(row=1, column=1, sticky="w", padx=5, pady=5)
+    entries["Data start"].set_date(datetime.date.today())
+    entries["Data end"].set_date(datetime.date.today() + datetime.timedelta(days=5))
 
     def save_reserve():
-        client = ent.get().strip()
+        client = entries["Client"].get().strip()
         if not client:
             messagebox.showwarning("Lipsește client", "Completează client.")
             return
+
+        start = entries["Data start"].get_date()
+        end = entries["Data end"].get_date()
+        if start > end:
+            messagebox.showwarning(
+                "Interval incorect",
+                "«Data start» trebuie înainte de «Data end».",
+            )
+            return
+
         cur = conn.cursor()
-        cur.execute("""
-            UPDATE locatii
-            SET status='Rezervat', client=?, data_start=?, data_end=?
-            WHERE id=?
-        """, (client, start.isoformat(), end.isoformat(), loc_id))
+
+        cur.execute("INSERT OR IGNORE INTO clienti (nume) VALUES (?)", (client,))
+        client_id = cur.execute(
+            "SELECT id FROM clienti WHERE nume=?", (client,)
+        ).fetchone()[0]
+
+        overlap = cur.execute(
+            "SELECT 1 FROM rezervari WHERE loc_id=? AND NOT (data_end < ? OR data_start > ?)",
+            (loc_id, start.isoformat(), end.isoformat()),
+        ).fetchone()
+        if overlap:
+            messagebox.showerror(
+                "Perioadă ocupată",
+                "Locația este deja rezervată sau închiriată în intervalul ales.",
+            )
+            return
+
+        cur.execute(
+            "INSERT INTO rezervari (loc_id, client, client_id, data_start, data_end, suma)"
+            " VALUES (?, ?, ?, ?, ?, NULL)",
+            (loc_id, client, client_id, start.isoformat(), end.isoformat()),
+        )
         conn.commit()
+
+        update_statusuri_din_rezervari()
+
         load_cb()
         win.destroy()
 
     ttk.Button(win, text="Confirmă rezervare", command=save_reserve)\
-        .grid(row=2, column=0, columnspan=2, pady=10)
+        .grid(row=len(labels), column=0, columnspan=2, pady=10)
 
 
 def open_add_window(root, refresh_cb):
@@ -161,7 +203,7 @@ def open_add_window(root, refresh_cb):
     labels = [
         "City", "County", "Address", "Type", "GPS", "Code",
         "Size", "Photo Link", "SQM", "Illumination", "RateCard",
-        "Preț Vânzare", "Pret Flotant", "Decoration cost",
+        "Preț Vânzare", "Preț Flotant", "Decoration cost",
         "Observații", "Grup", "Față"
     ]
     entries = {}
@@ -194,7 +236,7 @@ def open_add_window(root, refresh_cb):
             vals["Photo Link"], vals["SQM"], vals["Illumination"],
             vals["RateCard"],
             vals["Preț Vânzare"] or None,
-            vals["Pret Flotant"] or None,
+            vals["Preț Flotant"] or None,
             vals["Decoration cost"] or None,
             vals["Observații"], vals["Grup"], vals["Față"]
         ])
@@ -223,7 +265,7 @@ def open_edit_window(root, loc_id, load_cb, refresh_groups_cb):
     labels = [
         "City", "County", "Address", "Type", "GPS", "Code",
         "Size", "Photo Link", "SQM", "Illumination", "RateCard",
-        "Preț Vânzare", "Pret Flotant", "Decoration cost",
+        "Preț Vânzare", "Preț Flotant", "Decoration cost",
         "Observații", "Grup", "Față"
     ]
 
@@ -266,7 +308,7 @@ def open_edit_window(root, loc_id, load_cb, refresh_groups_cb):
             vals["Photo Link"], vals["SQM"], vals["Illumination"],
             vals["RateCard"],
             vals["Preț Vânzare"] or None,
-            vals["Pret Flotant"] or None,
+            vals["Preț Flotant"] or None,
             vals["Decoration cost"] or None,
             vals["Observații"], vals["Grup"], vals["Față"],
             loc_id
