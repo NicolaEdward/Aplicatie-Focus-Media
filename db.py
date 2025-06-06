@@ -1,6 +1,7 @@
 import os
 import datetime
 import hashlib
+import hmac
 import sqlite3
 
 try:
@@ -318,7 +319,7 @@ def init_users_table():
     if not cursor.execute("SELECT COUNT(*) FROM users").fetchone()[0]:
         cursor.execute(
             "INSERT INTO users (username, password, role) VALUES (?, ?, 'admin')",
-            ("admin", hashlib.sha256(b"admin").hexdigest()),
+            ("admin", _hash_password("admin")),
         )
     conn.commit()
 def update_statusuri_din_rezervari():
@@ -387,8 +388,23 @@ def update_statusuri_din_rezervari():
     conn.commit()
 
 
-def _hash_password(pw: str) -> str:
-    return hashlib.sha256(pw.encode()).hexdigest()
+def _hash_password(pw: str, *, _salt: bytes | None = None) -> str:
+    """Return a salted PBKDF2 hash of *pw* suitable for storage."""
+    if _salt is None:
+        _salt = os.urandom(16)
+    hashed = hashlib.pbkdf2_hmac("sha256", pw.encode(), _salt, 100_000)
+    return f"{_salt.hex()}${hashed.hex()}"
+
+
+def _verify_password(stored: str, pw: str) -> bool:
+    """Verify *pw* against the stored hash."""
+    if "$" in stored:
+        salt_hex, hash_hex = stored.split("$", 1)
+        salt = bytes.fromhex(salt_hex)
+        hashed = hashlib.pbkdf2_hmac("sha256", pw.encode(), salt, 100_000)
+        return hmac.compare_digest(hash_hex, hashed.hex())
+    # legacy unsalted sha256
+    return stored == hashlib.sha256(pw.encode()).hexdigest()
 
 
 def create_user(username: str, password: str, role: str = "seller", comune: str = ""):
@@ -420,7 +436,7 @@ def check_login(username: str, password: str):
     user = get_user(username)
     if not user:
         return None
-    if user["password"] == _hash_password(password):
+    if _verify_password(user["password"], password):
         return user
     return None
 

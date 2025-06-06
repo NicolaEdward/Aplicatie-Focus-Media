@@ -34,10 +34,11 @@ Scriptul va copia in MySQL toate tabelele si datele din fisierul `locatii.db`.
 
 ## Autentificare
 
-La prima rulare este creat automat contul `admin` cu parola `admin`. După
-autentificare, administratorul poate adăuga alte conturi din fereastra de
-administrare a utilizatorilor. Vânzătorii pot adăuga clienți și pot închiria
-locații, dar nu pot modifica sau șterge locațiile existente.
+La prima rulare este creat automat contul `admin` cu parola `admin`. Parolele
+sunt salvate folosind un hash PBKDF2 cu sare aleatorie pentru o securitate
+suplimentară. După autentificare, administratorul poate adăuga alte conturi din
+fereastra de administrare a utilizatorilor. Vânzătorii pot adăuga clienți și pot
+închiria locații, dar nu pot modifica sau șterge locațiile existente.
 
 Funcția "Raport Vânzători" generează un Excel cu totalul contractelor pe lună
 pentru fiecare utilizator.
