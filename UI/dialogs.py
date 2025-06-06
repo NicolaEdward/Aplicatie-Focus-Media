@@ -590,13 +590,12 @@ def export_sales_report():
 
     df_loc = pd.read_sql_query(
         """
-        SELECT city, county, address, type, size, sqm, illumination,
-               ratecard, pret_vanzare, client, data_start, data_end, status
+        SELECT id, city, county, address, type, size, sqm, illumination,
+               ratecard, pret_vanzare, grup, status
           FROM locatii
          ORDER BY county, city, id
         """,
         conn,
-        parse_dates=["data_start", "data_end"],
     )
 
     if df_loc.empty:
@@ -617,8 +616,6 @@ def export_sales_report():
     if not path:
         return
 
-    df_loc["data_start"] = df_loc["data_start"].dt.strftime("%d.%m.%Y")
-    df_loc["data_end"] = df_loc["data_end"].dt.strftime("%d.%m.%Y")
 
     with pd.ExcelWriter(path, engine="xlsxwriter") as writer:
         wb = writer.book
@@ -734,8 +731,8 @@ def export_sales_report():
         current_month = datetime.date.today().month
         df_rez = pd.read_sql_query(
             """
-            SELECT l.city, l.county, l.address, l.type, l.size, l.sqm, l.illumination,
-                   l.ratecard, l.pret_vanzare, r.client, r.data_start, r.data_end, l.status
+            SELECT l.id, l.grup, l.city, l.county, l.address, l.type, l.size, l.sqm, l.illumination,
+                   l.ratecard, l.pret_vanzare, r.client, r.data_start, r.data_end
               FROM rezervari r
               JOIN locatii l ON r.loc_id = l.id
              ORDER BY r.data_start
@@ -744,23 +741,22 @@ def export_sales_report():
             parse_dates=["data_start", "data_end"],
         )
 
-        # Pagina pentru luna curentă
-        m_start = pd.Timestamp(current_year, current_month, 1)
-        m_end = m_start + pd.offsets.MonthEnd(0)
-        mask = (df_rez["data_end"] >= m_start) & (df_rez["data_start"] <= m_end)
-        cur_df = df_rez.loc[mask]
-        if not cur_df.empty:
-            write_sheet(m_start.strftime("%B"), cur_df)
+        df_base = df_loc[[
+            "id","city","county","address","type","size","sqm","illumination",
+            "ratecard","pret_vanzare","grup","status"
+        ]].copy()
 
         for month in range(1, 13):
             start_m = pd.Timestamp(current_year, month, 1)
             end_m = start_m + pd.offsets.MonthEnd(0)
             mask = (df_rez["data_end"] >= start_m) & (df_rez["data_start"] <= end_m)
             sub = df_rez.loc[mask]
-            if sub.empty or month == current_month:
-                continue
+            sub = sub.sort_values("data_start").groupby("id", as_index=False).first()
+            df_month = df_base.merge(sub[["id","client","data_start","data_end"]], on="id", how="left")
+            df_month["status"] = df_month["client"].apply(lambda x: "Închiriat" if pd.notna(x) else "Disponibil")
+            df_month = df_month.sort_values(["pret_vanzare","grup"])
             name = start_m.strftime("%B")
-            write_sheet(name, sub)
+            write_sheet(name, df_month)
 
         messagebox.showinfo("Export Excel", f"Raport salvat:\n{path}")
 
@@ -950,12 +946,12 @@ def open_offer_window(tree):
                 df['Final Price']     = df['Base Price'] - df['Discount Amount']
 
                 df_export = df[[
-                    'city','county','address','gps','code','photo_link','sqm','type',
+                    'city','county','address','code','gps','photo_link','sqm','type',
                     'Base Price','% Discount','Final Price',
                     'Installation & Removal','Production','Availability'
                 ]].copy()
                 df_export.columns = [
-                    'City','County','Address','GPS','CODE','Photo Link','SQM','Type',
+                    'City','County','Address','CODE','GPS','Photo Link','SQM','Type',
                     'Base Price','% Discount','Final Price',
                     'Installation & Removal','Production','Availability'
                 ]
@@ -973,12 +969,12 @@ def open_offer_window(tree):
             df['Final Price']     = df['Base Price'] - df['Discount Amount']
 
             df_export = df[[
-                'city','county','address','gps','code','photo_link','sqm','type',
+                'city','county','address','code','gps','photo_link','sqm','type',
                 'Base Price','% Discount','Final Price',
                 'Installation & Removal','Production','Availability'
             ]].copy()
             df_export.columns = [
-                'City','County','Address','GPS','CODE','Photo Link','SQM','Type',
+                'City','County','Address','CODE','GPS','Photo Link','SQM','Type',
                 'Base Price','% Discount','Final Price',
                 'Installation & Removal','Production','Availability'
             ]
