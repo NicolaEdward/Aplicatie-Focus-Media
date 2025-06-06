@@ -106,6 +106,7 @@ def start_app():
     style.configure("Treeview", rowheight=28, font=("Segoe UI", 11))
 
     current_scale = [1.0]
+
     last_size = [BASE_WIDTH, BASE_HEIGHT]
 
     def on_resize(event):
@@ -137,6 +138,7 @@ def start_app():
             rowheight=max(int(28 * scale), 18),
             font=("Segoe UI", int(11 * scale)),
         )
+
 
     root.bind("<Configure>", on_resize)
     root.eval('tk::PlaceWindow . center')
