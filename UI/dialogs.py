@@ -690,8 +690,8 @@ def export_sales_report():
         if not df_rez.empty:
             current_year = datetime.date.today().year
             for month in range(1, 13):
-                start_m = datetime.date(current_year, month, 1)
-                end_m = (start_m.replace(day=28) + datetime.timedelta(days=4)).replace(day=1) - datetime.timedelta(days=1)
+                start_m = pd.Timestamp(current_year, month, 1)
+                end_m = start_m + pd.offsets.MonthEnd(0)
                 mask = (df_rez["data_end"] >= start_m) & (df_rez["data_start"] <= end_m)
                 sub = df_rez.loc[mask]
                 if sub.empty:

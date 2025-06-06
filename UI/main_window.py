@@ -91,7 +91,8 @@ def start_app():
             pass
 
     root.title("Gestionare Locații Publicitare")
-    root.geometry("1200x600")
+    root.geometry("1400x800")
+    root.minsize(1200, 600)
 
     default_font = tkfont.nametofont("TkDefaultFont")
     default_font.configure(family="Segoe UI", size=11)
