@@ -92,10 +92,8 @@ def start_app():
 
     root.title("Gestionare Locații Publicitare")
 
-    BASE_WIDTH = 1280
-    BASE_HEIGHT = 720
-    root.geometry(f"{BASE_WIDTH}x{BASE_HEIGHT}")
-    root.minsize(800, 600)
+    root.geometry("1920x1080")
+    root.minsize(1280, 720)
 
 
     default_font = tkfont.nametofont("TkDefaultFont")
@@ -104,32 +102,6 @@ def start_app():
     style.configure("TButton", padding=(8, 4), font=("Segoe UI", 12))
     style.configure("Treeview.Heading", font=("Segoe UI", 12, "bold"))
     style.configure("Treeview", rowheight=28, font=("Segoe UI", 11))
-
-    current_scale = [1.0]
-
-    def on_resize(event):
-        w, h = event.width, event.height
-        scale = min(w / BASE_WIDTH, h / BASE_HEIGHT, 1.0)
-        if abs(scale - current_scale[0]) >= 0.05:
-            current_scale[0] = scale
-            root.tk.call("tk", "scaling", scale)
-            default_font.configure(size=int(12 * scale))
-            style.configure(
-                "TButton",
-                padding=(int(8 * scale), int(4 * scale)),
-                font=("Segoe UI", int(12 * scale)),
-            )
-            style.configure(
-                "Treeview.Heading",
-                font=("Segoe UI", int(12 * scale), "bold"),
-            )
-            style.configure(
-                "Treeview",
-                rowheight=int(28 * scale),
-                font=("Segoe UI", int(11 * scale)),
-            )
-
-    root.bind("<Configure>", on_resize)
     root.eval('tk::PlaceWindow . center')
     try:
         root.state("zoomed")
