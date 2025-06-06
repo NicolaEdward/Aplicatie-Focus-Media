@@ -150,12 +150,22 @@ def start_app():
         try:
             root.state('normal')
         except tk.TclError:
-            root.attributes('-zoomed', False)
+            try:
+                root.attributes('-zoomed', False)
+            except tk.TclError:
+                pass
         _set_geometry()
+
+    def _is_zoomed():
+        """Return ``True`` if the window is maximized."""
+        try:
+            return root.state() == 'zoomed' or bool(root.attributes('-zoomed'))
+        except tk.TclError:
+            return root.state() == 'zoomed'
 
     def toggle_fullscreen(event=None):
         """Toggle maximized mode."""
-        if root.state() == 'normal' and not root.attributes('-zoomed'):
+        if not _is_zoomed():
             _maximize()
         else:
             _normalize()
