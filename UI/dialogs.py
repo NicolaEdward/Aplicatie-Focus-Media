@@ -1,25 +1,18 @@
 # UI/dialogs.py
-import webbrowser
-from utils import make_preview
-import os
-import tkinter as tk
-from tkinter import filedialog, ttk, messagebox
-from tkcalendar import DateEntry
-import pandas as pd
-from db import conn, update_statusuri_din_rezervari
 import datetime
-from db import conn
-from tkinter import messagebox, filedialog
-from tkinter import simpledialog
+import webbrowser
+import tkinter as tk
+from tkinter import filedialog, messagebox, simpledialog, ttk
+
+import pandas as pd
+from tkcalendar import DateEntry
 import xlsxwriter
-from utils import PREVIEW_FOLDER
-from db import conn
-def get_db_path():
-    # presupunând că baza locatii.db stă în folderul de nivel superior proiectului
-    base_dir = os.path.dirname(os.path.dirname(__file__))
-    return os.path.join(base_dir, "locatii.db")
+
+from utils import PREVIEW_FOLDER, make_preview
+from db import conn, update_statusuri_din_rezervari
 
 def open_detail_window(tree, event):
+    """Display extended information about the selected location."""
     rowid = tree.identify_row(event.y)
     if not rowid:
         return
@@ -104,55 +97,31 @@ def open_detail_window(tree, event):
     add_field(r, "RateCard",  ttk.Label(frm, text=str(ratecard))); r += 1
     add_field(r, "Preț de vânzare",
                          ttk.Label(frm, text=str(pret_vanzare))); r += 1
-    add_field(r, "Preț flotant", ttk.Label(frm, text=str(pret_flotant))); r += 1
-    add_field(r, "Preț de decorare",
-                         ttk.Label(frm, text=str(decoration_cost))); r += 1
-
-    add_field(r, "Observații",
-                         ttk.Label(frm, text=observatii or "-")); r += 1
-    add_field(r, "Status",    ttk.Label(frm, text=status)); r += 1
-
-    # Client și perioadă doar dacă există
-    if client:
-        add_field(r, "Client",   ttk.Label(frm, text=client)); r += 1
-        period = f"{ds} → {de}" if ds and de else "-"
-        add_field(r, "Perioadă", ttk.Label(frm, text=period)); r += 1
-
-    # face fereastra redimensionabilă
-    for i in range(r):
-        win.rowconfigure(i, weight=0)
-    win.columnconfigure(1, weight=1)
-def open_reserve_window(root, loc_id, load_cb):
-    win = tk.Toplevel(root)
-    win.title(f"Rezervă {loc_id}")
-
-    ttk.Label(win, text="Client:").grid(row=0, column=0, sticky="e", padx=5, pady=5)
-    ent = ttk.Entry(win, width=30)
-    ent.grid(row=0, column=1, padx=5, pady=5)
-
-    start = datetime.date.today()
-    end = start + datetime.timedelta(days=5)
-
-    ttk.Label(win, text="Perioadă:").grid(row=1, column=0, sticky="e", padx=5, pady=5)
-    ttk.Label(win, text=f"{start} → {end}").grid(row=1, column=1, sticky="w", padx=5, pady=5)
-
-    def save_reserve():
-        client = ent.get().strip()
-        if not client:
-            messagebox.showwarning("Lipsește client", "Completează client.")
+        fee_row = None
+        if ds and de:
+            fee_row = cur.execute(
+                "SELECT suma FROM rezervari WHERE loc_id=? AND data_start=? AND data_end=? ORDER BY data_start DESC LIMIT 1",
+                (loc_id, ds, de)
+            ).fetchone()
+                "Perioadă ocupată",
+                "Locația este deja rezervată sau închiriată în intervalul ales.",
+            )
             return
-        cur = conn.cursor()
-        cur.execute("""
-            UPDATE locatii
-            SET status='Rezervat', client=?, data_start=?, data_end=?
-            WHERE id=?
-        """, (client, start.isoformat(), end.isoformat(), loc_id))
+
+        cur.execute(
+            "INSERT INTO rezervari (loc_id, client, client_id, data_start, data_end, suma)"
+            " VALUES (?, ?, ?, ?, ?, NULL)",
+            (loc_id, client, client_id, start.isoformat(), end.isoformat()),
+        )
         conn.commit()
+
+        update_statusuri_din_rezervari()
+
         load_cb()
         win.destroy()
 
     ttk.Button(win, text="Confirmă rezervare", command=save_reserve)\
-        .grid(row=2, column=0, columnspan=2, pady=10)
+        .grid(row=len(labels), column=0, columnspan=2, pady=10)
 
 
 def open_add_window(root, refresh_cb):
@@ -161,7 +130,9 @@ def open_add_window(root, refresh_cb):
     labels = [
         "City", "County", "Address", "Type", "GPS", "Code",
         "Size", "Photo Link", "SQM", "Illumination", "RateCard",
+
         "Preț Vânzare", "Pret Flotant", "Decoration cost",
+ main
         "Observații", "Grup", "Față"
     ]
     entries = {}
@@ -194,7 +165,9 @@ def open_add_window(root, refresh_cb):
             vals["Photo Link"], vals["SQM"], vals["Illumination"],
             vals["RateCard"],
             vals["Preț Vânzare"] or None,
+
             vals["Pret Flotant"] or None,
+ main
             vals["Decoration cost"] or None,
             vals["Observații"], vals["Grup"], vals["Față"]
         ])
@@ -223,7 +196,9 @@ def open_edit_window(root, loc_id, load_cb, refresh_groups_cb):
     labels = [
         "City", "County", "Address", "Type", "GPS", "Code",
         "Size", "Photo Link", "SQM", "Illumination", "RateCard",
+
         "Preț Vânzare", "Pret Flotant", "Decoration cost",
+ main
         "Observații", "Grup", "Față"
     ]
 
@@ -266,7 +241,9 @@ def open_edit_window(root, loc_id, load_cb, refresh_groups_cb):
             vals["Photo Link"], vals["SQM"], vals["Illumination"],
             vals["RateCard"],
             vals["Preț Vânzare"] or None,
+
             vals["Pret Flotant"] or None,
+ main
             vals["Decoration cost"] or None,
             vals["Observații"], vals["Grup"], vals["Față"],
             loc_id
@@ -353,6 +330,8 @@ def open_rent_window(root, loc_id, load_cb):
 
         cur = conn.cursor()
 
+
+ main
         # verificăm suprapuneri cu alte perioade
         overlap = cur.execute(
             "SELECT 1 FROM rezervari WHERE loc_id=? AND NOT (data_end < ? OR data_start > ?)",
@@ -367,9 +346,11 @@ def open_rent_window(root, loc_id, load_cb):
 
         # inserăm noua închiriere
         cur.execute(
+
             "INSERT INTO rezervari (loc_id, client, data_start, data_end, suma)"
             " VALUES (?, ?, ?, ?, ?)",
             (loc_id, client, start.isoformat(), end.isoformat(), fee_val),
+ main
         )
         conn.commit()
 
@@ -559,6 +540,7 @@ def export_available_excel(
 
 
 def export_sales_report():
+
     """Exportă un raport cu toate locațiile și statisticile de vânzări.
 
     Rândurile cu status ``Închiriat`` sunt evidențiate cu albastru deschis.
@@ -587,6 +569,7 @@ def export_sales_report():
     pct_free = 1 - pct_sold
     sum_sold = df.loc[sold_mask, "pret_vanzare"].fillna(0).sum()
     sum_free = df.loc[~sold_mask, "pret_vanzare"].fillna(0).sum()
+ main
 
     path = filedialog.asksaveasfilename(
         defaultextension=".xlsx",
@@ -597,9 +580,11 @@ def export_sales_report():
         return
 
     with pd.ExcelWriter(path, engine="xlsxwriter") as writer:
+
         df.to_excel(writer, sheet_name="Raport", startrow=0, index=False)
         wb = writer.book
         ws = writer.sheets["Raport"]
+ main
 
         hdr_fmt = wb.add_format(
             {
@@ -615,9 +600,11 @@ def export_sales_report():
         percent_fmt = wb.add_format({"num_format": "0.00%", "align": "center"})
         sold_fmt = wb.add_format({"bg_color": "#D9E1F2"})
 
+
         for col_idx, col in enumerate(df.columns):
             ws.write(0, col_idx, col.replace("pret_vanzare", "Preț Vânzare"), hdr_fmt)
             max_len = max(len(col), df[col].astype(str).map(len).max())
+ main
             fmt = money_fmt if col in ("ratecard", "pret_vanzare") else None
             ws.set_column(col_idx, col_idx, max_len + 2, fmt)
 
@@ -625,7 +612,9 @@ def export_sales_report():
             if sold:
                 ws.set_row(row_idx, None, sold_fmt)
 
+
         start = len(df) + 2
+ main
         ws.write(start, 0, "% Locații vândute")
         ws.write(start, 1, pct_sold, percent_fmt)
         ws.write(start + 1, 0, "% Locații nevândute")
@@ -635,6 +624,8 @@ def export_sales_report():
         ws.write(start + 3, 0, "Sumă locații libere")
         ws.write(start + 3, 1, sum_free, money_fmt)
 
+
+ main
     messagebox.showinfo("Export Excel", f"Raport salvat:\n{path}")
 
 
