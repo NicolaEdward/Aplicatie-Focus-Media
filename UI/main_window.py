@@ -73,12 +73,14 @@ from UI.dialogs import (
     open_offer_window,
     export_available_excel,
     export_sales_report,
+    export_vendor_report,
     open_clients_window,
+    open_users_window,
 )
 
 
 
-def start_app():
+def start_app(user):
     if Style:
         style = Style("superhero")
         root = style.master
@@ -319,8 +321,16 @@ def start_app():
                              command=lambda: delete_location())
     btn_clients = ttk.Button(primary_frame, text="Clienți",
                              command=lambda: open_clients_window(root))
+    btn_users = ttk.Button(primary_frame, text="Utilizatori",
+                           command=lambda: open_users_window(root))
     for w in (btn_add, btn_edit, btn_rent, btn_release, btn_delete, btn_clients):
         w.pack(side="left", padx=5, pady=5)
+    if user.get("role") == 'admin':
+        btn_users.pack(side="left", padx=5, pady=5)
+
+    if user.get("role") != "admin":
+        btn_add.config(state="disabled")
+        btn_delete.config(state="disabled")
 
 
     export_frame = ttk.Frame(frm_bot)
@@ -337,9 +347,13 @@ def start_app():
                            command=lambda: open_offer_window(tree))
     btn_report = ttk.Button(export_frame, text="Raport Vânzări",
                            command=lambda: export_sales_report())
+    btn_vendor = ttk.Button(export_frame, text="Raport Vânzători",
+                           command=lambda: export_vendor_report())
     btn_xlsx.pack(side="left", padx=5, pady=5)
     btn_offer.pack(side="left", padx=5, pady=5)
     btn_report.pack(side="left", padx=5, pady=5)
+    if user.get("role") == 'admin':
+        btn_vendor.pack(side="left", padx=5, pady=5)
 
 
 
@@ -477,7 +491,6 @@ def start_app():
         sel = tree.selection()
         if not sel:
             btn_edit.config(state='disabled')
-
             btn_rent.config(state='disabled')
             btn_delete.config(state='disabled')
             img_label.config(image="", text="")
@@ -538,13 +551,14 @@ def start_app():
             lbl_pret_flot_label.pack(anchor="center", pady=2)
             lbl_pret_flot_value.pack(anchor="center", pady=2)
 
-        btn_edit.config(state='normal')
+        if user.get("role") == 'admin':
+            btn_edit.config(state='normal')
 
         # Butoane pentru închiriere și eliberare
         btn_rent.config(
             text="Închiriază",
             state='normal',
-            command=lambda: open_rent_window(root, loc_id, load_locations)
+            command=lambda: open_rent_window(root, loc_id, load_locations, user)
         )
 
         has_rents = cursor.execute(
@@ -560,7 +574,10 @@ def start_app():
         else:
             btn_release.config(state='disabled')
 
-        btn_delete.config(state='normal')
+        if user.get("role") == 'admin':
+            btn_delete.config(state='normal')
+        else:
+            btn_delete.config(state='disabled')
 
     def download_schita():
         code = cursor.execute("SELECT code FROM locatii WHERE id=?", (selected_id[0],)).fetchone()[0]
@@ -596,6 +613,8 @@ def start_app():
     root.mainloop()
 
 if __name__ == "__main__":
-    start_app()
+    import db
+    u = db.get_user("admin")
+    start_app(u)
 
 

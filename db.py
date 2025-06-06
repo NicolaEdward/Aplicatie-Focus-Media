@@ -1,6 +1,49 @@
 import os
-import sqlite3
 import datetime
+import hashlib
+import sqlite3
+
+try:
+    import mysql.connector  # type: ignore
+except Exception:  # pragma: no cover - optional dep
+    mysql = None
+
+
+class _CursorWrapper:
+    """Cursor wrapper translating ``?`` placeholders for MySQL."""
+
+    def __init__(self, cur, mysql_mode: bool):
+        self._cur = cur
+        self._mysql = mysql_mode
+
+    def execute(self, sql, params=None):
+        if self._mysql:
+            sql = sql.replace("?", "%s")
+        return self._cur.execute(sql, params or ())
+
+    def executemany(self, sql, params):
+        if self._mysql:
+            sql = sql.replace("?", "%s")
+        return self._cur.executemany(sql, params)
+
+    def __getattr__(self, name):
+        return getattr(self._cur, name)
+
+
+class _ConnWrapper:
+    def __init__(self, conn, mysql_mode: bool):
+        self._conn = conn
+        self._mysql = mysql_mode
+
+    def cursor(self):
+        return _CursorWrapper(self._conn.cursor(), self._mysql)
+
+    @property
+    def mysql(self):
+        return self._mysql
+
+    def __getattr__(self, name):
+        return getattr(self._conn, name)
 
 
 def get_db_path():
@@ -8,73 +51,175 @@ def get_db_path():
     base_dir = os.path.dirname(__file__)
     return os.path.join(base_dir, "locatii.db")
 
-conn   = sqlite3.connect(get_db_path())
+
+def _create_connection():
+    host = os.environ.get("MYSQL_HOST")
+    if host and mysql is not None:
+        conn = mysql.connector.connect(
+            host=host,
+            port=int(os.environ.get("MYSQL_PORT", 3306)),
+            user=os.environ.get("MYSQL_USER", "root"),
+            password=os.environ.get("MYSQL_PASSWORD", ""),
+            database=os.environ.get("MYSQL_DATABASE", "focus_media"),
+        )
+        return _ConnWrapper(conn, True)
+    return _ConnWrapper(sqlite3.connect(get_db_path()), False)
+
+
+conn = _create_connection()
 cursor = conn.cursor()
 
 def init_db():
-    # (1) Creăm tabelul cu toate coloanele, inclusiv noile preturi
-    cursor.execute("""
-    CREATE TABLE IF NOT EXISTS locatii (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        city TEXT,
-        county TEXT,
-        address TEXT,
-        type TEXT,
-        gps TEXT,
-        code TEXT,
-        size TEXT,
-        photo_link TEXT,
-        sqm REAL,
-        illumination TEXT,
-        ratecard REAL,
-        pret_vanzare REAL,
-        pret_flotant REAL,
-        decoration_cost REAL,
-        observatii TEXT,
-        status TEXT DEFAULT 'Disponibil',
-        client TEXT,
-        client_id INTEGER,
-        data_start TEXT,
-        data_end TEXT,
-        grup TEXT,
-        face TEXT DEFAULT 'Fața A'
-    )
-    """)
-    init_clienti_table()
-    init_rezervari_table()
-    conn.commit()
+    if getattr(conn, "mysql", False):
+        cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS locatii (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                city TEXT,
+                county TEXT,
+                address TEXT,
+                type TEXT,
+                gps TEXT,
+                code TEXT,
+                size TEXT,
+                photo_link TEXT,
+                sqm DOUBLE,
+                illumination TEXT,
+                ratecard DOUBLE,
+                pret_vanzare DOUBLE,
+                pret_flotant DOUBLE,
+                decoration_cost DOUBLE,
+                observatii TEXT,
+                status TEXT DEFAULT 'Disponibil',
+                client TEXT,
+                client_id INT,
+                data_start TEXT,
+                data_end TEXT,
+                grup TEXT,
+                face TEXT DEFAULT 'Fața A'
+            )
+            """
+        )
+        cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS clienti (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                nume TEXT UNIQUE NOT NULL,
+                contact TEXT,
+                email TEXT,
+                phone TEXT,
+                observatii TEXT,
+                tip TEXT DEFAULT 'direct'
+            )
+            """
+        )
+        cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS rezervari (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                loc_id INT NOT NULL,
+                client TEXT NOT NULL,
+                client_id INT,
+                data_start TEXT NOT NULL,
+                data_end TEXT NOT NULL,
+                suma DOUBLE,
+                created_by TEXT,
+                FOREIGN KEY(loc_id) REFERENCES locatii(id),
+                FOREIGN KEY(client_id) REFERENCES clienti(id)
+            )
+            """
+        )
+        cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS users (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                username TEXT UNIQUE NOT NULL,
+                password TEXT NOT NULL,
+                role TEXT NOT NULL,
+                comune TEXT
+            )
+            """
+        )
+    else:
+        # (1) Creăm tabelul cu toate coloanele, inclusiv noile preturi
+        cursor.execute(
+            """
+        CREATE TABLE IF NOT EXISTS locatii (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            city TEXT,
+            county TEXT,
+            address TEXT,
+            type TEXT,
+            gps TEXT,
+            code TEXT,
+            size TEXT,
+            photo_link TEXT,
+            sqm REAL,
+            illumination TEXT,
+            ratecard REAL,
+            pret_vanzare REAL,
+            pret_flotant REAL,
+            decoration_cost REAL,
+            observatii TEXT,
+            status TEXT DEFAULT 'Disponibil',
+            client TEXT,
+            client_id INTEGER,
+            data_start TEXT,
+            data_end TEXT,
+            grup TEXT,
+            face TEXT DEFAULT 'Fața A'
+        )
+        """
+        )
+        init_clienti_table()
+        init_rezervari_table()
+        init_users_table()
+        conn.commit()
 
     # Indexuri pentru o interogare mai rapidă
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_locatii_grup ON locatii(grup)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_locatii_status ON locatii(status)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_rezervari_loc ON rezervari(loc_id)")
     conn.commit()
-    
-    # (2) Verificăm ce coloane există deja
-    existing = {col[1] for col in cursor.execute("PRAGMA table_info(locatii)").fetchall()}
 
-    # (3) Pentru fiecare coloană nouă, adăugăm dacă lipsește
-    to_add = {
-        "rental_fee":    "REAL DEFAULT 0",
-        "pret_vanzare":  "REAL",
-        "pret_flotant":  "REAL",
-        "client_id":    "INTEGER"
-    }
+    if not getattr(conn, "mysql", False):
+        existing = {col[1] for col in cursor.execute("PRAGMA table_info(locatii)").fetchall()}
 
-    existing = {col[1] for col in cursor.execute("PRAGMA table_info(locatii)").fetchall()}
-    if "face" not in existing:
-        cursor.execute("ALTER TABLE locatii ADD COLUMN face TEXT DEFAULT 'Fața A'")
-        conn.commit()
+        to_add = {
+            "rental_fee":    "REAL DEFAULT 0",
+            "pret_vanzare":  "REAL",
+            "pret_flotant":  "REAL",
+            "client_id":    "INTEGER",
+        }
 
-
-    for col, definition in to_add.items():
-        if col not in existing:
-            cursor.execute(f"ALTER TABLE locatii ADD COLUMN {col} {definition}")
+        existing = {col[1] for col in cursor.execute("PRAGMA table_info(locatii)").fetchall()}
+        if "face" not in existing:
+            cursor.execute("ALTER TABLE locatii ADD COLUMN face TEXT DEFAULT 'Fața A'")
             conn.commit()
 
+        for col, definition in to_add.items():
+            if col not in existing:
+                cursor.execute(f"ALTER TABLE locatii ADD COLUMN {col} {definition}")
+                conn.commit()
+
 def init_clienti_table():
-    cursor.execute(
-        """
+    if getattr(conn, "mysql", False):
+        cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS clienti (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                nume TEXT UNIQUE NOT NULL,
+                contact TEXT,
+                email TEXT,
+                phone TEXT,
+                observatii TEXT,
+                tip TEXT DEFAULT 'direct'
+            )
+            """
+        )
+    else:
+        cursor.execute(
+            """
         CREATE TABLE IF NOT EXISTS clienti (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             nume TEXT UNIQUE NOT NULL,
@@ -85,24 +230,42 @@ def init_clienti_table():
             tip TEXT DEFAULT 'direct'
         )
         """
-    )
-    # Migrare adăugând coloanele noi dacă baza de date există deja
-    cols = {c[1] for c in cursor.execute("PRAGMA table_info(clienti)").fetchall()}
-    to_add = {
-        "contact": "TEXT",
-        "email": "TEXT",
-        "phone": "TEXT",
-        "observatii": "TEXT",
-        "tip": "TEXT DEFAULT 'direct'",
-    }
-    for col, definition in to_add.items():
-        if col not in cols:
-            cursor.execute(f"ALTER TABLE clienti ADD COLUMN {col} {definition}")
-            conn.commit()
-    conn.commit()
+        )
+    if not getattr(conn, "mysql", False):
+        cols = {c[1] for c in cursor.execute("PRAGMA table_info(clienti)").fetchall()}
+        to_add = {
+            "contact": "TEXT",
+            "email": "TEXT",
+            "phone": "TEXT",
+            "observatii": "TEXT",
+            "tip": "TEXT DEFAULT 'direct'",
+        }
+        for col, definition in to_add.items():
+            if col not in cols:
+                cursor.execute(f"ALTER TABLE clienti ADD COLUMN {col} {definition}")
+                conn.commit()
+        conn.commit()
 
 def init_rezervari_table():
-    cursor.execute("""
+    if getattr(conn, "mysql", False):
+        cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS rezervari (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                loc_id INT NOT NULL,
+                client TEXT NOT NULL,
+                client_id INT,
+                data_start TEXT NOT NULL,
+                data_end TEXT NOT NULL,
+                suma DOUBLE,
+                FOREIGN KEY(loc_id) REFERENCES locatii(id),
+                FOREIGN KEY(client_id) REFERENCES clienti(id)
+            )
+            """
+        )
+    else:
+        cursor.execute(
+            """
     CREATE TABLE IF NOT EXISTS rezervari (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         loc_id INTEGER NOT NULL,
@@ -111,15 +274,52 @@ def init_rezervari_table():
         data_start TEXT NOT NULL,
         data_end TEXT NOT NULL,
         suma REAL,
+        created_by TEXT,
         FOREIGN KEY(loc_id) REFERENCES locatii(id),
         FOREIGN KEY(client_id) REFERENCES clienti(id)
     )
-    """)
-    # Adăugare coloana client_id dacă lipsește (migrare simplă)
-    cols = {c[1] for c in cursor.execute("PRAGMA table_info(rezervari)").fetchall()}
-    if "client_id" not in cols:
-        cursor.execute("ALTER TABLE rezervari ADD COLUMN client_id INTEGER")
+    """
+        )
+        cols = {c[1] for c in cursor.execute("PRAGMA table_info(rezervari)").fetchall()}
+        if "client_id" not in cols:
+            cursor.execute("ALTER TABLE rezervari ADD COLUMN client_id INTEGER")
+            conn.commit()
+        if "created_by" not in cols:
+            cursor.execute("ALTER TABLE rezervari ADD COLUMN created_by TEXT")
+            conn.commit()
         conn.commit()
+
+def init_users_table():
+    if getattr(conn, "mysql", False):
+        cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS users (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                username TEXT UNIQUE NOT NULL,
+                password TEXT NOT NULL,
+                role TEXT NOT NULL,
+                comune TEXT
+            )
+            """
+        )
+    else:
+        cursor.execute(
+            """
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT UNIQUE NOT NULL,
+            password TEXT NOT NULL,
+            role TEXT NOT NULL,
+            comune TEXT
+        )
+        """
+        )
+    # create default admin if table empty
+    if not cursor.execute("SELECT COUNT(*) FROM users").fetchone()[0]:
+        cursor.execute(
+            "INSERT INTO users (username, password, role) VALUES (?, ?, 'admin')",
+            ("admin", hashlib.sha256(b"admin").hexdigest()),
+        )
     conn.commit()
 def update_statusuri_din_rezervari():
     today = datetime.date.today().isoformat()
@@ -185,6 +385,44 @@ def update_statusuri_din_rezervari():
     """, (today, today, today, today, today))
 
     conn.commit()
+
+
+def _hash_password(pw: str) -> str:
+    return hashlib.sha256(pw.encode()).hexdigest()
+
+
+def create_user(username: str, password: str, role: str = "seller", comune: str = ""):
+    cur = conn.cursor()
+    cur.execute(
+        "INSERT INTO users (username, password, role, comune) VALUES (?, ?, ?, ?)",
+        (username, _hash_password(password), role, comune),
+    )
+    conn.commit()
+
+
+def get_user(username: str):
+    cur = conn.cursor()
+    row = cur.execute(
+        "SELECT username, password, role, comune FROM users WHERE username=?",
+        (username,),
+    ).fetchone()
+    if row:
+        return {
+            "username": row[0],
+            "password": row[1],
+            "role": row[2],
+            "comune": row[3] or "",
+        }
+    return None
+
+
+def check_login(username: str, password: str):
+    user = get_user(username)
+    if not user:
+        return None
+    if user["password"] == _hash_password(password):
+        return user
+    return None
 
 # Initialize DB on import
 init_db()

@@ -3,3 +3,4 @@ Pillow
 tkcalendar
 XlsxWriter
 ttkbootstrap
+mysql-connector-python

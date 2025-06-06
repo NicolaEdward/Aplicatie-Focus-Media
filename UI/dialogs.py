@@ -9,7 +9,7 @@ from tkcalendar import DateEntry
 import xlsxwriter
 
 from utils import PREVIEW_FOLDER, make_preview
-from db import conn, update_statusuri_din_rezervari
+from db import conn, update_statusuri_din_rezervari, create_user
 
 def open_detail_window(tree, event):
     """Display extended information about the selected location."""
@@ -274,7 +274,7 @@ def cancel_reservation(root, loc_id, load_cb):
 
     load_cb()
 
-def open_rent_window(root, loc_id, load_cb):
+def open_rent_window(root, loc_id, load_cb, user):
     """Dialog pentru adăugarea unei închirieri în tabelul ``rezervari``.
 
     Perioada aleasă trebuie să nu se suprapună peste o rezervare sau o
@@ -363,9 +363,17 @@ def open_rent_window(root, loc_id, load_cb):
 
         # inserăm noua închiriere
         cur.execute(
-            "INSERT INTO rezervari (loc_id, client, client_id, data_start, data_end, suma)"
-            " VALUES (?, ?, ?, ?, ?, ?)",
-            (loc_id, client_display, client_id, start.isoformat(), end.isoformat(), fee_val),
+            "INSERT INTO rezervari (loc_id, client, client_id, data_start, data_end, suma, created_by)"
+            " VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (
+                loc_id,
+                client_display,
+                client_id,
+                start.isoformat(),
+                end.isoformat(),
+                fee_val,
+                user["username"],
+            ),
         )
         conn.commit()
 
@@ -1304,5 +1312,95 @@ def open_clients_window(root):
     btn_export = ttk.Button(win, text="Export Backup", command=export_current)
     for i, b in enumerate((btn_add, btn_del, btn_export)):
         b.grid(row=1, column=i, padx=5, pady=5, sticky="w")
+
+    refresh()
+
+def export_vendor_report():
+    """Export monthly sales totals per vendor."""
+    import pandas as pd
+    from tkinter import filedialog, messagebox
+    from db import conn
+    users = pd.read_sql_query("SELECT username, comune FROM users WHERE role='seller'", conn)
+    if users.empty:
+        messagebox.showinfo("Raport", "Nu există vânzători.")
+        return
+    df = pd.read_sql_query(
+        """
+        SELECT r.created_by, r.suma, r.data_start, l.county
+          FROM rezervari r
+          JOIN locatii l ON r.loc_id = l.id
+        """,
+        conn,
+        parse_dates=["data_start"],
+    )
+    if df.empty:
+        messagebox.showinfo("Raport", "Nu există închirieri.")
+        return
+    path = filedialog.asksaveasfilename(
+        defaultextension=".xlsx",
+        filetypes=[("Excel", "*.xlsx")],
+        title="Salvează raportul",
+    )
+    if not path:
+        return
+    with pd.ExcelWriter(path, engine="xlsxwriter") as writer:
+        for _, row in users.iterrows():
+            uname = row["username"]
+            comune = set((row["comune"] or "").split(','))
+            sub = df[df["created_by"] == uname]
+            if comune:
+                sub = sub[sub["county"].isin(comune)]
+            if sub.empty:
+                continue
+            sub["Month"] = sub["data_start"].dt.to_period("M").dt.strftime("%B")
+            summary = sub.groupby("Month")["suma"].sum().reset_index()
+            summary.columns = ["Luna", "Total"]
+            summary.to_excel(writer, sheet_name=uname[:31], index=False)
+    messagebox.showinfo("Raport", f"Raport salvat:\n{path}")
+
+def open_users_window(root):
+    """Admin window to manage user accounts."""
+    import tkinter.simpledialog as simpledialog
+    win = tk.Toplevel(root)
+    win.title("Utilizatori")
+
+    tree = ttk.Treeview(win, columns=("User", "Role", "Comune"), show="headings")
+    for c in ("User", "Role", "Comune"):
+        tree.heading(c, text=c)
+    tree.grid(row=0, column=0, columnspan=3, sticky="nsew")
+    win.columnconfigure(0, weight=1)
+    win.rowconfigure(0, weight=1)
+
+    def refresh():
+        tree.delete(*tree.get_children())
+        rows = conn.cursor().execute("SELECT username, role, comune FROM users").fetchall()
+        for u, r, c in rows:
+            tree.insert("", "end", values=(u, r, c or ""))
+
+    def add_user():
+        u = simpledialog.askstring("Utilizator", "Nume utilizator", parent=win)
+        if not u:
+            return
+        p = simpledialog.askstring("Parola", "Parola", parent=win, show="*")
+        if p is None:
+            return
+        role = simpledialog.askstring("Rol", "Rol (admin/seller)", parent=win, initialvalue="seller")
+        comune = simpledialog.askstring("Comune", "Lista comune (separate prin ,)", parent=win)
+        create_user(u, p, role or "seller", comune or "")
+        refresh()
+
+    def delete_user():
+        sel = tree.selection()
+        if not sel:
+            return
+        user = tree.item(sel[0])["values"][0]
+        if messagebox.askyesno("Confirmă", f"Ștergi utilizatorul {user}?"):
+            conn.cursor().execute("DELETE FROM users WHERE username=?", (user,))
+            conn.commit()
+            refresh()
+
+    ttk.Button(win, text="Adaugă", command=add_user).grid(row=1, column=0, pady=5)
+    ttk.Button(win, text="Șterge", command=delete_user).grid(row=1, column=1, pady=5)
+    ttk.Button(win, text="Închide", command=win.destroy).grid(row=1, column=2, pady=5)
 
     refresh()
