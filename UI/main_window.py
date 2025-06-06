@@ -111,8 +111,10 @@ def start_app():
     lbl_period_value       = ttk.Label(details, text="-")
     lbl_ratecard_label     = ttk.Label(details, text="Rate Card:")
     lbl_ratecard_value     = ttk.Label(details, text="-")
-    lbl_pret_vanz_label    = ttk.Label(details, text="Preț de vânzare:")
+    lbl_pret_vanz_label    = ttk.Label(details, text="Preț de vânzare aprobat:")
     lbl_pret_vanz_value    = ttk.Label(details, text="-")
+    lbl_pret_inch_label    = ttk.Label(details, text="Preț de închiriere:")
+    lbl_pret_inch_value    = ttk.Label(details, text="-")
     lbl_pret_flot_label    = ttk.Label(details, text="Preț flotant:")
     lbl_pret_flot_value    = ttk.Label(details, text="-")
 
@@ -128,11 +130,10 @@ def start_app():
     btn_edit    = ttk.Button(primary_frame, text="Editează", state="disabled",
                              command=lambda: open_edit_window(root, selected_id[0], load_locations, refresh_groups))
 
-    btn_reserve = ttk.Button(primary_frame, text="Rezervă", state="disabled")
     btn_rent    = ttk.Button(primary_frame, text="Închiriază", state="disabled")
     btn_delete  = ttk.Button(primary_frame, text="Șterge", state="disabled",
                              command=lambda: delete_location())
-    for w in (btn_add, btn_edit, btn_reserve, btn_rent, btn_delete):
+    for w in (btn_add, btn_edit, btn_rent, btn_delete):
         w.pack(side="left", padx=5)
 
 
@@ -283,6 +284,8 @@ def start_app():
             lbl_period_label, lbl_period_value,
             lbl_ratecard_label, lbl_ratecard_value,
             lbl_pret_vanz_label, lbl_pret_vanz_value,
+            lbl_pret_inch_label, lbl_pret_inch_value,
+            lbl_pret_flot_label, lbl_pret_flot_value,
 
         ):
             w.pack_forget()
@@ -305,12 +308,21 @@ def start_app():
             "FROM locatii WHERE id=?", (loc_id,)
         ).fetchone()
 
+        rent_row = None
+        if ds and de:
+            rent_row = cursor.execute(
+                "SELECT suma FROM rezervari WHERE loc_id=? AND data_start=? AND data_end=? ORDER BY id DESC LIMIT 1",
+                (loc_id, ds, de)
+            ).fetchone()
+        rent_price = rent_row[0] if rent_row else None
+
 
         # actualizare valori
         lbl_client_value.config(text=client or "-")
         lbl_period_value.config(text=f"{ds} → {de}" if ds and de else "-")
         lbl_ratecard_value.config(text=str(ratecard))
         lbl_pret_vanz_value.config(text=str(pret_vanz) if pret_vanz is not None else "-")
+        lbl_pret_inch_value.config(text=str(rent_price) if rent_price is not None else "-")
         lbl_pret_flot_value.config(text=str(pret_flot) if pret_flot is not None else "-")
 
         # preview
@@ -330,6 +342,8 @@ def start_app():
             lbl_period_label.pack(anchor="center", pady=2)
             lbl_period_value.pack(anchor="center", pady=2)
 
+            lbl_pret_inch_label.pack(anchor="center", pady=2)
+            lbl_pret_inch_value.pack(anchor="center", pady=2)
             lbl_pret_vanz_label.pack(anchor="center", pady=2)
             lbl_pret_vanz_value.pack(anchor="center", pady=2)
         else:
