@@ -1,5 +1,4 @@
 # UI/dialogs.py
-
 import datetime
 import webbrowser
 import tkinter as tk
@@ -19,7 +18,6 @@ def open_detail_window(tree, event):
         return
     loc_id = int(rowid)     # folosim iid-ul (id-ul real din DB), nu valoarea din coloane
     # extrage detaliile locației și le afișează într-o fereastră dedicată
- main
 
     # preia datele specifice
     cur = conn.cursor()
@@ -99,48 +97,40 @@ def open_detail_window(tree, event):
     add_field(r, "RateCard",  ttk.Label(frm, text=str(ratecard))); r += 1
     add_field(r, "Preț de vânzare",
                          ttk.Label(frm, text=str(pret_vanzare))); r += 1
+    add_field(r, "Preț Flotant", ttk.Label(frm, text=str(pret_flotant))); r += 1
+    add_field(r, "Preț de decorare",
+                         ttk.Label(frm, text=str(decoration_cost))); r += 1
 
- main
+    add_field(r, "Observații",
+                         ttk.Label(frm, text=observatii or "-")); r += 1
+    add_field(r, "Status",    ttk.Label(frm, text=status)); r += 1
+
+    # Client și perioadă doar dacă există
+    if client:
+        add_field(r, "Client",   ttk.Label(frm, text=client)); r += 1
+        period = f"{ds} → {de}" if ds and de else "-"
+        add_field(r, "Perioadă", ttk.Label(frm, text=period)); r += 1
         fee_row = None
         if ds and de:
             fee_row = cur.execute(
                 "SELECT suma FROM rezervari WHERE loc_id=? AND data_start=? AND data_end=? ORDER BY data_start DESC LIMIT 1",
                 (loc_id, ds, de)
             ).fetchone()
+        if fee_row:
+            add_field(r, "Sumă închiriere", ttk.Label(frm, text=str(fee_row[0]))); r += 1
 
-                "Perioadă ocupată",
-                "Locația este deja rezervată sau închiriată în intervalul ales.",
-            )
-            return
-
-        cur.execute(
-            "INSERT INTO rezervari (loc_id, client, client_id, data_start, data_end, suma)"
-            " VALUES (?, ?, ?, ?, ?, NULL)",
-            (loc_id, client, client_id, start.isoformat(), end.isoformat()),
-        )
-        conn.commit()
-
-        update_statusuri_din_rezervari()
-
-        load_cb()
-        win.destroy()
-
-    ttk.Button(win, text="Confirmă rezervare", command=save_reserve)\
-        .grid(row=len(labels), column=0, columnspan=2, pady=10)
-
- main
+    # face fereastra redimensionabilă
+    for i in range(r):
+        win.rowconfigure(i, weight=0)
+    win.columnconfigure(1, weight=1)
 
 def open_add_window(root, refresh_cb):
     win = tk.Toplevel(root)
     win.title("Adaugă locație")
     labels = [
         "City", "County", "Address", "Type", "GPS", "Code",
-
         "Size", "Photo Link", "SQM", "Illumination", "RateCard",
-
-        "Preț Vânzare", "Pret Flotant", "Decoration cost",
- main
- main
+        "Preț Vânzare", "Preț Flotant", "Decoration cost",
         "Observații", "Grup", "Față"
     ]
     entries = {}
@@ -172,12 +162,8 @@ def open_add_window(root, refresh_cb):
             vals["GPS"], vals["Code"], vals["Size"],
             vals["Photo Link"], vals["SQM"], vals["Illumination"],
             vals["RateCard"],
-
             vals["Preț Vânzare"] or None,
-
-            vals["Pret Flotant"] or None,
- main
- main
+            vals["Preț Flotant"] or None,
             vals["Decoration cost"] or None,
             vals["Observații"], vals["Grup"], vals["Față"]
         ])
@@ -205,12 +191,8 @@ def open_edit_window(root, loc_id, load_cb, refresh_groups_cb):
 
     labels = [
         "City", "County", "Address", "Type", "GPS", "Code",
-
         "Size", "Photo Link", "SQM", "Illumination", "RateCard",
-
-        "Preț Vânzare", "Pret Flotant", "Decoration cost",
- main
- main
+        "Preț Vânzare", "Preț Flotant", "Decoration cost",
         "Observații", "Grup", "Față"
     ]
 
@@ -252,12 +234,8 @@ def open_edit_window(root, loc_id, load_cb, refresh_groups_cb):
             vals["GPS"], vals["Code"], vals["Size"],
             vals["Photo Link"], vals["SQM"], vals["Illumination"],
             vals["RateCard"],
-
             vals["Preț Vânzare"] or None,
-
-            vals["Pret Flotant"] or None,
- main
- main
+            vals["Preț Flotant"] or None,
             vals["Decoration cost"] or None,
             vals["Observații"], vals["Grup"], vals["Față"],
             loc_id
@@ -295,7 +273,6 @@ def cancel_reservation(root, loc_id, load_cb):
     conn.commit()
 
     load_cb()
-
 
 def open_rent_window(root, loc_id, load_cb):
     """Dialog pentru adăugarea unei închirieri în tabelul ``rezervari``.
@@ -345,8 +322,12 @@ def open_rent_window(root, loc_id, load_cb):
 
         cur = conn.cursor()
 
+        # adaugă clientul în tabela dedicată dacă nu există
+        cur.execute("INSERT OR IGNORE INTO clienti (nume) VALUES (?)", (client,))
+        client_id = cur.execute(
+            "SELECT id FROM clienti WHERE nume=?", (client,)
+        ).fetchone()[0]
 
- main
         # verificăm suprapuneri cu alte perioade
         overlap = cur.execute(
             "SELECT 1 FROM rezervari WHERE loc_id=? AND NOT (data_end < ? OR data_start > ?)",
@@ -361,11 +342,9 @@ def open_rent_window(root, loc_id, load_cb):
 
         # inserăm noua închiriere
         cur.execute(
-
-            "INSERT INTO rezervari (loc_id, client, data_start, data_end, suma)"
-            " VALUES (?, ?, ?, ?, ?)",
-            (loc_id, client, start.isoformat(), end.isoformat(), fee_val),
- main
+            "INSERT INTO rezervari (loc_id, client, client_id, data_start, data_end, suma)"
+            " VALUES (?, ?, ?, ?, ?, ?)",
+            (loc_id, client, client_id, start.isoformat(), end.isoformat(), fee_val),
         )
         conn.commit()
 
@@ -380,7 +359,6 @@ def open_rent_window(root, loc_id, load_cb):
 
 
 def export_available_excel(
- main
     grup_filter, status_filter, search_term,
     ignore_dates, start_date, end_date
 ):
@@ -670,96 +648,6 @@ def export_sales_report():
                     max_len = max(len(col), sub[col].astype(str).map(len).max())
                     ws_m.set_column(i, i, max_len + 2, fmt)
 
-    messagebox.showinfo("Export Excel", f"Raport salvat:\n{path}")
-
-
-def export_sales_report():
-
-    """Exportă un raport cu toate locațiile și statisticile de vânzări.
-
-    Rândurile cu status ``Închiriat`` sunt evidențiate cu albastru deschis.
-    La final sunt afișate procentele și sumele pentru locațiile vândute și
-    cele nevândute.
-    """
-    import pandas as pd
-    from tkinter import messagebox, filedialog
-    from db import conn
-
-    df = pd.read_sql_query(
-        """
-        SELECT city, county, address, status, ratecard, pret_vanzare
-          FROM locatii
-         ORDER BY county, city, id
-        """,
-        conn,
-    )
-
-    if df.empty:
-        messagebox.showinfo("Export Excel", "Nu există locații în baza de date.")
-        return
-
-    sold_mask = df["status"] == "Închiriat"
-    pct_sold = sold_mask.mean()
-    pct_free = 1 - pct_sold
-    sum_sold = df.loc[sold_mask, "pret_vanzare"].fillna(0).sum()
-    sum_free = df.loc[~sold_mask, "pret_vanzare"].fillna(0).sum()
- main
-
-    path = filedialog.asksaveasfilename(
-        defaultextension=".xlsx",
-        filetypes=[("Excel", "*.xlsx")],
-        title="Salvează raportul Excel",
-    )
-    if not path:
-        return
-
-    with pd.ExcelWriter(path, engine="xlsxwriter") as writer:
-
-        df.to_excel(writer, sheet_name="Raport", startrow=0, index=False)
-        wb = writer.book
-        ws = writer.sheets["Raport"]
- main
-
-        hdr_fmt = wb.add_format(
-            {
-                "bold": True,
-                "bg_color": "#4F81BD",
-                "font_color": "white",
-                "align": "center",
-                "valign": "vcenter",
-                "border": 1,
-            }
-        )
-        money_fmt = wb.add_format({"num_format": "€#,##0.00", "align": "center"})
-        percent_fmt = wb.add_format({"num_format": "0.00%", "align": "center"})
-        sold_fmt = wb.add_format({"bg_color": "#D9E1F2"})
-
-
-        for col_idx, col in enumerate(df.columns):
-            ws.write(0, col_idx, col.replace("pret_vanzare", "Preț Vânzare"), hdr_fmt)
-            max_len = max(len(col), df[col].astype(str).map(len).max())
- main
-            fmt = money_fmt if col in ("ratecard", "pret_vanzare") else None
-            ws.set_column(col_idx, col_idx, max_len + 2, fmt)
-
-        for row_idx, sold in enumerate(sold_mask, start=1):
-            if sold:
-                ws.set_row(row_idx, None, sold_fmt)
-
-
-        start = len(df) + 2
- main
-        ws.write(start, 0, "% Locații vândute")
-        ws.write(start, 1, pct_sold, percent_fmt)
-        ws.write(start + 1, 0, "% Locații nevândute")
-        ws.write(start + 1, 1, pct_free, percent_fmt)
-        ws.write(start + 2, 0, "Sumă locații vândute")
-        ws.write(start + 2, 1, sum_sold, money_fmt)
-        ws.write(start + 3, 0, "Sumă locații libere")
-        ws.write(start + 3, 1, sum_free, money_fmt)
-
-
- main
     messagebox.showinfo("Export Excel", f"Raport salvat:\n{path}")
 
 

@@ -1,5 +1,4 @@
 
- main
 
 import os
 import shutil
@@ -14,20 +13,15 @@ from UI.dialogs import (
     open_detail_window,
     open_add_window,
     open_edit_window,
-
-    open_reserve_window,
     open_rent_window,
- main
     cancel_reservation,
- main
     open_offer_window,
     export_available_excel,
-    export_sales_report
+    export_sales_report,
 )
 
 
 
- main
 def start_app():
     root = tk.Tk()
     root.title("Gestionare Locații Publicitare")
@@ -102,10 +96,13 @@ def start_app():
     img_label = ttk.Label(details)
     img_label.pack(pady=(0,10))
 
-
-    for w in (btn_add, btn_edit, btn_rent, btn_delete):
- main
-    btn_download.pack(pady=(0,15))
+    btn_download = ttk.Button(
+        details,
+        text="Descarcă schița",
+        state="disabled",
+        command=lambda: download_schita(),
+    )
+    btn_download.pack(pady=(0, 15))
 
     # etichete declarate fără pack()
     lbl_client_label       = ttk.Label(details, text="Client:")
@@ -119,7 +116,6 @@ def start_app():
     lbl_pret_flot_label    = ttk.Label(details, text="Preț flotant:")
     lbl_pret_flot_value    = ttk.Label(details, text="-")
 
- main
 
     # --- Bottom: butoane principale (stânga) și export (dreapta) ---
     frm_bot = ttk.Frame(root, padding=10)
@@ -140,7 +136,6 @@ def start_app():
         w.pack(side="left", padx=5)
 
 
- main
     export_frame = ttk.Frame(frm_bot)
     export_frame.pack(side="right")
     btn_xlsx  = ttk.Button(export_frame, text="Export Disponibil",
@@ -161,7 +156,6 @@ def start_app():
 
 
 
- main
     selected_id = [None]
 
     # --- Funcții auxiliare ---
@@ -201,8 +195,6 @@ def start_app():
         # îl folosim doar în availability()
         d0, d1 = start_dt.isoformat(), end_dt.isoformat()
 
- main
- main
         # 5) Interogarea inițială doar pe tabelă ``locatii``
         q = """
             SELECT id, city, county, address, type, ratecard
@@ -212,7 +204,6 @@ def start_app():
             q += " WHERE " + " AND ".join(cond)
 
 
- main
         q += """
             ORDER BY
             CASE county
@@ -253,7 +244,6 @@ def start_app():
                 frm = (last_de + datetime.timedelta(days=1)).strftime('%d.%m.%Y')
                 return f"Disponibil din {frm}"
             return ""  # complet acoperit
- main
 
         # 7) Populează TreeView, aplicând filtrul de date doar când "Toate datele" NU e bifat
         display_index = 0
@@ -294,7 +284,6 @@ def start_app():
             lbl_ratecard_label, lbl_ratecard_value,
             lbl_pret_vanz_label, lbl_pret_vanz_value,
 
- main
         ):
             w.pack_forget()
 
@@ -302,7 +291,6 @@ def start_app():
         if not sel:
             btn_edit.config(state='disabled')
 
- main
             btn_rent.config(state='disabled')
             btn_delete.config(state='disabled')
             img_label.config(image="", text="")
@@ -317,7 +305,6 @@ def start_app():
             "FROM locatii WHERE id=?", (loc_id,)
         ).fetchone()
 
- main
 
         # actualizare valori
         lbl_client_value.config(text=client or "-")
@@ -343,7 +330,6 @@ def start_app():
             lbl_period_label.pack(anchor="center", pady=2)
             lbl_period_value.pack(anchor="center", pady=2)
 
- main
             lbl_pret_vanz_label.pack(anchor="center", pady=2)
             lbl_pret_vanz_value.pack(anchor="center", pady=2)
         else:
@@ -417,5 +403,4 @@ def start_app():
 if __name__ == "__main__":
     start_app()
 
- main
 
