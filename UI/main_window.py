@@ -1,3 +1,4 @@
+
 # UI/main_window.py
 
 import os
@@ -15,11 +16,13 @@ from UI.dialogs import (
     open_edit_window,
     open_reserve_window,
     open_rent_window,
+ main
     cancel_reservation,
     open_offer_window,
     export_available_excel,
     export_sales_report
 )
+
 
 def start_app():
     root = tk.Tk()
@@ -110,8 +113,6 @@ def start_app():
     lbl_pret_vanz_value    = ttk.Label(details, text="-")
     lbl_pret_flot_label    = ttk.Label(details, text="Preț flotant:")
     lbl_pret_flot_value    = ttk.Label(details, text="-")
-    lbl_sum_label          = ttk.Label(details, text="Sumă închiriere:")
-    lbl_sum_value          = ttk.Label(details, text="-")
 
     # --- Bottom: butoane principale (stânga) și export (dreapta) ---
     frm_bot = ttk.Frame(root, padding=10)
@@ -130,6 +131,7 @@ def start_app():
     for w in (btn_add, btn_edit, btn_reserve, btn_rent, btn_delete):
         w.pack(side="left", padx=5)
 
+ main
     export_frame = ttk.Frame(frm_bot)
     export_frame.pack(side="right")
     btn_xlsx  = ttk.Button(export_frame, text="Export Disponibil",
@@ -147,6 +149,7 @@ def start_app():
     btn_xlsx.pack(side="left", padx=5)
     btn_offer.pack(side="left", padx=5)
     btn_report.pack(side="left", padx=5)
+
 
     selected_id = [None]
 
@@ -187,6 +190,7 @@ def start_app():
         # îl folosim doar în availability()
         d0, d1 = start_dt.isoformat(), end_dt.isoformat()
 
+ main
         # 5) Interogarea inițială doar pe tabelă ``locatii``
         q = """
             SELECT id, city, county, address, type, ratecard
@@ -194,6 +198,7 @@ def start_app():
         """
         if cond:
             q += " WHERE " + " AND ".join(cond)
+
 
         q += """
             ORDER BY
@@ -218,27 +223,22 @@ def start_app():
         # 6) Funcție locală pentru a afla disponibilitatea pe interval
         def availability(loc_id):
             rez = cursor.execute(
-                "SELECT client, data_start, data_end FROM rezervari WHERE loc_id=? ORDER BY data_start",
-                (loc_id,),
+                "SELECT data_start, data_end FROM rezervari WHERE loc_id=? ORDER BY data_start",
+                (loc_id,)
             ).fetchall()
-            periods = [
-                (c, datetime.date.fromisoformat(ds), datetime.date.fromisoformat(de))
-                for c, ds, de in rez
-            ]
-            overl = [p for p in periods if not (p[2] < start_dt or p[1] > end_dt)]
+            periods = [(datetime.date.fromisoformat(ds), datetime.date.fromisoformat(de)) for ds,de in rez]
+            overl = [(ds,de) for ds,de in periods if not (de < start_dt or ds > end_dt)]
             if not overl:
                 return "Disponibil"
-            first_c, first_ds, first_de = overl[0]
-            if start_dt >= first_ds and end_dt <= first_de:
-                return f"Închiriat de {first_c}"
+            first_ds = overl[0][0]
             if first_ds > start_dt:
                 until = (first_ds - datetime.timedelta(days=1)).strftime('%d.%m.%Y')
                 return f"Disponibil până la {until}"
-            last_c, last_ds, last_de = overl[-1]
+            last_de = overl[-1][1]
             if last_de < end_dt:
                 frm = (last_de + datetime.timedelta(days=1)).strftime('%d.%m.%Y')
                 return f"Disponibil din {frm}"
-            return f"Închiriat de {first_c}"
+            return ""  # complet acoperit
 
         # 7) Populează TreeView, aplicând filtrul de date doar când "Toate datele" NU e bifat
         display_index = 0
@@ -278,8 +278,7 @@ def start_app():
             lbl_period_label, lbl_period_value,
             lbl_ratecard_label, lbl_ratecard_value,
             lbl_pret_vanz_label, lbl_pret_vanz_value,
-            lbl_pret_flot_label, lbl_pret_flot_value,
-            lbl_sum_label, lbl_sum_value
+            lbl_pret_flot_label, lbl_pret_flot_value
         ):
             w.pack_forget()
 
@@ -300,11 +299,6 @@ def start_app():
             "SELECT code, client, data_start, data_end, ratecard, pret_vanzare, pret_flotant "
             "FROM locatii WHERE id=?", (loc_id,)
         ).fetchone()
-        rent_sum = cursor.execute(
-            "SELECT suma FROM rezervari WHERE loc_id=? AND ? BETWEEN data_start AND data_end ORDER BY data_start DESC LIMIT 1",
-            (loc_id, datetime.date.today().isoformat())
-        ).fetchone()
-        lbl_sum_value.config(text=str(rent_sum[0]) if rent_sum else "-")
 
         # actualizare valori
         lbl_client_value.config(text=client or "-")
@@ -329,8 +323,6 @@ def start_app():
             lbl_client_value.pack(anchor="center", pady=2)
             lbl_period_label.pack(anchor="center", pady=2)
             lbl_period_value.pack(anchor="center", pady=2)
-            lbl_sum_label.pack(anchor="center", pady=2)
-            lbl_sum_value.pack(anchor="center", pady=2)
             lbl_pret_vanz_label.pack(anchor="center", pady=2)
             lbl_pret_vanz_value.pack(anchor="center", pady=2)
         else:
@@ -409,3 +401,4 @@ def start_app():
 
 if __name__ == "__main__":
     start_app()
+ main
