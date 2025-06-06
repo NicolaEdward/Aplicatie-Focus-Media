@@ -341,14 +341,15 @@ def start_app(user, root=None):
                              command=lambda: open_clients_window(root))
     btn_users = ttk.Button(primary_frame, text="Utilizatori",
                            command=lambda: open_users_window(root))
-    for w in (btn_add, btn_edit, btn_rent, btn_release, btn_delete, btn_clients):
-        w.pack(side="left", padx=5, pady=5)
     if user.get("role") == 'admin':
+        for w in (btn_add, btn_edit, btn_delete):
+            w.pack(side="left", padx=5, pady=5)
         btn_users.pack(side="left", padx=5, pady=5)
-
-    if user.get("role") != "admin":
-        btn_add.config(state="disabled")
-        btn_delete.config(state="disabled")
+    else:
+        # vânzătorii pot doar închiria/elibera și gestiona clienți
+        pass
+    for w in (btn_rent, btn_release, btn_clients):
+        w.pack(side="left", padx=5, pady=5)
 
 
     export_frame = ttk.Frame(frm_bot)

@@ -1378,16 +1378,44 @@ def open_users_window(root):
             tree.insert("", "end", values=(u, r, c or ""))
 
     def add_user():
-        u = simpledialog.askstring("Utilizator", "Nume utilizator", parent=win)
-        if not u:
-            return
-        p = simpledialog.askstring("Parola", "Parola", parent=win, show="*")
-        if p is None:
-            return
-        role = simpledialog.askstring("Rol", "Rol (admin/seller)", parent=win, initialvalue="seller")
-        comune = simpledialog.askstring("Comune", "Lista comune (separate prin ,)", parent=win)
-        create_user(u, p, role or "seller", comune or "")
-        refresh()
+        dlg = tk.Toplevel(win)
+        dlg.title("Adaugă utilizator")
+
+        ttk.Label(dlg, text="Utilizator:").grid(row=0, column=0, padx=5, pady=5, sticky="e")
+        entry_user = ttk.Entry(dlg, width=30)
+        entry_user.grid(row=0, column=1, padx=5, pady=5)
+
+        ttk.Label(dlg, text="Parola:").grid(row=1, column=0, padx=5, pady=5, sticky="e")
+        entry_pass = ttk.Entry(dlg, width=30, show="*")
+        entry_pass.grid(row=1, column=1, padx=5, pady=5)
+
+        ttk.Label(dlg, text="Rol:").grid(row=2, column=0, padx=5, pady=5, sticky="e")
+        combo_role = ttk.Combobox(dlg, values=["admin", "seller"], state="readonly")
+        combo_role.current(1)
+        combo_role.grid(row=2, column=1, padx=5, pady=5)
+
+        ttk.Label(dlg, text="Comune:").grid(row=3, column=0, padx=5, pady=5, sticky="e")
+        entry_comune = ttk.Entry(dlg, width=30)
+        entry_comune.grid(row=3, column=1, padx=5, pady=5)
+
+        def on_ok():
+            u = entry_user.get().strip()
+            if not u:
+                messagebox.showwarning("Date lipsă", "Completează utilizatorul.", parent=dlg)
+                return
+            p = entry_pass.get()
+            if p is None:
+                messagebox.showwarning("Date lipsă", "Completează parola.", parent=dlg)
+                return
+            role = combo_role.get() or "seller"
+            comune = entry_comune.get().strip() or ""
+            create_user(u, p, role, comune)
+            dlg.destroy()
+            refresh()
+
+        ttk.Button(dlg, text="Salvează", command=on_ok).grid(row=4, column=0, columnspan=2, pady=10)
+        dlg.grab_set()
+        entry_user.focus()
 
     def delete_user():
         sel = tree.selection()
