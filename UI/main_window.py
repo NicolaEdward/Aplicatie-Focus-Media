@@ -14,6 +14,7 @@ from UI.dialogs import (
     open_add_window,
     open_edit_window,
     open_rent_window,
+    open_release_window,
     cancel_reservation,
     open_offer_window,
     export_available_excel,
@@ -132,11 +133,12 @@ def start_app():
                              command=lambda: open_edit_window(root, selected_id[0], load_locations, refresh_groups))
 
     btn_rent    = ttk.Button(primary_frame, text="Închiriază", state="disabled")
+    btn_release = ttk.Button(primary_frame, text="Eliberează", state="disabled")
     btn_delete  = ttk.Button(primary_frame, text="Șterge", state="disabled",
                              command=lambda: delete_location())
     btn_clients = ttk.Button(primary_frame, text="Clienți",
                              command=lambda: open_clients_window(root))
-    for w in (btn_add, btn_edit, btn_rent, btn_delete, btn_clients):
+    for w in (btn_add, btn_edit, btn_rent, btn_release, btn_delete, btn_clients):
         w.pack(side="left", padx=5)
 
 
@@ -359,12 +361,25 @@ def start_app():
 
         btn_edit.config(state='normal')
 
-        if status in ('Disponibil', 'Rezervat'):
-            btn_rent.config(text="Închiriază", state='normal',
-                            command=lambda: open_rent_window(root, loc_id, load_locations))
+        # Butoane pentru închiriere și eliberare
+        btn_rent.config(
+            text="Închiriază",
+            state='normal',
+            command=lambda: open_rent_window(root, loc_id, load_locations)
+        )
+
+        has_rents = cursor.execute(
+            "SELECT COUNT(*) FROM rezervari WHERE loc_id=?",
+            (loc_id,)
+        ).fetchone()[0] > 0
+
+        if has_rents:
+            btn_release.config(
+                state='normal',
+                command=lambda: open_release_window(root, loc_id, load_locations)
+            )
         else:
-            btn_rent.config(text="Eliberează", state='normal',
-                            command=lambda: release_and_refresh())
+            btn_release.config(state='disabled')
 
         btn_delete.config(state='normal')
 
@@ -383,22 +398,6 @@ def start_app():
             conn.cursor().execute("DELETE FROM locatii WHERE id=?", (selected_id[0],))
             conn.commit()
             load_locations()
-
-    def release_and_refresh():
-        if not messagebox.askyesno("Confirmă", "Încheie mai devreme închirierea?"):
-            return
-        cur = conn.cursor()
-        cur.execute(
-            "DELETE FROM rezervari WHERE loc_id=? AND ? BETWEEN data_start AND data_end",
-            (selected_id[0], datetime.date.today().isoformat()),
-        )
-        cur.execute(
-            "UPDATE locatii SET status='Disponibil', client=NULL, client_id=NULL, data_start=NULL, data_end=NULL WHERE id=?",
-            (selected_id[0],),
-        )
-        conn.commit()
-        update_statusuri_din_rezervari()
-        load_locations()
 
     def check_alerts():
         # implementare alerte...

@@ -379,6 +379,44 @@ def open_rent_window(root, loc_id, load_cb):
         .grid(row=len(labels)+1, column=0, columnspan=3, pady=10)
 
 
+def open_release_window(root, loc_id, load_cb):
+    """Selectează și anulează una dintre închirierile existente."""
+    cur = conn.cursor()
+    rows = cur.execute(
+        "SELECT id, client, data_start, data_end FROM rezervari WHERE loc_id=? ORDER BY data_start",
+        (loc_id,)
+    ).fetchall()
+
+    if not rows:
+        messagebox.showinfo("Eliberează", "Nu există închirieri pentru această locație.")
+        return
+
+    win = tk.Toplevel(root)
+    win.title(f"Selectează închirierea #{loc_id}")
+
+    lst = tk.Listbox(win, width=40, height=10)
+    for rid, client, ds, de in rows:
+        lst.insert("end", f"{client}: {ds} → {de}")
+    lst.grid(row=0, column=0, columnspan=2, padx=5, pady=5)
+
+    def delete_selected():
+        sel = lst.curselection()
+        if not sel:
+            messagebox.showwarning("Selectează", "Alege o închiriere.")
+            return
+        rid = rows[sel[0]][0]
+        if not messagebox.askyesno("Confirmă", "Sigur vrei să anulezi această închiriere?"):
+            return
+        cur.execute("DELETE FROM rezervari WHERE id=?", (rid,))
+        conn.commit()
+        update_statusuri_din_rezervari()
+        load_cb()
+        win.destroy()
+
+    ttk.Button(win, text="Șterge", command=delete_selected).grid(row=1, column=0, padx=5, pady=5)
+    ttk.Button(win, text="Închide", command=win.destroy).grid(row=1, column=1, padx=5, pady=5)
+
+
 def export_available_excel(
     grup_filter, status_filter, search_term,
     ignore_dates, start_date, end_date
