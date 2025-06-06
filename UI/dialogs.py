@@ -285,12 +285,17 @@ def open_rent_window(root, loc_id, load_cb):
     win = tk.Toplevel(root)
     win.title(f"Închiriază locația #{loc_id}")
 
-    labels = ["Client", "Data start", "Data end", "Sumă finală"]
-    entries = {}
+    ttk.Label(win, text="Client:").grid(row=0, column=0, sticky="e", padx=5, pady=5)
+    def client_list():
+        return [r[0] for r in conn.cursor().execute("SELECT nume FROM clienti ORDER BY nume").fetchall()]
+    cb_client = ttk.Combobox(win, values=client_list(), width=27)
+    cb_client.grid(row=0, column=1, padx=5, pady=5)
+    ttk.Button(win, text="+", command=lambda: (open_add_client_window(win, lambda: cb_client.configure(values=client_list())))).grid(row=0, column=2, padx=2, pady=5)
 
-    for i, lbl in enumerate(labels):
-        ttk.Label(win, text=lbl + ":")\
-            .grid(row=i, column=0, sticky="e", padx=5, pady=5)
+    labels = ["Data start", "Data end", "Sumă finală"]
+    entries = {}
+    for i, lbl in enumerate(labels, start=1):
+        ttk.Label(win, text=lbl + ":").grid(row=i, column=0, sticky="e", padx=5, pady=5)
         if "Data" in lbl:
             e = DateEntry(win, date_pattern="yyyy-mm-dd")
         else:
@@ -299,7 +304,7 @@ def open_rent_window(root, loc_id, load_cb):
         entries[lbl] = e
 
     def save_rent():
-        client = entries["Client"].get().strip()
+        client = cb_client.get().strip()
         if not client:
             messagebox.showwarning("Lipsește client", "Completează client.")
             return
@@ -355,7 +360,7 @@ def open_rent_window(root, loc_id, load_cb):
         win.destroy()
 
     ttk.Button(win, text="Confirmă închiriere", command=save_rent)\
-        .grid(row=len(labels), column=0, columnspan=2, pady=10)
+        .grid(row=len(labels)+1, column=0, columnspan=3, pady=10)
 
 
 def export_available_excel(
@@ -870,3 +875,156 @@ def open_offer_window(tree):
     # 9. Butonul de export (am mutat rândul la 5 pentru UI)
     ttk.Button(win, text='Generează Excel', command=export)\
         .grid(row=5, column=0, columnspan=2, pady=10)
+
+
+def open_add_client_window(parent, refresh_cb=None):
+    """Dialog pentru adăugarea unui client în tabela ``clienti``."""
+    win = tk.Toplevel(parent)
+    win.title("Adaugă client")
+
+    labels = [
+        "Nume companie",
+        "Persoană contact",
+        "Email",
+        "Telefon",
+        "Observații",
+    ]
+    entries = {}
+    for i, lbl in enumerate(labels):
+        ttk.Label(win, text=lbl + ":").grid(row=i, column=0, sticky="e", padx=5, pady=2)
+        e = ttk.Entry(win, width=40)
+        e.grid(row=i, column=1, padx=5, pady=2)
+        entries[lbl] = e
+
+    def save():
+        nume = entries["Nume companie"].get().strip()
+        if not nume:
+            messagebox.showwarning("Lipsește numele", "Completează numele companiei.")
+            return
+        cur = conn.cursor()
+        cur.execute(
+            "INSERT INTO clienti (nume, contact, email, phone, observatii) VALUES (?,?,?,?,?)",
+            (
+                nume,
+                entries["Persoană contact"].get().strip(),
+                entries["Email"].get().strip(),
+                entries["Telefon"].get().strip(),
+                entries["Observații"].get().strip(),
+            ),
+        )
+        conn.commit()
+        if refresh_cb:
+            refresh_cb()
+        win.destroy()
+
+    ttk.Button(win, text="Salvează", command=save).grid(row=len(labels), column=0, columnspan=2, pady=10)
+
+
+def export_client_backup(month, year, client_id=None):
+    """Exportă un backup de facturare pentru luna dată."""
+    import calendar
+
+    days_in_month = calendar.monthrange(year, month)[1]
+    start_m = datetime.date(year, month, 1)
+    end_m = datetime.date(year, month, days_in_month)
+
+    cur = conn.cursor()
+    sql = (
+        "SELECT c.nume, l.address, r.data_start, r.data_end, r.suma, r.client_id "
+        "FROM rezervari r "
+        "JOIN locatii l ON r.loc_id = l.id "
+        "JOIN clienti c ON r.client_id = c.id "
+        "WHERE NOT (r.data_end < ? OR r.data_start > ?)"
+    )
+    params = [start_m.isoformat(), end_m.isoformat()]
+    if client_id:
+        sql += " AND r.client_id=?"
+        params.append(client_id)
+    rows = cur.execute(sql, params).fetchall()
+    if not rows:
+        messagebox.showinfo("Export", "Nu există închirieri pentru perioada aleasă.")
+        return
+
+    data = []
+    for nume, addr, ds, de, price, cid in rows:
+        ds = datetime.date.fromisoformat(ds)
+        de = datetime.date.fromisoformat(de)
+        ov_start = max(ds, start_m)
+        ov_end = min(de, end_m)
+        days = (ov_end - ov_start).days + 1
+        amount = price * days / days_in_month
+        data.append([nume, addr, ds, de, price, days, amount])
+
+    df = pd.DataFrame(
+        data,
+        columns=["Client", "Address", "Start", "End", "Monthly Price", "Days", "Amount"],
+    )
+    path = filedialog.asksaveasfilename(defaultextension=".xlsx", filetypes=[("Excel", "*.xlsx")])
+    if not path:
+        return
+    df.to_excel(path, index=False, engine="xlsxwriter")
+    messagebox.showinfo("Export", f"Backup salvat:\n{path}")
+
+
+def open_clients_window(root):
+    """Fereastră pentru administrarea clienților."""
+    win = tk.Toplevel(root)
+    win.title("Clienți")
+
+    cols = ("Nume", "Contact", "Email", "Telefon", "Observații")
+    tree = ttk.Treeview(win, columns=cols, show="headings")
+    for col in cols:
+        tree.heading(col, text=col)
+        tree.column(col, width=120, anchor="w")
+    tree.grid(row=0, column=0, columnspan=4, sticky="nsew")
+
+    vsb = ttk.Scrollbar(win, orient="vertical", command=tree.yview)
+    vsb.grid(row=0, column=4, sticky="ns")
+    tree.configure(yscroll=vsb.set)
+
+    win.columnconfigure(0, weight=1)
+    win.rowconfigure(0, weight=1)
+
+    def refresh():
+        tree.delete(*tree.get_children())
+        rows = conn.cursor().execute(
+            "SELECT id, nume, contact, email, phone, observatii FROM clienti ORDER BY nume"
+        ).fetchall()
+        for cid, nume, contact, email, phone, obs in rows:
+            tree.insert("", "end", iid=str(cid), values=(nume, contact, email, phone, obs or ""))
+
+    def add_client():
+        open_add_client_window(win, refresh)
+
+    def delete_client():
+        sel = tree.selection()
+        if not sel:
+            return
+        if not messagebox.askyesno("Confirmă", "Ștergi clientul selectat?"):
+            return
+        cur = conn.cursor()
+        cur.execute("DELETE FROM clienti WHERE id=?", (int(sel[0]),))
+        conn.commit()
+        refresh()
+
+    def export_current():
+        sel = tree.selection()
+        cid = int(sel[0]) if sel else None
+        today = datetime.date.today()
+        year = simpledialog.askinteger("An", "Anul", initialvalue=today.year, parent=win)
+        if year is None:
+            return
+        month = simpledialog.askinteger(
+            "Luna", "Luna (1-12)", minvalue=1, maxvalue=12, initialvalue=today.month, parent=win
+        )
+        if month is None:
+            return
+        export_client_backup(month, year, cid)
+
+    btn_add = ttk.Button(win, text="Adaugă", command=add_client)
+    btn_del = ttk.Button(win, text="Șterge", command=delete_client)
+    btn_export = ttk.Button(win, text="Export Backup", command=export_current)
+    for i, b in enumerate((btn_add, btn_del, btn_export)):
+        b.grid(row=1, column=i, padx=5, pady=5, sticky="w")
+
+    refresh()

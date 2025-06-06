@@ -67,12 +67,30 @@ def init_db():
             conn.commit()
 
 def init_clienti_table():
-    cursor.execute("""
+    cursor.execute(
+        """
         CREATE TABLE IF NOT EXISTS clienti (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            nume TEXT UNIQUE NOT NULL
+            nume TEXT UNIQUE NOT NULL,
+            contact TEXT,
+            email TEXT,
+            phone TEXT,
+            observatii TEXT
         )
-    """)
+        """
+    )
+    # Migrare adăugând coloanele noi dacă baza de date există deja
+    cols = {c[1] for c in cursor.execute("PRAGMA table_info(clienti)").fetchall()}
+    to_add = {
+        "contact": "TEXT",
+        "email": "TEXT",
+        "phone": "TEXT",
+        "observatii": "TEXT",
+    }
+    for col, definition in to_add.items():
+        if col not in cols:
+            cursor.execute(f"ALTER TABLE clienti ADD COLUMN {col} {definition}")
+            conn.commit()
     conn.commit()
 
 def init_rezervari_table():

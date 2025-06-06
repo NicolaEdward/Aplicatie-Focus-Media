@@ -18,6 +18,7 @@ from UI.dialogs import (
     open_offer_window,
     export_available_excel,
     export_sales_report,
+    open_clients_window,
 )
 
 
@@ -133,7 +134,9 @@ def start_app():
     btn_rent    = ttk.Button(primary_frame, text="Închiriază", state="disabled")
     btn_delete  = ttk.Button(primary_frame, text="Șterge", state="disabled",
                              command=lambda: delete_location())
-    for w in (btn_add, btn_edit, btn_rent, btn_delete):
+    btn_clients = ttk.Button(primary_frame, text="Clienți",
+                             command=lambda: open_clients_window(root))
+    for w in (btn_add, btn_edit, btn_rent, btn_delete, btn_clients):
         w.pack(side="left", padx=5)
 
 
