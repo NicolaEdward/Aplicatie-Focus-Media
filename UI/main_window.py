@@ -158,7 +158,7 @@ def start_app():
     tree.column("Address", width=300, anchor="w", stretch=True)
     tree.heading("Type", text="Type");      tree.column("Type", width=100, anchor="w")
     tree.heading("Status", text="Status");  tree.column("Status", width=120, anchor="w")
-    tree.heading("RateCard", text="RateCard")
+    tree.heading("RateCard", text="RateCard", anchor="e")
     tree.column("RateCard", width=100, anchor="e")
     tree.pack(fill="both", expand=True, side="left")
 
