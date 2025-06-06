@@ -642,7 +642,7 @@ def export_sales_report():
         stat_lbl_fmt = wb.add_format({
             "bold": True,
             "bg_color": "#FFF2CC",
-            "font_size": 12,
+            "font_size": 14,
             "align": "center",
             "valign": "vcenter",
             "border": 1,
@@ -651,7 +651,27 @@ def export_sales_report():
             "num_format": "€#,##0.00",
             "bold": True,
             "bg_color": "#FFF2CC",
-            "font_size": 12,
+            "font_size": 14,
+            "align": "center",
+            "valign": "vcenter",
+            "border": 1,
+        })
+        stat_money_pos_fmt = wb.add_format({
+            "num_format": "€#,##0.00",
+            "bold": True,
+            "bg_color": "#FFF2CC",
+            "font_size": 14,
+            "font_color": "green",
+            "align": "center",
+            "valign": "vcenter",
+            "border": 1,
+        })
+        stat_money_neg_fmt = wb.add_format({
+            "num_format": "€#,##0.00",
+            "bold": True,
+            "bg_color": "#FFF2CC",
+            "font_size": 14,
+            "font_color": "red",
             "align": "center",
             "valign": "vcenter",
             "border": 1,
@@ -660,7 +680,7 @@ def export_sales_report():
             "num_format": "0.00%",
             "bold": True,
             "bg_color": "#FFF2CC",
-            "font_size": 12,
+            "font_size": 14,
             "align": "center",
             "valign": "vcenter",
             "border": 1,
@@ -668,7 +688,7 @@ def export_sales_report():
         stat_int_fmt = wb.add_format({
             "bold": True,
             "bg_color": "#FFF2CC",
-            "font_size": 12,
+            "font_size": 14,
             "align": "center",
             "valign": "vcenter",
             "border": 1,
@@ -727,20 +747,25 @@ def export_sales_report():
             pct_free = 1 - pct_sold
             count_sold = int(sold_mask.sum())
             count_free = int(len(df_sheet) - count_sold)
-            sum_sale = pd.to_numeric(df_sheet["PRET DE VANZARE"], errors="coerce").fillna(0).sum()
+            sum_sale_total = pd.to_numeric(df_sheet["PRET DE VANZARE"], errors="coerce").fillna(0)
+            sum_sale = sum_sale_total.sum()
+            sum_sale_sold = sum_sale_total[sold_mask].sum()
+            sum_sale_free = sum_sale_total[~sold_mask].sum()
             sum_rent = pd.to_numeric(df_sheet["PRET DE INCHIRIERE"], errors="coerce").fillna(0).sum()
 
             start = len(df_sheet) + 2
-            ws.merge_range(start, 0, start, len(df_sheet.columns) - 2, "% Locații vândute", stat_lbl_fmt)
-            ws.write(start, len(df_sheet.columns) - 1, pct_sold, stat_percent_fmt)
-            ws.merge_range(start + 1, 0, start + 1, len(df_sheet.columns) - 2, "% Locații nevândute", stat_lbl_fmt)
-            ws.write(start + 1, len(df_sheet.columns) - 1, pct_free, stat_percent_fmt)
-            ws.merge_range(start + 2, 0, start + 2, len(df_sheet.columns) - 2, "Locații vândute", stat_lbl_fmt)
-            ws.write(start + 2, len(df_sheet.columns) - 1, count_sold, stat_int_fmt)
-            ws.merge_range(start + 3, 0, start + 3, len(df_sheet.columns) - 2, "Locații nevândute", stat_lbl_fmt)
-            ws.write(start + 3, len(df_sheet.columns) - 1, count_free, stat_int_fmt)
-            ws.merge_range(start + 4, 0, start + 4, len(df_sheet.columns) - 2, "Sumă totală preț vânzare", stat_lbl_fmt)
-            ws.write(start + 4, len(df_sheet.columns) - 1, sum_sale, stat_money_fmt)
+            ws.merge_range(start, 0, start, len(df_sheet.columns) - 2, "Locații vândute", stat_lbl_fmt)
+            ws.write(start, len(df_sheet.columns) - 1, f"{count_sold} ({pct_sold:.2%})", stat_int_fmt)
+            ws.merge_range(start + 1, 0, start + 1, len(df_sheet.columns) - 2, "Locații nevândute", stat_lbl_fmt)
+            ws.write(start + 1, len(df_sheet.columns) - 1, f"{count_free} ({pct_free:.2%})", stat_int_fmt)
+            ws.merge_range(start + 2, 0, start + 2, len(df_sheet.columns) - 2, "Preț vânzare total", stat_lbl_fmt)
+            ws.write(start + 2, len(df_sheet.columns) - 1, sum_sale, stat_money_fmt)
+            pct_sale_sold = sum_sale_sold / sum_sale if sum_sale else 0
+            pct_sale_free = sum_sale_free / sum_sale if sum_sale else 0
+            ws.merge_range(start + 3, 0, start + 3, len(df_sheet.columns) - 2, "Sumă locații vândute", stat_lbl_fmt)
+            ws.write(start + 3, len(df_sheet.columns) - 1, f"€{sum_sale_sold:,.2f} ({pct_sale_sold:.2%})", stat_money_pos_fmt)
+            ws.merge_range(start + 4, 0, start + 4, len(df_sheet.columns) - 2, "Sumă locații nevândute", stat_lbl_fmt)
+            ws.write(start + 4, len(df_sheet.columns) - 1, f"€{sum_sale_free:,.2f} ({pct_sale_free:.2%})", stat_money_neg_fmt)
             ws.merge_range(start + 5, 0, start + 5, len(df_sheet.columns) - 2, "Sumă totală preț închiriere", stat_lbl_fmt)
             ws.write(start + 5, len(df_sheet.columns) - 1, sum_rent, stat_money_fmt)
 
