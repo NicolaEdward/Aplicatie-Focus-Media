@@ -66,8 +66,8 @@ class _ConnWrapper:
         return getattr(self._conn, name)
 
 
-def get_db_path():
-    """Return the absolute path to the local ``locatii.db`` database."""
+def get_db_path() -> str:
+    """Return the absolute path to the bundled ``locatii.db`` database."""
     base_dir = os.path.dirname(__file__)
     return os.path.join(base_dir, "locatii.db")
 
