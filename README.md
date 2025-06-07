@@ -47,6 +47,8 @@ python migrate_to_mysql.py
 ```
 
 Scriptul va copia in MySQL toate tabelele si datele din fisierul `locatii.db`.
+Daca tabelele din MySQL contin deja date, acestea vor fi sterse inainte de
+import pentru a evita erorile legate de chei primare duplicate.
 
 In cazul in care apare mesajul de eroare "Access denied for user", verifica
 fișierul `.env` sau variabilele de mediu folosite la conectare. Parola sau

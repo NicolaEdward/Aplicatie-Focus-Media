@@ -32,6 +32,12 @@ def connect_mysql():
         )
 
 
+def reset_tables(cur):
+    """Drop existing tables so the migration runs on a clean database."""
+    for table in ["rezervari", "locatii", "clienti", "users"]:
+        cur.execute(f"DROP TABLE IF EXISTS {table}")
+
+
 def create_tables(cur):
     cur.execute(
         """
@@ -139,6 +145,8 @@ def main():
     # order of inserted rows. They will be re-enabled at the end.
     mysql_cur.execute("SET foreign_key_checks=0")
 
+    # Remove existing tables to avoid duplicate key errors when re-running the migration
+    reset_tables(mysql_cur)
     create_tables(mysql_cur)
     mysql_conn.commit()
 
