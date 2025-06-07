@@ -4,7 +4,7 @@ Aplicatia foloseste in mod implicit o baza de date MySQL. Conectarea se face
 citind variabilele de mediu:
 
 ```
-MYSQL_HOST      - adresa serverului MySQL
+MYSQL_HOST      - adresa serverului MySQL (poate include portul, ex. `host:3306`)
 MYSQL_PORT      - portul (implicit 3306)
 MYSQL_USER      - utilizatorul
 MYSQL_PASSWORD  - parola
@@ -21,6 +21,9 @@ MYSQL_USER=root
 MYSQL_PASSWORD=Root2001
 MYSQL_DATABASE=aplicatie_vanzari
 ```
+
+Daca providerul iti ofera adresa impreuna cu portul (ex. `example.com:1234`),
+poti pune aceasta valoare direct in `MYSQL_HOST` si lasa `MYSQL_PORT` necompletat.
 
 Pentru un server MySQL gazduit la distanta seteaza `MYSQL_HOST` la adresa
 respectiva si completeaza `MYSQL_USER`, `MYSQL_PASSWORD` si `MYSQL_DATABASE`
