@@ -19,13 +19,23 @@ except Exception:
 
 def connect_mysql():
     try:
-        return mysql.connector.connect(
-            host=os.environ.get("MYSQL_HOST", "localhost"),
-            port=int(os.environ.get("MYSQL_PORT", 3306)),
-            user=os.environ.get("MYSQL_USER", "root"),
-            password=os.environ.get("MYSQL_PASSWORD", ""),
-            database=os.environ.get("MYSQL_DATABASE", "focus_media"),
-        )
+        host = os.environ.get("MYSQL_HOST")
+        port = os.environ.get("MYSQL_PORT")
+        if host and ":" in host and not port:
+            host, host_port = host.rsplit(":", 1)
+            if host_port.isdigit():
+                port = host_port
+
+        params = {
+            "host": host,
+            "user": os.environ.get("MYSQL_USER"),
+            "password": os.environ.get("MYSQL_PASSWORD"),
+            "database": os.environ.get("MYSQL_DATABASE"),
+        }
+        if port:
+            params["port"] = int(port)
+
+        return mysql.connector.connect(**params)
     except mysql.connector.Error as exc:
         raise SystemExit(
             "Failed to connect to MySQL. Check environment variables "

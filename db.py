@@ -88,13 +88,16 @@ def _create_connection():
                 if not port:
                     port = host_port
 
-        conn = mysql.connector.connect(
-            host=host,
-            port=int(port or 3306),
-            user=os.environ.get("MYSQL_USER", "root"),
-            password=os.environ.get("MYSQL_PASSWORD", ""),
-            database=os.environ.get("MYSQL_DATABASE", "focus_media"),
-        )
+        params = {
+            "host": host,
+            "user": os.environ.get("MYSQL_USER"),
+            "password": os.environ.get("MYSQL_PASSWORD"),
+            "database": os.environ.get("MYSQL_DATABASE"),
+        }
+        if port:
+            params["port"] = int(port)
+        # mysql.connector uses port 3306 by default when not provided.
+        conn = mysql.connector.connect(**params)
         return _ConnWrapper(conn, True)
     return _ConnWrapper(sqlite3.connect(get_db_path()), False)
 
@@ -107,12 +110,21 @@ def pandas_conn():
     """Return a connection/engine suitable for ``pandas.read_sql_query``."""
     if getattr(conn, "mysql", False) and sqlalchemy is not None:
         if not hasattr(pandas_conn, "_engine"):
-            url = (
-                f"mysql+mysqlconnector://{os.environ.get('MYSQL_USER', 'root')}"
-                f":{os.environ.get('MYSQL_PASSWORD', '')}@"
-                f"{os.environ.get('MYSQL_HOST')}:{int(os.environ.get('MYSQL_PORT', 3306))}/"
-                f"{os.environ.get('MYSQL_DATABASE', 'focus_media')}"
-            )
+            host = os.environ.get("MYSQL_HOST")
+            port = os.environ.get("MYSQL_PORT")
+            if host and ":" in host and not port:
+                host, host_port = host.rsplit(":", 1)
+                if host_port.isdigit():
+                    port = host_port
+
+            user = os.environ.get("MYSQL_USER", "")
+            password = os.environ.get("MYSQL_PASSWORD", "")
+            db_name = os.environ.get("MYSQL_DATABASE", "")
+
+            url = f"mysql+mysqlconnector://{user}:{password}@{host}"
+            if port:
+                url += f":{int(port)}"
+            url += f"/{db_name}"
             pandas_conn._engine = sqlalchemy.create_engine(url)
         return pandas_conn._engine
     return conn

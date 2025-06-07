@@ -5,7 +5,7 @@ citind variabilele de mediu:
 
 ```
 MYSQL_HOST      - adresa serverului MySQL (poate include portul, ex. `host:3306`)
-MYSQL_PORT      - portul (implicit 3306)
+MYSQL_PORT      - portul serverului MySQL
 MYSQL_USER      - utilizatorul
 MYSQL_PASSWORD  - parola
 MYSQL_DATABASE  - baza de date
@@ -17,8 +17,8 @@ exemplu este disponibil in fisierul `.env.example`:
 ```
 MYSQL_HOST=127.0.0.1
 MYSQL_PORT=3306
-MYSQL_USER=root
-MYSQL_PASSWORD=Root2001
+MYSQL_USER=utilizator
+MYSQL_PASSWORD=parola
 MYSQL_DATABASE=aplicatie_vanzari
 ```
 
