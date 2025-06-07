@@ -22,6 +22,11 @@ MYSQL_PASSWORD=Root2001
 MYSQL_DATABASE=aplicatie_vanzari
 ```
 
+Pentru un server MySQL gazduit la distanta seteaza `MYSQL_HOST` la adresa
+respectiva si completeaza `MYSQL_USER`, `MYSQL_PASSWORD` si `MYSQL_DATABASE`
+cu datele oferite de providerul tau. Aplicatia va folosi aceste informatii la
+fiecare pornire.
+
 Aplicatia necesita un server MySQL configurat cu variabilele de mediu de mai sus.
 Fisierul `locatii.db` este folosit doar pentru teste sau pentru migrarea
 initiala catre MySQL.
@@ -35,7 +40,7 @@ pip install -r requirements.txt
 
 ## Migrarea bazei de date SQLite la MySQL
 
-Dupa configurarea variabilelor de mediu pentru MySQL, executa:
+Dupa ce ai completat fisierul `.env` cu datele serverului MySQL, executa:
 
 ```bash
 python migrate_to_mysql.py
