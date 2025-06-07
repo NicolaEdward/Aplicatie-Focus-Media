@@ -67,6 +67,8 @@ from db import (
     update_statusuri_din_rezervari,
     get_location_cache,
     maybe_refresh_location_cache,
+    get_location_by_id,
+    refresh_location_cache,
 )
 from utils import make_preview, get_schita_path
 from UI.dialogs import (
@@ -374,11 +376,14 @@ def start_app(user, root=None):
                            command=lambda: export_sales_report())
     btn_vendor = ttk.Button(export_frame, text="Raport Vânzători",
                            command=lambda: export_vendor_report())
+    btn_update = ttk.Button(export_frame, text="Update Database",
+                           command=manual_refresh)
     btn_xlsx.pack(side="left", padx=5, pady=5)
     btn_offer.pack(side="left", padx=5, pady=5)
     btn_report.pack(side="left", padx=5, pady=5)
     if user.get("role") == 'admin':
         btn_vendor.pack(side="left", padx=5, pady=5)
+    btn_update.pack(side="left", padx=5, pady=5)
 
 
 
@@ -538,10 +543,16 @@ def start_app(user, root=None):
         loc_id = int(sel[0])
         selected_id[0] = loc_id
 
-        code, client, ds, de, ratecard, pret_vanz, pret_flot = cursor.execute(
-            "SELECT code, client, data_start, data_end, ratecard, pret_vanzare, pret_flotant "
-            "FROM locatii WHERE id=?", (loc_id,)
-        ).fetchone()
+        data = get_location_by_id(loc_id)
+        if not data:
+            return
+        code = data.get("code")
+        client = data.get("client")
+        ds = data.get("data_start")
+        de = data.get("data_end")
+        ratecard = data.get("ratecard")
+        pret_vanz = data.get("pret_vanzare")
+        pret_flot = data.get("pret_flotant")
 
         rent_row = None
         if ds and de:
@@ -618,7 +629,11 @@ def start_app(user, root=None):
             btn_delete.config(state='disabled')
 
     def download_schita():
-        code = cursor.execute("SELECT code FROM locatii WHERE id=?", (selected_id[0],)).fetchone()[0]
+        data = get_location_by_id(selected_id[0])
+        if not data:
+            messagebox.showerror("Eroare", "Nu există date pentru locație.")
+            return
+        code = data.get("code")
         path = get_schita_path(code)
         if not path:
             messagebox.showerror("Eroare", "Nu există schița.")
@@ -633,6 +648,11 @@ def start_app(user, root=None):
             conn.commit()
             load_locations()
 
+    def manual_refresh():
+        """Force reload of the local cache from the database."""
+        refresh_location_cache()
+        load_locations()
+
     def check_alerts():
         # implementare alerte...
         pass
@@ -640,7 +660,7 @@ def start_app(user, root=None):
     def watch_updates():
         if maybe_refresh_location_cache():
             load_locations()
-        root.after(5000, watch_updates)
+        root.after(300000, watch_updates)  # 5 minute
 
     # bind filtre
     combo_group.bind("<<ComboboxSelected>>", lambda e: load_locations())

@@ -186,6 +186,13 @@ def maybe_refresh_location_cache() -> bool:
         return True
     return False
 
+def get_location_by_id(loc_id: int) -> dict | None:
+    """Return location data from cache for the given ``loc_id``."""
+    for row in get_location_cache():
+        if row.get("id") == loc_id:
+            return dict(row)
+    return None
+
 
 def pandas_conn():
     """Return a connection/engine suitable for ``pandas.read_sql_query``."""

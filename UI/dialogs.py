@@ -9,7 +9,7 @@ from tkcalendar import DateEntry
 import xlsxwriter
 
 from utils import PREVIEW_FOLDER, make_preview
-from db import conn, update_statusuri_din_rezervari, create_user
+from db import conn, update_statusuri_din_rezervari, create_user, get_location_by_id
 
 def open_detail_window(tree, event):
     """Display extended information about the selected location."""
@@ -19,24 +19,31 @@ def open_detail_window(tree, event):
     loc_id = int(rowid)     # folosim iid-ul (id-ul real din DB), nu valoarea din coloane
     # extrage detaliile locației și le afișează într-o fereastră dedicată
 
-    # preia datele specifice
-    cur = conn.cursor()
-    cur.execute("""
-        SELECT city, county, address, type,
-               gps, code, size, photo_link,
-               sqm, illumination, ratecard, decoration_cost, pret_vanzare, pret_flotant,
-               observatii, status, client, data_start, data_end
-        FROM locatii WHERE id=?
-    """, (loc_id,))
-    row = cur.fetchone()
-    if not row:
+    data = get_location_by_id(loc_id)
+    if not data:
         messagebox.showerror("Eroare", "Datele locației nu au fost găsite.")
         return
 
-    (city, county, address, type_, gps, code, size_,
-     photo_link, sqm, illumination, ratecard,
-     decoration_cost, pret_vanzare, pret_flotant, observatii, status,
-     client, ds, de) = row
+    city = data.get("city")
+    county = data.get("county")
+    address = data.get("address")
+    type_ = data.get("type")
+    gps = data.get("gps")
+    code = data.get("code")
+    size_ = data.get("size")
+    photo_link = data.get("photo_link")
+    sqm = data.get("sqm")
+    illumination = data.get("illumination")
+    ratecard = data.get("ratecard")
+    decoration_cost = data.get("decoration_cost")
+    pret_vanzare = data.get("pret_vanzare")
+    pret_flotant = data.get("pret_flotant")
+    observatii = data.get("observatii")
+    status = data.get("status")
+    client = data.get("client")
+    ds = data.get("data_start")
+    de = data.get("data_end")
+    cur = conn.cursor()
 
     # fereastra
     win = tk.Toplevel(tree.master)
