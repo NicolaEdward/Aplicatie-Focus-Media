@@ -116,7 +116,7 @@ def init_db():
                 client_id INT,
                 data_start TEXT,
                 data_end TEXT,
-                grup TEXT,
+                grup VARCHAR(255),
                 face VARCHAR(32) DEFAULT 'Fața A'
             )
             """
