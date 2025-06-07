@@ -77,6 +77,19 @@ def _create_connection():
 conn = _create_connection()
 cursor = conn.cursor()
 
+
+def ensure_index(table: str, index_name: str, column: str) -> None:
+    """Create *index_name* on *table* if it is missing."""
+    if getattr(conn, "mysql", False):
+        cur = conn.cursor()
+        cur.execute(f"SHOW INDEX FROM {table} WHERE Key_name=?", (index_name,))
+        if not cur.fetchone():
+            cur.execute(f"CREATE INDEX {index_name} ON {table}({column})")
+    else:
+        cursor.execute(
+            f"CREATE INDEX IF NOT EXISTS {index_name} ON {table}({column})"
+        )
+
 def init_db():
     if getattr(conn, "mysql", False):
         cursor.execute(
@@ -185,9 +198,9 @@ def init_db():
         conn.commit()
 
     # Indexuri pentru o interogare mai rapidă
-    cursor.execute("CREATE INDEX IF NOT EXISTS idx_locatii_grup ON locatii(grup)")
-    cursor.execute("CREATE INDEX IF NOT EXISTS idx_locatii_status ON locatii(status)")
-    cursor.execute("CREATE INDEX IF NOT EXISTS idx_rezervari_loc ON rezervari(loc_id)")
+    ensure_index("locatii", "idx_locatii_grup", "grup")
+    ensure_index("locatii", "idx_locatii_status", "status")
+    ensure_index("rezervari", "idx_rezervari_loc", "loc_id")
     conn.commit()
 
     if not getattr(conn, "mysql", False):
