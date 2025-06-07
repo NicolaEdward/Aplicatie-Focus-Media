@@ -74,4 +74,14 @@ fereastra de administrare a utilizatorilor. Vânzătorii pot adăuga clienți ș
 Funcția "Raport Vânzători" generează un Excel cu totalul contractelor pe lună
 pentru fiecare utilizator.
 
+## Optimizare prin cache
+
+La pornire aplicația încarcă toate locațiile în memorie pentru a naviga mai
+rapid prin listă. După fiecare operație care modifică baza de date, cache-ul se
+reînnoiește automat astfel încât informațiile afișate să fie actualizate.
+Toate instanțele aplicației verifică periodic o valoare "version" din baza de
+date, iar atunci când aceasta se modifică cache-ul se reîncarcă automat astfel
+încât modificările realizate pe alt calculator devin vizibile aproape în timp
+real.
+
 
