@@ -98,13 +98,13 @@ def init_db():
                 pret_flotant DOUBLE,
                 decoration_cost DOUBLE,
                 observatii TEXT,
-                status TEXT DEFAULT 'Disponibil',
+                status VARCHAR(32) DEFAULT 'Disponibil',
                 client TEXT,
                 client_id INT,
                 data_start TEXT,
                 data_end TEXT,
                 grup TEXT,
-                face TEXT DEFAULT 'Fața A'
+                face VARCHAR(32) DEFAULT 'Fața A'
             )
             """
         )
@@ -117,7 +117,7 @@ def init_db():
                 email TEXT,
                 phone TEXT,
                 observatii TEXT,
-                tip TEXT DEFAULT 'direct'
+                tip VARCHAR(32) DEFAULT 'direct'
             )
             """
         )
