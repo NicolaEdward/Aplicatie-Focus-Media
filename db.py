@@ -68,7 +68,7 @@ class _ConnWrapper:
         cur = self._conn.cursor()
         try:
             cur.execute(
-                "UPDATE meta SET value = value + 1 WHERE key='locatii_version'"
+                "UPDATE meta SET value = value + 1 WHERE `key`='locatii_version'"
             )
         except Exception:
             pass
@@ -141,18 +141,18 @@ _cache_version: int = -1
 def _init_meta() -> None:
     cur = conn.cursor()
     cur.execute(
-        "CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT)"
+        "CREATE TABLE IF NOT EXISTS meta (`key` TEXT PRIMARY KEY, value TEXT)"
     )
-    cur.execute("SELECT value FROM meta WHERE key='locatii_version'")
+    cur.execute("SELECT value FROM meta WHERE `key`='locatii_version'")
     if cur.fetchone() is None:
         cur.execute(
-            "INSERT INTO meta (key, value) VALUES ('locatii_version', '0')"
+            "INSERT INTO meta (`key`, value) VALUES ('locatii_version', '0')"
         )
     conn.commit()
 
 def _get_db_version() -> int:
     cur = conn.cursor()
-    cur.execute("SELECT value FROM meta WHERE key='locatii_version'")
+    cur.execute("SELECT value FROM meta WHERE `key`='locatii_version'")
     row = cur.fetchone()
     return int(row[0]) if row and str(row[0]).isdigit() else 0
 
