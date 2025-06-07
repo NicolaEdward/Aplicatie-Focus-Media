@@ -22,6 +22,26 @@ MYSQL_PASSWORD=Root2001
 MYSQL_DATABASE=aplicatie_vanzari
 ```
 
+Pentru un server MySQL gazduit la distanta seteaza `MYSQL_HOST` la adresa
+respectiva si completeaza `MYSQL_USER`, `MYSQL_PASSWORD` si `MYSQL_DATABASE`
+cu datele oferite de providerul tau. Aplicatia va folosi aceste informatii la
+fiecare pornire.
+
+### Exemplu de configurare Aiven
+
+Daca folosesti un serviciu MySQL oferit de [Aiven](https://aiven.io), fisierul
+`.env` ar putea arata astfel:
+
+```ini
+MYSQL_HOST=focusmediaapptest-focusmedia-3f51.i.aivencloud.com
+MYSQL_PORT=25849
+MYSQL_USER=avnadmin
+MYSQL_PASSWORD=<parola ta Aiven>
+MYSQL_DATABASE=defaultdb
+```
+
+Inlocuieste `<parola ta Aiven>` cu parola reala afisata in consola Aiven.
+
 Aplicatia necesita un server MySQL configurat cu variabilele de mediu de mai sus.
 Fisierul `locatii.db` este folosit doar pentru teste sau pentru migrarea
 initiala catre MySQL.
@@ -35,13 +55,19 @@ pip install -r requirements.txt
 
 ## Migrarea bazei de date SQLite la MySQL
 
-Dupa configurarea variabilelor de mediu pentru MySQL, executa:
+Dupa ce ai completat fisierul `.env` cu datele serverului MySQL, executa:
 
 ```bash
 python migrate_to_mysql.py
 ```
 
 Scriptul va copia in MySQL toate tabelele si datele din fisierul `locatii.db`.
+Daca tabelele din MySQL contin deja date, acestea vor fi sterse inainte de
+import pentru a evita erorile legate de chei primare duplicate.
+
+In cazul unei baze de date gazduite de Aiven, dupa rularea acestui script
+toate datele din `locatii.db` vor fi transferate in serviciul online si
+aplicatia va folosi exclusiv conexiunea configurata in `.env`.
 
 In cazul in care apare mesajul de eroare "Access denied for user", verifica
 fișierul `.env` sau variabilele de mediu folosite la conectare. Parola sau
