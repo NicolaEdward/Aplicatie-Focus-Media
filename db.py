@@ -112,7 +112,7 @@ def init_db():
             """
             CREATE TABLE IF NOT EXISTS clienti (
                 id INT AUTO_INCREMENT PRIMARY KEY,
-                nume TEXT UNIQUE NOT NULL,
+                nume VARCHAR(255) UNIQUE NOT NULL,
                 contact TEXT,
                 email TEXT,
                 phone TEXT,
@@ -141,7 +141,7 @@ def init_db():
             """
             CREATE TABLE IF NOT EXISTS users (
                 id INT AUTO_INCREMENT PRIMARY KEY,
-                username TEXT UNIQUE NOT NULL,
+                username VARCHAR(255) UNIQUE NOT NULL,
                 password TEXT NOT NULL,
                 role TEXT NOT NULL,
                 comune TEXT
@@ -216,7 +216,7 @@ def init_clienti_table():
             """
             CREATE TABLE IF NOT EXISTS clienti (
                 id INT AUTO_INCREMENT PRIMARY KEY,
-                nume TEXT UNIQUE NOT NULL,
+                nume VARCHAR(255) UNIQUE NOT NULL,
                 contact TEXT,
                 email TEXT,
                 phone TEXT,
@@ -303,7 +303,7 @@ def init_users_table():
             """
             CREATE TABLE IF NOT EXISTS users (
                 id INT AUTO_INCREMENT PRIMARY KEY,
-                username TEXT UNIQUE NOT NULL,
+                username VARCHAR(255) UNIQUE NOT NULL,
                 password TEXT NOT NULL,
                 role TEXT NOT NULL,
                 comune TEXT
