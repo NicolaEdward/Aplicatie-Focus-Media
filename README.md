@@ -79,9 +79,8 @@ pentru fiecare utilizator.
 La pornire aplicația încarcă toate locațiile în memorie pentru a naviga mai
 rapid prin listă. După fiecare operație care modifică baza de date, cache-ul se
 reînnoiește automat astfel încât informațiile afișate să fie actualizate.
-Cache-ul este reîmprospătat automat la fiecare cinci minute și atunci când
-utilizatorul schimbă filtrul pentru grup. Astfel lista rămâne sincronizată între
-mai multe instanțe ale aplicației, fără interogări suplimentare la fiecare
-afișare.
+Cache-ul este reîmprospătat automat la fiecare cinci minute. Astfel lista rămâne
+sincronizată între mai multe instanțe ale aplicației, fără interogări
+suplimentare la fiecare afișare.
 
 

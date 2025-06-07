@@ -663,9 +663,18 @@ def start_app(user, root=None):
         root.after(300000, watch_updates)  # 5 minute
 
     # bind filtre
-    combo_group.bind("<<ComboboxSelected>>", lambda e: (refresh_location_cache(), load_locations()))
+    combo_group.bind("<<ComboboxSelected>>", lambda e: load_locations())
     combo_status.bind("<<ComboboxSelected>>", lambda e: load_locations())
-    search_var.trace_add("write", lambda *a: load_locations())
+
+    # small delay for search updates for smoother typing
+    _search_after = [None]
+
+    def on_search_change(*args):
+        if _search_after[0] is not None:
+            root.after_cancel(_search_after[0])
+        _search_after[0] = root.after(300, load_locations)
+
+    search_var.trace_add("write", on_search_change)
     filter_start.bind("<<DateEntrySelected>>", lambda e: (var_ignore.set(False), load_locations()))
     filter_end.bind("<<DateEntrySelected>>", lambda e: (var_ignore.set(False), load_locations()))
 
