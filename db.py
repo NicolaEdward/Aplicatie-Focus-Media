@@ -16,6 +16,11 @@ try:
 except Exception:  # pragma: no cover - optional dep
     mysql = None
 
+try:
+    import sqlalchemy  # type: ignore
+except Exception:  # pragma: no cover - optional dep
+    sqlalchemy = None
+
 
 class _CursorWrapper:
     """Cursor wrapper translating ``?`` placeholders for MySQL."""
@@ -83,6 +88,21 @@ def _create_connection():
 
 conn = _create_connection()
 cursor = conn.cursor()
+
+
+def pandas_conn():
+    """Return a connection/engine suitable for ``pandas.read_sql_query``."""
+    if getattr(conn, "mysql", False) and sqlalchemy is not None:
+        if not hasattr(pandas_conn, "_engine"):
+            url = (
+                f"mysql+mysqlconnector://{os.environ.get('MYSQL_USER', 'root')}"
+                f":{os.environ.get('MYSQL_PASSWORD', '')}@"
+                f"{os.environ.get('MYSQL_HOST')}:{int(os.environ.get('MYSQL_PORT', 3306))}/"
+                f"{os.environ.get('MYSQL_DATABASE', 'focus_media')}"
+            )
+            pandas_conn._engine = sqlalchemy.create_engine(url)
+        return pandas_conn._engine
+    return conn
 
 
 def ensure_index(table: str, index_name: str, column: str) -> None:
