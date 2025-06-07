@@ -84,7 +84,14 @@ def ensure_index(table: str, index_name: str, column: str) -> None:
         cur = conn.cursor()
         cur.execute(f"SHOW INDEX FROM {table} WHERE Key_name=?", (index_name,))
         if not cur.fetchone():
-            cur.execute(f"CREATE INDEX {index_name} ON {table}({column})")
+            length = ""
+            cur.execute(f"SHOW FIELDS FROM {table} WHERE Field=?", (column,))
+            field = cur.fetchone()
+            if field:
+                ctype = str(field[1]).lower()
+                if "text" in ctype or "blob" in ctype:
+                    length = "(255)"
+            cur.execute(f"CREATE INDEX {index_name} ON {table}({column}{length})")
     else:
         cursor.execute(
             f"CREATE INDEX IF NOT EXISTS {index_name} ON {table}({column})"
