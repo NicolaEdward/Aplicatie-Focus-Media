@@ -61,7 +61,13 @@ if Style:
 
     _ttkstyle.Bootstyle.update_ttk_widget_style = staticmethod(_safe_update_ttk_widget_style)
 
-from db import conn, cursor, update_statusuri_din_rezervari
+from db import (
+    conn,
+    cursor,
+    update_statusuri_din_rezervari,
+    get_location_cache,
+    maybe_refresh_location_cache,
+)
 from utils import make_preview, get_schita_path
 from UI.dialogs import (
     open_detail_window,
@@ -414,34 +420,40 @@ def start_app(user, root=None):
         if end_dt < start_dt:
             end_dt = start_dt
         # îl folosim doar în availability()
-        d0, d1 = start_dt.isoformat(), end_dt.isoformat()
 
-        # 5) Interogarea inițială doar pe tabelă ``locatii``
-        q = """
-            SELECT id, city, county, address, type, ratecard, status
-            FROM locatii
-        """
+        # 5) Pornim de la versiunea în memorie a tabelului ``locatii``
+        rows = get_location_cache()
+
         if cond:
-            q += " WHERE " + " AND ".join(cond)
+            def match(row: dict) -> bool:
+                for c, p in zip(cond, params):
+                    if c == "grup = ?" and row.get("grup") != p:
+                        return False
+                    if c == "status = ?" and row.get("status") != p:
+                        return False
+                    if c.startswith("(city LIKE"):
+                        term_lower = p.strip("%").lower()
+                        if not (term_lower in (row.get("city") or "").lower() or
+                                term_lower in (row.get("county") or "").lower() or
+                                term_lower in (row.get("address") or "").lower()):
+                            return False
+                return True
+            rows = [r for r in rows if match(r)]
 
-
-        q += """
-            ORDER BY
-            CASE county
-                WHEN 'Bucuresti Sectorul 1' THEN  1
-                WHEN 'Bucuresti Sectorul 2' THEN  2
-                WHEN 'Bucuresti Sectorul 3' THEN  3
-                WHEN 'Bucuresti Sectorul 4' THEN  4
-                WHEN 'Bucuresti Sectorul 5' THEN  5
-                WHEN 'Bucuresti Sectorul 6' THEN  6
-                WHEN 'Ilfov'                THEN  7
-                WHEN 'Prahova'             THEN  8
-                ELSE 9
-            END ASC,
-            county ASC,
-            city ASC
-        """
-        rows = cursor.execute(q, params).fetchall()
+        rows.sort(key=lambda r: (
+            {
+                'Bucuresti Sectorul 1': 1,
+                'Bucuresti Sectorul 2': 2,
+                'Bucuresti Sectorul 3': 3,
+                'Bucuresti Sectorul 4': 4,
+                'Bucuresti Sectorul 5': 5,
+                'Bucuresti Sectorul 6': 6,
+                'Ilfov': 7,
+                'Prahova': 8,
+            }.get(r.get('county'), 9),
+            r.get('county'),
+            r.get('city'),
+        ))
 
 
 
@@ -468,7 +480,14 @@ def start_app(user, root=None):
 
         # 7) Populează TreeView, aplicând filtrul de date doar când "Toate datele" NU e bifat
         display_index = 0
-        for loc_id, city, county, addr, typ, rate, status in rows:
+        for row in rows:
+            loc_id = row["id"]
+            city = row["city"]
+            county = row["county"]
+            addr = row["address"]
+            typ = row["type"]
+            rate = row["ratecard"]
+            status = row["status"]
             if not var_ignore.get():
                 avail = availability(loc_id)
                 if not avail:
@@ -618,6 +637,11 @@ def start_app(user, root=None):
         # implementare alerte...
         pass
 
+    def watch_updates():
+        if maybe_refresh_location_cache():
+            load_locations()
+        root.after(5000, watch_updates)
+
     # bind filtre
     combo_group.bind("<<ComboboxSelected>>", lambda e: load_locations())
     combo_status.bind("<<ComboboxSelected>>", lambda e: load_locations())
@@ -629,6 +653,7 @@ def start_app(user, root=None):
     refresh_groups()
     load_locations()
     check_alerts()
+    watch_updates()
     root.mainloop()
 
 if __name__ == "__main__":

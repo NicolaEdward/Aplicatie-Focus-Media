@@ -120,6 +120,19 @@ def create_tables(cur):
         )
         """
     )
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS meta (
+            key VARCHAR(255) PRIMARY KEY,
+            value TEXT
+        )
+        """
+    )
+    cur.execute("SELECT value FROM meta WHERE key='locatii_version'")
+    if cur.fetchone() is None:
+        cur.execute(
+            "INSERT INTO meta (key, value) VALUES ('locatii_version', '0')"
+        )
 
 
 def copy_table(src_cur, dst_cur, table):

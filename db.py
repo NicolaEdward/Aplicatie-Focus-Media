@@ -64,6 +64,20 @@ class _ConnWrapper:
     def mysql(self):
         return self._mysql
 
+    def commit(self):
+        cur = self._conn.cursor()
+        try:
+            cur.execute(
+                "UPDATE meta SET value = value + 1 WHERE key='locatii_version'"
+            )
+        except Exception:
+            pass
+        self._conn.commit()
+        try:
+            refresh_location_cache()
+        except Exception:
+            pass
+
     def __getattr__(self, name):
         return getattr(self._conn, name)
 
@@ -119,6 +133,53 @@ def _create_connection():
 
 conn = _create_connection()
 cursor = conn.cursor()
+
+# --- simple in-memory cache for the locatii table ---
+_location_cache: list[dict] | None = None
+_cache_version: int = -1
+
+def _init_meta() -> None:
+    cur = conn.cursor()
+    cur.execute(
+        "CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT)"
+    )
+    cur.execute("SELECT value FROM meta WHERE key='locatii_version'")
+    if cur.fetchone() is None:
+        cur.execute(
+            "INSERT INTO meta (key, value) VALUES ('locatii_version', '0')"
+        )
+    conn.commit()
+
+def _get_db_version() -> int:
+    cur = conn.cursor()
+    cur.execute("SELECT value FROM meta WHERE key='locatii_version'")
+    row = cur.fetchone()
+    return int(row[0]) if row and str(row[0]).isdigit() else 0
+
+def refresh_location_cache() -> None:
+    """Load all rows from ``locatii`` into memory and update version."""
+    global _location_cache, _cache_version
+    cur = conn.cursor()
+    cur.execute("SELECT * FROM locatii")
+    cols = [d[0] for d in cur.description]
+    _location_cache = [dict(zip(cols, row)) for row in cur.fetchall()]
+    _cache_version = _get_db_version()
+
+def get_location_cache() -> list[dict]:
+    """Return the cached locations, loading them on first use."""
+    if _location_cache is None:
+        refresh_location_cache()
+    else:
+        maybe_refresh_location_cache()
+    return list(_location_cache)
+
+def maybe_refresh_location_cache() -> bool:
+    """Refresh cache if the database version changed."""
+    current = _get_db_version()
+    if current != _cache_version:
+        refresh_location_cache()
+        return True
+    return False
 
 
 def pandas_conn():
@@ -276,6 +337,7 @@ def init_db():
     ensure_index("locatii", "idx_locatii_status", "status")
     ensure_index("rezervari", "idx_rezervari_loc", "loc_id")
     conn.commit()
+    _init_meta()
 
     if not getattr(conn, "mysql", False):
         existing = {col[1] for col in cursor.execute("PRAGMA table_info(locatii)").fetchall()}
@@ -538,3 +600,4 @@ def check_login(username: str, password: str):
 
 # Initialize DB on import
 init_db()
+refresh_location_cache()
