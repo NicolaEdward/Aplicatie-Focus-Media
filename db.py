@@ -74,10 +74,25 @@ def get_db_path() -> str:
     return os.path.join(base_dir, "locatii.db")
 
 
+def _parse_port(value: str | None) -> int | None:
+    """Return a validated port number from *value* or ``None``."""
+    if not value:
+        return None
+    value = value.strip()
+    if value.isdigit():
+        # Ports are at most 5 digits; take the last chunk if more were provided
+        if len(value) > 5:
+            value = value[-5:]
+        port = int(value)
+        if 0 < port <= 65535:
+            return port
+    raise ValueError(f"Invalid MYSQL_PORT value: {value!r}")
+
+
 def _create_connection():
     host = os.environ.get("MYSQL_HOST")
     if host and mysql is not None:
-        port = os.environ.get("MYSQL_PORT")
+        port = _parse_port(os.environ.get("MYSQL_PORT"))
 
         # Allow specifying the port as part of the host, e.g. ``HOST=example:3306``
         if ":" in host:
@@ -86,7 +101,7 @@ def _create_connection():
                 host = host_part
                 # Only override the explicit MYSQL_PORT if it wasn't provided
                 if not port:
-                    port = host_port
+                    port = _parse_port(host_port)
 
         params = {
             "host": host,
@@ -95,7 +110,7 @@ def _create_connection():
             "database": os.environ.get("MYSQL_DATABASE"),
         }
         if port:
-            params["port"] = int(port)
+            params["port"] = port
         # mysql.connector uses port 3306 by default when not provided.
         conn = mysql.connector.connect(**params)
         return _ConnWrapper(conn, True)
@@ -111,11 +126,11 @@ def pandas_conn():
     if getattr(conn, "mysql", False) and sqlalchemy is not None:
         if not hasattr(pandas_conn, "_engine"):
             host = os.environ.get("MYSQL_HOST")
-            port = os.environ.get("MYSQL_PORT")
+            port = _parse_port(os.environ.get("MYSQL_PORT"))
             if host and ":" in host and not port:
                 host, host_port = host.rsplit(":", 1)
                 if host_port.isdigit():
-                    port = host_port
+                    port = _parse_port(host_port)
 
             user = os.environ.get("MYSQL_USER", "")
             password = os.environ.get("MYSQL_PASSWORD", "")
@@ -123,7 +138,7 @@ def pandas_conn():
 
             url = f"mysql+mysqlconnector://{user}:{password}@{host}"
             if port:
-                url += f":{int(port)}"
+                url += f":{port}"
             url += f"/{db_name}"
             pandas_conn._engine = sqlalchemy.create_engine(url)
         return pandas_conn._engine
