@@ -343,7 +343,8 @@ def init_users_table():
         """
         )
     # create default admin if table empty
-    if not cursor.execute("SELECT COUNT(*) FROM users").fetchone()[0]:
+    cursor.execute("SELECT COUNT(*) FROM users")
+    if not cursor.fetchone()[0]:
         cursor.execute(
             "INSERT INTO users (username, password, role) VALUES (?, ?, 'admin')",
             ("admin", _hash_password("admin")),
@@ -445,10 +446,11 @@ def create_user(username: str, password: str, role: str = "seller", comune: str 
 
 def get_user(username: str):
     cur = conn.cursor()
-    row = cur.execute(
+    cur.execute(
         "SELECT username, password, role, comune FROM users WHERE username=?",
         (username,),
-    ).fetchone()
+    )
+    row = cur.fetchone()
     if row:
         return {
             "username": row[0],
