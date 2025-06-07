@@ -95,7 +95,7 @@ def create_tables(cur):
         """
         CREATE TABLE IF NOT EXISTS users (
             id INT AUTO_INCREMENT PRIMARY KEY,
-            username TEXT UNIQUE NOT NULL,
+            username VARCHAR(255) UNIQUE NOT NULL,
             password TEXT NOT NULL,
             role TEXT NOT NULL,
             comune TEXT
@@ -105,12 +105,21 @@ def create_tables(cur):
 
 
 def copy_table(src_cur, dst_cur, table):
+    """Copy rows from the SQLite *table* into the matching MySQL table."""
     try:
-        columns = [row[1] for row in src_cur.execute(f"PRAGMA table_info({table})")]
+        src_columns = [row[1] for row in src_cur.execute(f"PRAGMA table_info({table})")]
     except sqlite3.OperationalError:
         return
-    col_list = ", ".join(columns)
-    placeholders = ", ".join(["%s"] * len(columns))
+
+    dst_cur.execute(f"SHOW COLUMNS FROM {table}")
+    dst_columns = [row[0] for row in dst_cur.fetchall()]
+
+    common_cols = [c for c in src_columns if c in dst_columns]
+    if not common_cols:
+        return
+
+    col_list = ", ".join(common_cols)
+    placeholders = ", ".join(["%s"] * len(common_cols))
     rows = src_cur.execute(f"SELECT {col_list} FROM {table}").fetchall()
     if rows:
         dst_cur.executemany(
@@ -126,6 +135,10 @@ def main():
     mysql_conn = connect_mysql()
     mysql_cur = mysql_conn.cursor()
 
+    # Disable foreign key checks during import to avoid issues with the
+    # order of inserted rows. They will be re-enabled at the end.
+    mysql_cur.execute("SET foreign_key_checks=0")
+
     create_tables(mysql_cur)
     mysql_conn.commit()
 
@@ -133,6 +146,9 @@ def main():
         copy_table(sqlite_cur, mysql_cur, table)
 
     mysql_conn.commit()
+
+    # Re-enable foreign key checks after all data is imported
+    mysql_cur.execute("SET foreign_key_checks=1")
     mysql_conn.close()
     sqlite_conn.close()
 
