@@ -22,9 +22,9 @@ MYSQL_PASSWORD=Root2001
 MYSQL_DATABASE=aplicatie_vanzari
 ```
 
-Daca `MYSQL_HOST` nu este definit, aplicatia revine la fisierul local
-`locatii.db` cu SQLite (util pentru teste sau dezvoltare fara un server
-dedicat).
+Aplicatia necesita un server MySQL configurat cu variabilele de mediu de mai sus.
+Fisierul `locatii.db` este folosit doar pentru teste sau pentru migrarea
+initiala catre MySQL.
 
 Dependintele necesare se instaleaza cu:
 
