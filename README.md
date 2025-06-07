@@ -43,6 +43,11 @@ python migrate_to_mysql.py
 
 Scriptul va copia in MySQL toate tabelele si datele din fisierul `locatii.db`.
 
+In cazul in care apare mesajul de eroare "Access denied for user", verifica
+fișierul `.env` sau variabilele de mediu folosite la conectare. Parola sau
+utilizatorul MySQL trebuie să corespundă setărilor serverului. Poți porni de la
+exemplul din `.env.example` și să îl adaptezi pentru sistemul tău.
+
 ## Autentificare
 
 La prima rulare este creat automat contul `admin` cu parola `admin`. Parolele

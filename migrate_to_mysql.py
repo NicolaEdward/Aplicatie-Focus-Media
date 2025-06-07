@@ -16,13 +16,20 @@ except Exception:
 
 
 def connect_mysql():
-    return mysql.connector.connect(
-        host=os.environ.get("MYSQL_HOST", "localhost"),
-        port=int(os.environ.get("MYSQL_PORT", 3306)),
-        user=os.environ.get("MYSQL_USER", "root"),
-        password=os.environ.get("MYSQL_PASSWORD", ""),
-        database=os.environ.get("MYSQL_DATABASE", "focus_media"),
-    )
+    try:
+        return mysql.connector.connect(
+            host=os.environ.get("MYSQL_HOST", "localhost"),
+            port=int(os.environ.get("MYSQL_PORT", 3306)),
+            user=os.environ.get("MYSQL_USER", "root"),
+            password=os.environ.get("MYSQL_PASSWORD", ""),
+            database=os.environ.get("MYSQL_DATABASE", "focus_media"),
+        )
+    except mysql.connector.Error as exc:
+        raise SystemExit(
+            "Failed to connect to MySQL. Check environment variables "
+            "MYSQL_HOST, MYSQL_USER, MYSQL_PASSWORD and MYSQL_DATABASE.\n" +
+            str(exc)
+        )
 
 
 def create_tables(cur):
