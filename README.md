@@ -27,20 +27,6 @@ respectiva si completeaza `MYSQL_USER`, `MYSQL_PASSWORD` si `MYSQL_DATABASE`
 cu datele oferite de providerul tau. Aplicatia va folosi aceste informatii la
 fiecare pornire.
 
-### Exemplu de configurare Aiven
-
-Daca folosesti un serviciu MySQL oferit de [Aiven](https://aiven.io), fisierul
-`.env` ar putea arata astfel:
-
-```ini
-MYSQL_HOST=focusmediaapptest-focusmedia-3f51.i.aivencloud.com
-MYSQL_PORT=25849
-MYSQL_USER=avnadmin
-MYSQL_PASSWORD=<parola ta Aiven>
-MYSQL_DATABASE=defaultdb
-```
-
-Inlocuieste `<parola ta Aiven>` cu parola reala afisata in consola Aiven.
 
 Aplicatia necesita un server MySQL configurat cu variabilele de mediu de mai sus.
 Fisierul `locatii.db` este folosit doar pentru teste sau pentru migrarea
