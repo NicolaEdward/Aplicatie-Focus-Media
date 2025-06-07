@@ -132,7 +132,7 @@ def start_app(user, root=None):
     menu_font = tkfont.nametofont("TkMenuFont")
     menu_font.configure(family="Segoe UI", size=14)
 
-    style.configure("TButton", padding=(8, 4), font=("Segoe UI", 12))
+    style.configure("TButton", padding=(8, 4), font=("Segoe UI", 12), relief="solid", borderwidth=1)
     style.configure("Treeview.Heading", font=("Segoe UI", 12, "bold"))
     style.configure("Treeview", rowheight=28, font=("Segoe UI", 11))
 
@@ -144,6 +144,8 @@ def start_app(user, root=None):
             "TButton",
             padding=(int(8 * scale), int(4 * scale)),
             font=("Segoe UI", int(12 * scale)),
+            relief="solid",
+            borderwidth=1,
         )
         style.configure(
             "Treeview.Heading",
@@ -255,7 +257,7 @@ def start_app(user, root=None):
     tree.heading("Address", text="Address")
     tree.column("Address", width=300, anchor="w", stretch=True)
     tree.heading("Type", text="Type");      tree.column("Type", width=100, anchor="w")
-    tree.heading("Status", text="Status");  tree.column("Status", width=120, anchor="w")
+    tree.heading("Status", text="Status");  tree.column("Status", width=120, anchor="center")
     tree.heading("RateCard", text="RateCard", anchor="e")
     tree.column("RateCard", width=100, anchor="e")
     tree.pack(fill="both", expand=True, side="left")
@@ -329,6 +331,8 @@ def start_app(user, root=None):
     lbl_pret_inch_value    = ttk.Label(details, text="-")
     lbl_pret_flot_label    = ttk.Label(details, text="Preț flotant:")
     lbl_pret_flot_value    = ttk.Label(details, text="-")
+    lbl_res_by_label       = ttk.Label(details, text="Rezervată de:")
+    lbl_res_by_value       = ttk.Label(details, text="-")
 
 
     # --- Bottom: butoane principale (stânga) și export (dreapta) ---
@@ -345,7 +349,7 @@ def start_app(user, root=None):
                              command=lambda: open_edit_window(root, selected_id[0], load_locations, refresh_groups))
 
     btn_rent    = ttk.Button(primary_frame, text="Închiriază", state="disabled")
-    btn_reserve = ttk.Button(primary_frame, text="Rezervă 5 zile", state="disabled")
+    btn_reserve = ttk.Button(primary_frame, text="Rezervă", state="disabled")
     btn_release = ttk.Button(primary_frame, text="Eliberează", state="disabled")
     btn_delete  = ttk.Button(primary_frame, text="Șterge", state="disabled",
                              command=lambda: delete_location())
@@ -540,6 +544,7 @@ def start_app(user, root=None):
             lbl_pret_vanz_label, lbl_pret_vanz_value,
             lbl_pret_inch_label, lbl_pret_inch_value,
             lbl_pret_flot_label, lbl_pret_flot_value,
+            lbl_res_by_label, lbl_res_by_value,
 
         ):
             w.pack_forget()
@@ -595,6 +600,16 @@ def start_app(user, root=None):
         btn_download.config(state='normal' if get_schita_path(code) else 'disabled')
 
         status = tree.item(sel[0])['values'][5]
+        reserved_info = None
+        if status == "Rezervat":
+            today = datetime.date.today().isoformat()
+            reserved_info = cursor.execute(
+                "SELECT created_by, data_end FROM rezervari "
+                "WHERE loc_id=? AND ? BETWEEN data_start AND data_end "
+                "AND suma IS NULL ORDER BY data_start DESC LIMIT 1",
+                (loc_id, today),
+            ).fetchone()
+
         if status == "Închiriat":
             lbl_client_label.pack(anchor="center", pady=2)
             lbl_client_value.pack(anchor="center", pady=2)
@@ -612,6 +627,14 @@ def start_app(user, root=None):
             lbl_pret_vanz_value.pack(anchor="center", pady=2)
             lbl_pret_flot_label.pack(anchor="center", pady=2)
             lbl_pret_flot_value.pack(anchor="center", pady=2)
+            if reserved_info:
+                creator, end_d = reserved_info
+                days_left = (datetime.date.fromisoformat(end_d) -
+                             datetime.date.today()).days + 1
+                lbl_res_by_value.config(
+                    text=f"{creator} ({days_left} zile)")
+                lbl_res_by_label.pack(anchor="center", pady=2)
+                lbl_res_by_value.pack(anchor="center", pady=2)
 
         if user.get("role") == 'admin':
             btn_edit.config(state='normal')
@@ -625,11 +648,18 @@ def start_app(user, root=None):
 
         if status == "Disponibil":
             btn_reserve.config(
+                text="Rezervă",
                 state='normal',
                 command=lambda: open_reserve_window(root, loc_id, load_locations, user)
             )
+        elif status == "Rezervat" and reserved_info and reserved_info[0] == user["username"]:
+            btn_reserve.config(
+                text="Anulează rezervarea",
+                state='normal',
+                command=lambda: cancel_reservation(root, loc_id, load_locations)
+            )
         else:
-            btn_reserve.config(state='disabled')
+            btn_reserve.config(text="Rezervă", state='disabled')
 
         has_rents = cursor.execute(
             "SELECT COUNT(*) FROM rezervari WHERE loc_id=?",

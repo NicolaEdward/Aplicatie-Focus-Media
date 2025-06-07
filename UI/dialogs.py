@@ -441,7 +441,7 @@ def open_release_window(root, loc_id, load_cb, user):
     win.title(f"Selectează închirierea #{loc_id}")
 
     lst = tk.Listbox(win, width=40, height=10)
-    for rid, client, ds, de in rows:
+    for rid, client, ds, de, *_ in rows:
         lst.insert("end", f"{client}: {ds} → {de}")
     lst.grid(row=0, column=0, columnspan=2, padx=5, pady=5)
 
