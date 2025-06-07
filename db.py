@@ -27,12 +27,19 @@ class _CursorWrapper:
     def execute(self, sql, params=None):
         if self._mysql:
             sql = sql.replace("?", "%s")
-        return self._cur.execute(sql, params or ())
+        # ``mysql.connector`` returns ``None`` from ``execute`` instead of the
+        # cursor instance like ``sqlite3`` does.  Since a lot of the code relies
+        # on chaining calls like ``cursor.execute(...).fetchall()``, always
+        # return ``self`` so the wrapper mimics the sqlite behaviour.
+        self._cur.execute(sql, params or ())
+        return self
 
     def executemany(self, sql, params):
         if self._mysql:
             sql = sql.replace("?", "%s")
-        return self._cur.executemany(sql, params)
+        # See comment in ``execute`` above about return value.
+        self._cur.executemany(sql, params)
+        return self
 
     def __getattr__(self, name):
         return getattr(self._cur, name)
