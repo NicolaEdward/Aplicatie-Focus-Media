@@ -432,7 +432,7 @@ def export_available_excel(
     import datetime
     import pandas as pd
     from tkinter import messagebox, filedialog
-    from db import conn
+    from db import pandas_conn
 
     # 1) Construim WHERE identic cu load_locations()
     cond, params = [], []
@@ -468,7 +468,7 @@ def export_available_excel(
 
     # 2) Citim datele
     df = pd.read_sql_query(
-        sql, conn, params=params,
+        sql, pandas_conn(), params=params,
         parse_dates=['data_start', 'data_end']
     )
     if df.empty:
@@ -592,7 +592,7 @@ def export_sales_report():
     import pandas as pd
     import datetime
     from tkinter import messagebox, filedialog
-    from db import conn, update_statusuri_din_rezervari
+    from db import pandas_conn, update_statusuri_din_rezervari
 
     update_statusuri_din_rezervari()
 
@@ -603,7 +603,7 @@ def export_sales_report():
           FROM locatii
          ORDER BY county, city, id
         """,
-        conn,
+        pandas_conn(),
     )
 
     if df_loc.empty:
@@ -786,7 +786,7 @@ def export_sales_report():
               JOIN locatii l ON r.loc_id = l.id
              ORDER BY r.data_start
             """,
-            conn,
+            pandas_conn(),
             parse_dates=["data_start", "data_end"],
         )
 
@@ -879,7 +879,7 @@ def open_offer_window(tree):
     from tkinter import ttk, messagebox, filedialog
     import os
     from utils import PREVIEW_FOLDER
-    from db import conn
+    from db import pandas_conn
 
     # 1. Preluare selecție
     sel = tree.selection()
@@ -935,7 +935,12 @@ def open_offer_window(tree):
             f"ratecard, pret_vanzare, data_start, data_end "
             f"FROM locatii WHERE id IN ({','.join(['?']*len(ids))})"
         )
-        df = pd.read_sql_query(sql, conn, params=ids, parse_dates=["data_start","data_end"])
+        df = pd.read_sql_query(
+            sql,
+            pandas_conn(),
+            params=ids,
+            parse_dates=["data_start", "data_end"],
+        )
 
         # 5. Calcul disponibilitate
         today = datetime.date.today()
@@ -1319,10 +1324,11 @@ def export_vendor_report():
     """Exporta un raport detaliat pentru fiecare vânzător."""
     import pandas as pd
     from tkinter import filedialog, messagebox
-    from db import conn
+    from db import pandas_conn
 
     users = pd.read_sql_query(
-        "SELECT username, comune FROM users WHERE role='seller'", conn
+        "SELECT username, comune FROM users WHERE role='seller'",
+        pandas_conn(),
     )
     if users.empty:
         messagebox.showinfo("Raport", "Nu există vânzători.")
@@ -1335,7 +1341,7 @@ def export_vendor_report():
           FROM rezervari r
           JOIN locatii l ON r.loc_id = l.id
         """,
-        conn,
+        pandas_conn(),
         parse_dates=["data_start", "data_end"],
     )
 
