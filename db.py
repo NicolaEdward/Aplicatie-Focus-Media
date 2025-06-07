@@ -140,9 +140,14 @@ _cache_version: int = -1
 
 def _init_meta() -> None:
     cur = conn.cursor()
-    cur.execute(
-        "CREATE TABLE IF NOT EXISTS meta (`key` TEXT PRIMARY KEY, value TEXT)"
-    )
+    if getattr(conn, "mysql", False):
+        cur.execute(
+            "CREATE TABLE IF NOT EXISTS meta (`key` VARCHAR(255) PRIMARY KEY, value TEXT)"
+        )
+    else:
+        cur.execute(
+            "CREATE TABLE IF NOT EXISTS meta (`key` TEXT PRIMARY KEY, value TEXT)"
+        )
     cur.execute("SELECT value FROM meta WHERE `key`='locatii_version'")
     if cur.fetchone() is None:
         cur.execute(
