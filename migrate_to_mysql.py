@@ -66,7 +66,7 @@ def create_tables(cur):
         """
         CREATE TABLE IF NOT EXISTS clienti (
             id INT AUTO_INCREMENT PRIMARY KEY,
-            nume TEXT UNIQUE NOT NULL,
+            nume VARCHAR(255) UNIQUE NOT NULL,
             contact TEXT,
             email TEXT,
             phone TEXT,
