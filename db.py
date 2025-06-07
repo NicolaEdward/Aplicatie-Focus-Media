@@ -100,16 +100,22 @@ def _parse_port(value: str | None) -> int | None:
 def _create_connection():
     host = os.environ.get("MYSQL_HOST")
     if host and mysql is not None:
-        port = _parse_port(os.environ.get("MYSQL_PORT"))
+        try:
+            port = _parse_port(os.environ.get("MYSQL_PORT"))
+        except Exception:
+            # invalid port configured; ignore and fall back to SQLite
+            return _ConnWrapper(sqlite3.connect(get_db_path()), False)
 
         # Allow specifying the port as part of the host, e.g. ``HOST=example:3306``
         if ":" in host:
             host_part, host_port = host.rsplit(":", 1)
             if host_port.isdigit():
                 host = host_part
-                # Only override the explicit MYSQL_PORT if it wasn't provided
                 if not port:
-                    port = _parse_port(host_port)
+                    try:
+                        port = _parse_port(host_port)
+                    except Exception:
+                        return _ConnWrapper(sqlite3.connect(get_db_path()), False)
 
         params = {
             "host": host,
@@ -120,8 +126,11 @@ def _create_connection():
         if port:
             params["port"] = port
         # mysql.connector uses port 3306 by default when not provided.
-        conn = mysql.connector.connect(**params)
-        return _ConnWrapper(conn, True)
+        try:
+            conn = mysql.connector.connect(**params)
+            return _ConnWrapper(conn, True)
+        except Exception:
+            pass  # fall back to bundled SQLite database
     return _ConnWrapper(sqlite3.connect(get_db_path()), False)
 
 
