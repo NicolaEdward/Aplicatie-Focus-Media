@@ -3,6 +3,13 @@ import sqlite3
 from db import get_db_path
 
 try:
+    from dotenv import load_dotenv  # type: ignore
+except Exception:
+    load_dotenv = lambda *a, **k: None
+
+load_dotenv()
+
+try:
     import mysql.connector  # type: ignore
 except Exception:
     raise SystemExit("mysql-connector-python is required for migration")

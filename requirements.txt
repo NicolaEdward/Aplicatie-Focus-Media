@@ -4,3 +4,4 @@ tkcalendar
 XlsxWriter
 ttkbootstrap
 mysql-connector-python
+python-dotenv

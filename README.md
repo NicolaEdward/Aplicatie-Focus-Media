@@ -11,6 +11,17 @@ MYSQL_PASSWORD  - parola
 MYSQL_DATABASE  - baza de date
 ```
 
+Poti crea un fisier `.env` in radacina proiectului cu aceste variabile. Un
+exemplu este disponibil in fisierul `.env.example`:
+
+```
+MYSQL_HOST=127.0.0.1
+MYSQL_PORT=3306
+MYSQL_USER=root
+MYSQL_PASSWORD=Root2001
+MYSQL_DATABASE=aplicatie_vanzari
+```
+
 Daca `MYSQL_HOST` nu este definit, aplicatia revine la fisierul local
 `locatii.db` cu SQLite (util pentru teste sau dezvoltare fara un server
 dedicat).

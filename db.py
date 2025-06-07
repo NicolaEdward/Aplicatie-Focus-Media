@@ -5,6 +5,13 @@ import hmac
 import sqlite3
 
 try:
+    from dotenv import load_dotenv  # type: ignore
+except Exception:  # pragma: no cover - optional dep
+    load_dotenv = lambda *a, **k: None
+
+load_dotenv()
+
+try:
     import mysql.connector  # type: ignore
 except Exception:  # pragma: no cover - optional dep
     mysql = None
