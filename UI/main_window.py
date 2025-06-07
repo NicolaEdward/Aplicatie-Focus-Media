@@ -13,6 +13,7 @@ try:
 except Exception:
     Style = None
 from tkcalendar import DateEntry as _DateEntry, Calendar as _Calendar
+from UI.date_picker import DatePicker
 
 # Work around a compatibility issue between ``tkcalendar.DateEntry`` and
 # ``ttkbootstrap``.  The style patches applied by ``ttkbootstrap`` call the
@@ -76,6 +77,7 @@ from UI.dialogs import (
     open_add_window,
     open_edit_window,
     open_rent_window,
+    open_reserve_window,
     open_release_window,
     cancel_reservation,
     open_offer_window,
@@ -227,10 +229,10 @@ def start_app(user, root=None):
     ttk.Entry(frm_top, textvariable=search_var, width=20).pack(side="left", padx=5)
 
     ttk.Label(frm_top, text="Din:").pack(side="left", padx=(20,5))
-    filter_start = DateEntry(frm_top, date_pattern="yyyy-mm-dd", width=12)
+    filter_start = DatePicker(frm_top, width=12)
     filter_start.pack(side="left", padx=5)
     ttk.Label(frm_top, text="Până:").pack(side="left", padx=(10,5))
-    filter_end = DateEntry(frm_top, date_pattern="yyyy-mm-dd", width=12)
+    filter_end = DatePicker(frm_top, width=12)
     filter_end.pack(side="left", padx=5)
 
     var_ignore = tk.BooleanVar(value=True)
@@ -261,6 +263,7 @@ def start_app(user, root=None):
     vsb = ttk.Scrollbar(frm_mid, orient="vertical", command=tree.yview)
     vsb.pack(side="left", fill="y")
     tree.configure(yscroll=vsb.set)
+
 
     tree.tag_configure("evenrow", background="#f7f7f7", foreground="black")
     tree.tag_configure("oddrow", background="#ffffff", foreground="black")
@@ -342,6 +345,7 @@ def start_app(user, root=None):
                              command=lambda: open_edit_window(root, selected_id[0], load_locations, refresh_groups))
 
     btn_rent    = ttk.Button(primary_frame, text="Închiriază", state="disabled")
+    btn_reserve = ttk.Button(primary_frame, text="Rezervă 5 zile", state="disabled")
     btn_release = ttk.Button(primary_frame, text="Eliberează", state="disabled")
     btn_delete  = ttk.Button(primary_frame, text="Șterge", state="disabled",
                              command=lambda: delete_location())
@@ -356,7 +360,7 @@ def start_app(user, root=None):
     else:
         # vânzătorii pot doar închiria/elibera și gestiona clienți
         pass
-    for w in (btn_rent, btn_release, btn_clients):
+    for w in (btn_rent, btn_reserve, btn_release, btn_clients):
         w.pack(side="left", padx=5, pady=5)
 
 
@@ -400,6 +404,8 @@ def start_app(user, root=None):
     def load_locations():
         # 1) Actualizează statusurile locațiilor pe baza rezervărilor
         update_statusuri_din_rezervari()
+
+
 
         # 2) Golește TreeView
         items = tree.get_children()
@@ -460,17 +466,23 @@ def start_app(user, root=None):
             r.get('city'),
         ))
 
-
-
-        # 6) Funcție locală pentru a afla disponibilitatea pe interval
-        def availability(loc_id):
-            rez = cursor.execute(
-
-                "SELECT data_start, data_end FROM rezervari WHERE loc_id=? ORDER BY data_start",
-                (loc_id,)
+        # 6) Preîncărcăm rezervările pentru perioada selectată
+        reservations_by_loc: dict[int, list[tuple[datetime.date, datetime.date]]] = {}
+        if not var_ignore.get():
+            rows_res = cursor.execute(
+                "SELECT loc_id, data_start, data_end FROM rezervari WHERE NOT (data_end < ? OR data_start > ?) ORDER BY data_start",
+                (start_dt.isoformat(), end_dt.isoformat()),
             ).fetchall()
-            periods = [(datetime.date.fromisoformat(ds), datetime.date.fromisoformat(de)) for ds,de in rez]
-            overl = [(ds,de) for ds,de in periods if not (de < start_dt or ds > end_dt)]
+            for loc_id_r, ds, de in rows_res:
+                reservations_by_loc.setdefault(loc_id_r, []).append(
+                    (datetime.date.fromisoformat(ds), datetime.date.fromisoformat(de))
+                )
+
+        def availability(loc_id):
+            periods = reservations_by_loc.get(loc_id, [])
+            if not periods:
+                return "Disponibil"
+            overl = [(ds, de) for ds, de in periods if not (de < start_dt or ds > end_dt)]
             if not overl:
                 return "Disponibil"
             first_ds = overl[0][0]
@@ -481,7 +493,8 @@ def start_app(user, root=None):
             if last_de < end_dt:
                 frm = (last_de + datetime.timedelta(days=1)).strftime('%d.%m.%Y')
                 return f"Disponibil din {frm}"
-            return ""  # complet acoperit
+            return ""
+
 
         # 7) Populează TreeView, aplicând filtrul de date doar când "Toate datele" NU e bifat
         display_index = 0
@@ -610,6 +623,14 @@ def start_app(user, root=None):
             command=lambda: open_rent_window(root, loc_id, load_locations, user)
         )
 
+        if status == "Disponibil":
+            btn_reserve.config(
+                state='normal',
+                command=lambda: open_reserve_window(root, loc_id, load_locations, user)
+            )
+        else:
+            btn_reserve.config(state='disabled')
+
         has_rents = cursor.execute(
             "SELECT COUNT(*) FROM rezervari WHERE loc_id=?",
             (loc_id,)
@@ -618,7 +639,7 @@ def start_app(user, root=None):
         if has_rents:
             btn_release.config(
                 state='normal',
-                command=lambda: open_release_window(root, loc_id, load_locations)
+                command=lambda: open_release_window(root, loc_id, load_locations, user)
             )
         else:
             btn_release.config(state='disabled')
