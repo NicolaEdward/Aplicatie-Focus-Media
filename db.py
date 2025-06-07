@@ -474,9 +474,42 @@ def update_statusuri_din_rezervari():
     """)
 
 
-    # 2) Nu mai marcăm rezervările viitoare ca "Rezervat" pentru a permite
-    #     programarea mai multor închirieri. Locațiile rămân "Disponibil" până
-    #     începe perioada efectivă de închiriere.
+    # 2) Marcăm rezervările curente fără sumă ca 'Rezervat'
+    cur.execute("""
+        UPDATE locatii
+        SET status     = 'Rezervat',
+            client     = (
+                SELECT client
+                  FROM rezervari
+                 WHERE rezervari.loc_id = locatii.id
+                   AND ? BETWEEN data_start AND data_end
+                   AND suma IS NULL
+                 ORDER BY data_start DESC
+                 LIMIT 1
+            ),
+            data_start = (
+                SELECT data_start FROM rezervari
+                 WHERE rezervari.loc_id = locatii.id
+                   AND ? BETWEEN data_start AND data_end
+                   AND suma IS NULL
+                 ORDER BY data_start DESC
+                 LIMIT 1
+            ),
+            data_end   = (
+                SELECT data_end FROM rezervari
+                 WHERE rezervari.loc_id = locatii.id
+                   AND ? BETWEEN data_start AND data_end
+                   AND suma IS NULL
+                 ORDER BY data_start DESC
+                 LIMIT 1
+            )
+        WHERE EXISTS (
+            SELECT 1 FROM rezervari
+             WHERE rezervari.loc_id = locatii.id
+               AND ? BETWEEN data_start AND data_end
+               AND suma IS NULL
+        )
+    """, (today, today, today, today))
 
     # 3) Marcăm închirierile curente ca 'Închiriat'
     cur.execute("""
@@ -487,6 +520,7 @@ def update_statusuri_din_rezervari():
                 FROM rezervari
                 WHERE rezervari.loc_id = locatii.id
                   AND ? BETWEEN data_start AND data_end
+                  AND suma IS NOT NULL
                 ORDER BY data_start DESC
                 LIMIT 1
             ),
@@ -495,6 +529,7 @@ def update_statusuri_din_rezervari():
                 FROM rezervari
                 WHERE rezervari.loc_id = locatii.id
                   AND ? BETWEEN data_start AND data_end
+                  AND suma IS NOT NULL
                 ORDER BY data_start DESC
                 LIMIT 1
             ),
@@ -503,6 +538,7 @@ def update_statusuri_din_rezervari():
                 FROM rezervari
                 WHERE rezervari.loc_id = locatii.id
                   AND ? BETWEEN data_start AND data_end
+                  AND suma IS NOT NULL
                 ORDER BY data_start DESC
                 LIMIT 1
             ),
@@ -511,6 +547,7 @@ def update_statusuri_din_rezervari():
                 FROM rezervari
                 WHERE rezervari.loc_id = locatii.id
                   AND ? BETWEEN data_start AND data_end
+                  AND suma IS NOT NULL
                 ORDER BY data_start DESC
                 LIMIT 1
             )
@@ -519,6 +556,7 @@ def update_statusuri_din_rezervari():
             FROM rezervari
             WHERE rezervari.loc_id = locatii.id
               AND ? BETWEEN data_start AND data_end
+              AND suma IS NOT NULL
         )
     """, (today, today, today, today, today))
 

@@ -281,6 +281,35 @@ def cancel_reservation(root, loc_id, load_cb):
 
     load_cb()
 
+
+def open_reserve_window(root, loc_id, load_cb, user):
+    """Rezervă locația pentru 5 zile folosind doar numele clientului."""
+    win = tk.Toplevel(root)
+    win.title(f"Rezervă locația #{loc_id}")
+
+    ttk.Label(win, text="Client:").grid(row=0, column=0, padx=5, pady=5)
+    entry_client = ttk.Entry(win, width=30)
+    entry_client.grid(row=0, column=1, padx=5, pady=5)
+
+    def save():
+        name = entry_client.get().strip()
+        if not name:
+            messagebox.showwarning("Lipsește client", "Completează numele clientului.")
+            return
+        start = datetime.date.today()
+        end = start + datetime.timedelta(days=4)
+        cur = conn.cursor()
+        cur.execute(
+            "INSERT INTO rezervari (loc_id, client, data_start, data_end, created_by) VALUES (?, ?, ?, ?, ?)",
+            (loc_id, name, start.isoformat(), end.isoformat(), user["username"]),
+        )
+        conn.commit()
+        update_statusuri_din_rezervari()
+        load_cb()
+        win.destroy()
+
+    ttk.Button(win, text="Rezervă", command=save).grid(row=1, column=0, columnspan=2, pady=10)
+
 def open_rent_window(root, loc_id, load_cb, user):
     """Dialog pentru adăugarea unei închirieri în tabelul ``rezervari``.
 
@@ -394,13 +423,15 @@ def open_rent_window(root, loc_id, load_cb, user):
         .grid(row=len(labels)+2, column=0, columnspan=3, pady=10)
 
 
-def open_release_window(root, loc_id, load_cb):
-    """Selectează și anulează una dintre închirierile existente."""
+def open_release_window(root, loc_id, load_cb, user):
+    """Selectează și anulează o închiriere sau rezervare."""
     cur = conn.cursor()
     rows = cur.execute(
-        "SELECT id, client, data_start, data_end FROM rezervari WHERE loc_id=? ORDER BY data_start",
+        "SELECT id, client, data_start, data_end, created_by, suma FROM rezervari WHERE loc_id=? ORDER BY data_start",
         (loc_id,)
     ).fetchall()
+    if user.get("role") != "admin":
+        rows = [r for r in rows if r[4] == user["username"] or r[5] is not None]
 
     if not rows:
         messagebox.showinfo("Eliberează", "Nu există închirieri pentru această locație.")
