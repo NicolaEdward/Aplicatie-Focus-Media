@@ -9,7 +9,9 @@ try:
 except Exception:  # pragma: no cover - optional dep
     load_dotenv = lambda *a, **k: None
 
-load_dotenv()
+# Load variables from a `.env` file next to this module when available so the
+# application behaves the same regardless of the current working directory.
+load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
 
 try:
     import mysql.connector  # type: ignore
@@ -75,9 +77,20 @@ def get_db_path() -> str:
 def _create_connection():
     host = os.environ.get("MYSQL_HOST")
     if host and mysql is not None:
+        port = os.environ.get("MYSQL_PORT")
+
+        # Allow specifying the port as part of the host, e.g. ``HOST=example:3306``
+        if ":" in host:
+            host_part, host_port = host.rsplit(":", 1)
+            if host_port.isdigit():
+                host = host_part
+                # Only override the explicit MYSQL_PORT if it wasn't provided
+                if not port:
+                    port = host_port
+
         conn = mysql.connector.connect(
             host=host,
-            port=int(os.environ.get("MYSQL_PORT", 3306)),
+            port=int(port or 3306),
             user=os.environ.get("MYSQL_USER", "root"),
             password=os.environ.get("MYSQL_PASSWORD", ""),
             database=os.environ.get("MYSQL_DATABASE", "focus_media"),

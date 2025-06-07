@@ -7,7 +7,9 @@ try:
 except Exception:
     load_dotenv = lambda *a, **k: None
 
-load_dotenv()
+# Ensure environment variables from a local `.env` file are available even when
+# this script is executed from another directory.
+load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
 
 try:
     import mysql.connector  # type: ignore
