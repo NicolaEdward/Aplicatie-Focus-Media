@@ -377,7 +377,7 @@ def start_app(user, root=None):
     btn_vendor = ttk.Button(export_frame, text="Raport Vânzători",
                            command=lambda: export_vendor_report())
     btn_update = ttk.Button(export_frame, text="Update Database",
-                           command=manual_refresh)
+                           command=lambda: manual_refresh())
     btn_xlsx.pack(side="left", padx=5, pady=5)
     btn_offer.pack(side="left", padx=5, pady=5)
     btn_report.pack(side="left", padx=5, pady=5)
