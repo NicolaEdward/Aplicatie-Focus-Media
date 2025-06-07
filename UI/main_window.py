@@ -663,7 +663,7 @@ def start_app(user, root=None):
         root.after(300000, watch_updates)  # 5 minute
 
     # bind filtre
-    combo_group.bind("<<ComboboxSelected>>", lambda e: load_locations())
+    combo_group.bind("<<ComboboxSelected>>", lambda e: (refresh_location_cache(), load_locations()))
     combo_status.bind("<<ComboboxSelected>>", lambda e: load_locations())
     search_var.trace_add("write", lambda *a: load_locations())
     filter_start.bind("<<DateEntrySelected>>", lambda e: (var_ignore.set(False), load_locations()))

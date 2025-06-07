@@ -1,4 +1,5 @@
 import os
+import time
 import datetime
 import hashlib
 import hmac
@@ -65,13 +66,6 @@ class _ConnWrapper:
         return self._mysql
 
     def commit(self):
-        cur = self._conn.cursor()
-        try:
-            cur.execute(
-                "UPDATE meta SET value = value + 1 WHERE `key`='locatii_version'"
-            )
-        except Exception:
-            pass
         self._conn.commit()
         try:
             refresh_location_cache()
@@ -136,52 +130,27 @@ cursor = conn.cursor()
 
 # --- simple in-memory cache for the locatii table ---
 _location_cache: list[dict] | None = None
-_cache_version: int = -1
+_cache_timestamp: float = 0.0
 
-def _init_meta() -> None:
-    cur = conn.cursor()
-    if getattr(conn, "mysql", False):
-        cur.execute(
-            "CREATE TABLE IF NOT EXISTS meta (`key` VARCHAR(255) PRIMARY KEY, value TEXT)"
-        )
-    else:
-        cur.execute(
-            "CREATE TABLE IF NOT EXISTS meta (`key` TEXT PRIMARY KEY, value TEXT)"
-        )
-    cur.execute("SELECT value FROM meta WHERE `key`='locatii_version'")
-    if cur.fetchone() is None:
-        cur.execute(
-            "INSERT INTO meta (`key`, value) VALUES ('locatii_version', '0')"
-        )
-    conn.commit()
-
-def _get_db_version() -> int:
-    cur = conn.cursor()
-    cur.execute("SELECT value FROM meta WHERE `key`='locatii_version'")
-    row = cur.fetchone()
-    return int(row[0]) if row and str(row[0]).isdigit() else 0
 
 def refresh_location_cache() -> None:
-    """Load all rows from ``locatii`` into memory and update version."""
-    global _location_cache, _cache_version
+    """Load all rows from ``locatii`` into memory."""
+    global _location_cache, _cache_timestamp
     cur = conn.cursor()
     cur.execute("SELECT * FROM locatii")
     cols = [d[0] for d in cur.description]
     _location_cache = [dict(zip(cols, row)) for row in cur.fetchall()]
-    _cache_version = _get_db_version()
+    _cache_timestamp = time.time()
 
 def get_location_cache() -> list[dict]:
     """Return the cached locations, loading them on first use."""
     if _location_cache is None:
         refresh_location_cache()
-    else:
-        maybe_refresh_location_cache()
     return list(_location_cache)
 
-def maybe_refresh_location_cache() -> bool:
-    """Refresh cache if the database version changed."""
-    current = _get_db_version()
-    if current != _cache_version:
+def maybe_refresh_location_cache(ttl: int = 300) -> bool:
+    """Refresh cache if more than ``ttl`` seconds elapsed since last update."""
+    if time.time() - _cache_timestamp >= ttl:
         refresh_location_cache()
         return True
     return False
@@ -349,7 +318,6 @@ def init_db():
     ensure_index("locatii", "idx_locatii_status", "status")
     ensure_index("rezervari", "idx_rezervari_loc", "loc_id")
     conn.commit()
-    _init_meta()
 
     if not getattr(conn, "mysql", False):
         existing = {col[1] for col in cursor.execute("PRAGMA table_info(locatii)").fetchall()}
