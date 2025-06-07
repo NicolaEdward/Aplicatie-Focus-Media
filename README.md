@@ -27,6 +27,7 @@ respectiva si completeaza `MYSQL_USER`, `MYSQL_PASSWORD` si `MYSQL_DATABASE`
 cu datele oferite de providerul tau. Aplicatia va folosi aceste informatii la
 fiecare pornire.
 
+
 Aplicatia necesita un server MySQL configurat cu variabilele de mediu de mai sus.
 Fisierul `locatii.db` este folosit doar pentru teste sau pentru migrarea
 initiala catre MySQL.
@@ -47,6 +48,12 @@ python migrate_to_mysql.py
 ```
 
 Scriptul va copia in MySQL toate tabelele si datele din fisierul `locatii.db`.
+Daca tabelele din MySQL contin deja date, acestea vor fi sterse inainte de
+import pentru a evita erorile legate de chei primare duplicate.
+
+In cazul unei baze de date gazduite de Aiven, dupa rularea acestui script
+toate datele din `locatii.db` vor fi transferate in serviciul online si
+aplicatia va folosi exclusiv conexiunea configurata in `.env`.
 
 In cazul in care apare mesajul de eroare "Access denied for user", verifica
 fișierul `.env` sau variabilele de mediu folosite la conectare. Parola sau
