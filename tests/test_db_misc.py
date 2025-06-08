@@ -69,6 +69,16 @@ def test_location_cache(monkeypatch):
     assert db.maybe_refresh_location_cache(ttl=0)
 
 
+def test_firme_defaults(monkeypatch):
+    conn = setup_memory_db(monkeypatch)
+    rows = conn.execute("SELECT nume FROM firme ORDER BY id").fetchall()
+    assert [r[0] for r in rows] == [
+        "Focus Media Outdoor",
+        "Excellence Media Production",
+        "Michi Media Advertising",
+    ]
+
+
 def test_make_preview(monkeypatch, tmp_path):
     folder = tmp_path / "previews"
     folder.mkdir()
