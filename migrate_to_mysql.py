@@ -46,7 +46,7 @@ def connect_mysql():
 
 def reset_tables(cur):
     """Drop existing tables so the migration runs on a clean database."""
-    for table in ["rezervari", "locatii", "clienti", "users"]:
+    for table in ["rezervari", "locatii", "clienti", "users", "firme", "decorari"]:
         cur.execute(f"DROP TABLE IF EXISTS {table}")
 
 
@@ -122,6 +122,28 @@ def create_tables(cur):
     )
     cur.execute(
         """
+        CREATE TABLE IF NOT EXISTS firme (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            nume VARCHAR(255) UNIQUE NOT NULL,
+            cui TEXT,
+            adresa TEXT
+        )
+        """
+    )
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS decorari (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            rez_id INT NOT NULL,
+            data TEXT NOT NULL,
+            cost DOUBLE,
+            productie DOUBLE,
+            FOREIGN KEY(rez_id) REFERENCES rezervari(id)
+        )
+        """
+    )
+    cur.execute(
+        """
         CREATE TABLE IF NOT EXISTS meta (
             key VARCHAR(255) PRIMARY KEY,
             value TEXT
@@ -175,7 +197,7 @@ def main():
     create_tables(mysql_cur)
     mysql_conn.commit()
 
-    for table in ["locatii", "clienti", "rezervari", "users"]:
+    for table in ["locatii", "clienti", "rezervari", "users", "firme", "decorari"]:
         copy_table(sqlite_cur, mysql_cur, table)
 
     mysql_conn.commit()
