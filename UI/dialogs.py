@@ -1264,7 +1264,6 @@ def export_sales_report():
             ws.write(start + 2, value_col, sale_total, stat_money_fmt)
             pct_sale_sold = sold_income / sale_total if sale_total else 0
             pct_sale_free = sale_free / sale_total if sale_total else 0
-            ratio_sales = sold_income / sale_free if sale_free else 0
             ws.merge_range(
                 start + 3, 0, start + 3, merge_end, "Sumă locații vândute", stat_lbl_fmt
             )
@@ -1288,15 +1287,8 @@ def export_sales_report():
                 f"€{sale_free:,.2f} ({pct_sale_free:.2%})",
                 stat_money_neg_fmt,
             )
-            ws.merge_range(
-                start + 5,
-                0,
-                start + 5,
-                merge_end,
-                "Raport sume vândute/nevândute",
-                stat_lbl_fmt,
-            )
-            ws.write(start + 5, value_col, ratio_sales, stat_percent_fmt)
+            # The "Raport sume vândute/nevândute" statistic is no longer shown
+            # in the monthly sheets as it was not considered relevant.
 
         current_year = datetime.date.today().year
         year_start = datetime.date(current_year, 1, 1)
@@ -1383,6 +1375,13 @@ def export_sales_report():
         ).fillna(0)
         df_total["Total Sum"] = df_total["id"].map(agg["val_real"]).fillna(0)
         mob_mask = df_total["is_mobile"] == 1
+        df_total.loc[mob_mask & (df_total["Units Sold"] > 0), "address"] = (
+            df_total.loc[mob_mask & (df_total["Units Sold"] > 0), "address"]
+            + " "
+            + df_total.loc[mob_mask & (df_total["Units Sold"] > 0), "Units Sold"].astype(str)
+            + "X"
+        )
+        df_total = df_total.drop(columns="Units Sold")
         df_total["% Year Sold"] = df_total.apply(
             lambda r: (
                 r["Sold Months"] / (20 * 12)
@@ -1403,7 +1402,7 @@ def export_sales_report():
             ["__grp", "pret_vanzare"], ascending=[True, False]
         ).drop(columns="__grp")
 
-        def write_total_sheet(df_sheet, total_prisms):
+        def write_total_sheet(df_sheet):
             df_sheet = df_sheet[
                 [
                     "city",
@@ -1416,7 +1415,6 @@ def export_sales_report():
                     "ratecard",
                     "pret_vanzare",
                     "Sold Months",
-                    "Units Sold",
                     "% Year Sold",
                     "Total Sum",
                 ]
@@ -1432,7 +1430,6 @@ def export_sales_report():
                 "Ratecard/month",
                 "PRET DE VANZARE",
                 "Luni vândută",
-                "Prisme vândute",
                 "% An vândut",
                 "SUMĂ AN",
             ]
@@ -1461,33 +1458,66 @@ def export_sales_report():
                     width = max(len(col), df_sheet[col].astype(str).map(len).max()) + 2
                 ws.set_column(idx, idx, width)
             sold_mask = df_sheet["Luni vândută"] > 0
-            pct_sold = sold_mask.mean()
+            pct_sold_loc = sold_mask.mean()
+            pct_months_sold = (
+                pd.to_numeric(df_sheet["Luni vândută"], errors="coerce").fillna(0).sum()
+                / (len(df_sheet) * 12)
+            )
+            pct_months_free = 1 - pct_months_sold
+            sale_total = (
+                pd.to_numeric(df_sheet["PRET DE VANZARE"], errors="coerce").fillna(0) * 12
+            ).sum()
+            sold_income = (
+                pd.to_numeric(df_sheet["SUMĂ AN"], errors="coerce").fillna(0).sum()
+            )
+            sale_free = sale_total - sold_income
+            pct_sale_sold = sold_income / sale_total if sale_total else 0
+            pct_sale_free = sale_free / sale_total if sale_total else 0
+
             merge_end = min(STAT_MERGE_END, len(df_sheet.columns) - 2)
             value_col = merge_end + 1
             start = len(df_sheet) + 2
             ws.merge_range(
-                start, 0, start, merge_end, "% Locații vândute în an", stat_lbl_fmt
-            )
-            ws.write(start, value_col, pct_sold, stat_percent_fmt)
-            total_sum = (
-                pd.to_numeric(df_sheet["SUMĂ AN"], errors="coerce").fillna(0).sum()
-            )
-            ws.merge_range(
-                start + 1, 0, start + 1, merge_end, "Sumă totală", stat_lbl_fmt
-            )
-            ws.write(start + 1, value_col, total_sum, stat_money_fmt)
-            ws.merge_range(
-                start + 2,
+                start,
                 0,
-                start + 2,
+                start,
                 merge_end,
-                "Prisme mobile vândute în an",
+                f"Locații vândute în anul {current_year}",
                 stat_lbl_fmt,
             )
-            ws.write(start + 2, value_col, total_prisms, stat_int_fmt)
+            ws.write(start, value_col, pct_sold_loc, stat_percent_fmt)
+            ws.merge_range(
+                start + 1, 0, start + 1, merge_end, "Locații vândute", stat_lbl_fmt
+            )
+            ws.write(start + 1, value_col, pct_months_sold, stat_percent_fmt)
+            ws.merge_range(
+                start + 2, 0, start + 2, merge_end, "Locații nevândute", stat_lbl_fmt
+            )
+            ws.write(start + 2, value_col, pct_months_free, stat_percent_fmt)
+            ws.merge_range(
+                start + 3, 0, start + 3, merge_end, "Preț vânzare total", stat_lbl_fmt
+            )
+            ws.write(start + 3, value_col, sale_total, stat_money_fmt)
+            ws.merge_range(
+                start + 4, 0, start + 4, merge_end, "Sumă locații vândute", stat_lbl_fmt
+            )
+            ws.write(
+                start + 4,
+                value_col,
+                f"€{sold_income:,.2f} ({pct_sale_sold:.2%})",
+                stat_money_pos_fmt,
+            )
+            ws.merge_range(
+                start + 5, 0, start + 5, merge_end, "Sumă locații nevândute", stat_lbl_fmt
+            )
+            ws.write(
+                start + 5,
+                value_col,
+                f"€{sale_free:,.2f} ({pct_sale_free:.2%})",
+                stat_money_neg_fmt,
+            )
 
-        total_prisms = int(df_total["Units Sold"].sum())
-        write_total_sheet(df_total, total_prisms)
+        write_total_sheet(df_total)
 
         for month in range(1, 13):
             start_m = pd.Timestamp(current_year, month, 1)
