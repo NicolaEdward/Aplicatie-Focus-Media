@@ -530,7 +530,29 @@ def open_rent_window(root, loc_id, load_cb, user):
         e.grid(row=i, column=1, padx=5, pady=5)
         entries[lbl] = e
 
-    row_campaign = len(labels) + 2
+    row_next = len(labels) + 2
+    ttk.Label(win, text="Preț decorare:").grid(row=row_next, column=0, sticky="e", padx=5, pady=5)
+    entry_deco = ttk.Entry(win, width=30)
+    deco_default = loc_data.get("decoration_cost") if loc_data else None
+    if deco_default:
+        entry_deco.insert(0, str(deco_default))
+    entry_deco.grid(row=row_next, column=1, padx=5, pady=5)
+
+    row_next += 1
+    var_prod = tk.BooleanVar(value=False)
+    chk_prod = ttk.Checkbutton(win, text="Add production cost", variable=var_prod, command=lambda: entry_prod.grid() if var_prod.get() else entry_prod.grid_remove())
+    chk_prod.grid(row=row_next, column=0, sticky="e", padx=5, pady=5)
+    entry_prod = ttk.Entry(win, width=30)
+    sqm_val = loc_data.get("sqm") if loc_data else 0
+    try:
+        prod_default = round(float(sqm_val or 0) * 7, 2)
+    except Exception:
+        prod_default = 0
+    entry_prod.insert(0, str(prod_default))
+    entry_prod.grid(row=row_next, column=1, padx=5, pady=5)
+    entry_prod.grid_remove()
+
+    row_campaign = row_next + 1
     lbl_camp = ttk.Label(win, text="Campanie:")
     entry_camp = ttk.Entry(win, width=30)
     lbl_camp.grid(row=row_campaign, column=0, sticky="e", padx=5, pady=5)
@@ -613,6 +635,23 @@ def open_rent_window(root, loc_id, load_cb, user):
         except ValueError:
             messagebox.showwarning("Sumă invalidă", "Introdu o sumă numerică.")
             return
+
+        deco_txt = entry_deco.get().strip()
+        try:
+            deco_val = float(deco_txt)
+        except ValueError:
+            messagebox.showwarning("Decorare invalidă", "Introdu un cost numeric.")
+            return
+
+        if var_prod.get():
+            prod_txt = entry_prod.get().strip()
+            try:
+                prod_val = float(prod_txt)
+            except ValueError:
+                messagebox.showwarning("Producție invalidă", "Introdu un cost numeric.")
+                return
+        else:
+            prod_val = 0.0
 
         firma_name = cb_firma.get().strip()
         cur = conn.cursor()
@@ -705,8 +744,8 @@ def open_rent_window(root, loc_id, load_cb, user):
             )
             new_loc_id = cur.lastrowid
             cur.execute(
-                "INSERT INTO rezervari (loc_id, client, client_id, firma_id, data_start, data_end, suma, created_by, campaign)"
-                " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "INSERT INTO rezervari (loc_id, client, client_id, firma_id, data_start, data_end, suma, created_by, campaign, decor_cost, prod_cost)"
+                " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (
                     new_loc_id,
                     client_display,
@@ -717,11 +756,13 @@ def open_rent_window(root, loc_id, load_cb, user):
                     fee_val,
                     user["username"],
                     campaign_val or client_display,
+                    deco_val,
+                    prod_val,
                 ),
             )
             cur.execute(
-                "INSERT INTO rezervari (loc_id, client, client_id, firma_id, data_start, data_end, suma, created_by, campaign)"
-                " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "INSERT INTO rezervari (loc_id, client, client_id, firma_id, data_start, data_end, suma, created_by, campaign, decor_cost, prod_cost)"
+                " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (
                     loc_id,
                     client_display,
@@ -732,13 +773,15 @@ def open_rent_window(root, loc_id, load_cb, user):
                     0.0,
                     user["username"],
                     campaign_val or client_display,
+                    0.0,
+                    0.0,
                 ),
             )
         else:
             # inserăm noua închiriere
             cur.execute(
-                "INSERT INTO rezervari (loc_id, client, client_id, firma_id, data_start, data_end, suma, created_by, campaign)"
-                " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "INSERT INTO rezervari (loc_id, client, client_id, firma_id, data_start, data_end, suma, created_by, campaign, decor_cost, prod_cost)"
+                " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (
                     loc_id,
                     client_display,
@@ -749,6 +792,8 @@ def open_rent_window(root, loc_id, load_cb, user):
                     fee_val,
                     user["username"],
                     campaign_val or client_display,
+                    deco_val,
+                    prod_val,
                 ),
             )
         conn.commit()
@@ -2123,7 +2168,8 @@ def export_client_backup(month, year, client_id=None):
         "SELECT c.nume, c.cui, c.adresa, "
         "       f.nume, f.cui, f.adresa, r.campaign, "
         "       l.city, l.address, l.code, l.face, l.type, l.size, l.sqm, "
-        "       r.data_start, r.data_end, r.suma, l.decoration_cost, r.client_id "
+        "       r.data_start, r.data_end, r.suma, l.decoration_cost, r.client_id, "
+        "       r.decor_cost, r.prod_cost "
         "FROM rezervari r "
         "JOIN locatii l ON r.loc_id = l.id "
         "JOIN clienti c ON r.client_id = c.id "
@@ -2145,7 +2191,7 @@ def export_client_backup(month, year, client_id=None):
     for (client_name, client_cui, client_addr,
          firma_name, firma_cui, firma_addr, campaign,
          city, addr, code, face, typ, size, sqm,
-         ds, de, price, deco_cost, cid) in rows:
+         ds, de, price, deco_cost_loc, cid, deco_r, prod_r) in rows:
         ds_dt = datetime.date.fromisoformat(ds)
         de_dt = datetime.date.fromisoformat(de)
         if header_info is None:
@@ -2156,6 +2202,12 @@ def export_client_backup(month, year, client_id=None):
         days = (ov_end - ov_start).days + 1
         frac = days / days_in_month
         amount = price * frac
+        deco = deco_r if deco_r is not None else (deco_cost_loc or 0.0)
+        try:
+            prod_default = round(float(sqm or 0) * 7, 2)
+        except Exception:
+            prod_default = 0.0
+        prod = prod_r if prod_r is not None else prod_default
         data.append(
             [
                 city,
@@ -2171,8 +2223,8 @@ def export_client_backup(month, year, client_id=None):
                 "EUR",
                 price,
                 amount,
-                deco_cost or 0.0,
-                round(float(sqm or 0) * 7, 2),
+                deco,
+                prod,
             ]
         )
 
@@ -2212,11 +2264,8 @@ def export_client_backup(month, year, client_id=None):
         return
 
     with pd.ExcelWriter(path, engine="xlsxwriter") as writer:
-        start_row = 6
-        df.to_excel(writer, sheet_name="Backup", index=False, startrow=start_row)
-        wb = writer.book
-        ws = writer.sheets["Backup"]
-
+        headers = []
+        c_name = ""
         if header_info:
             f_name, f_cui, f_addr, c_name, c_cui, c_addr, camp = header_info
             headers = [
@@ -2229,9 +2278,19 @@ def export_client_backup(month, year, client_id=None):
                 ["Perioada campaniei", f"{start_m:%d.%m.%Y} - {end_m:%d.%m.%Y}"],
                 ["Denumire campanie", camp or c_name],
             ]
-            for i, (k, v) in enumerate(headers):
-                ws.write(i, 0, k)
-                ws.write(i, 1, v)
+
+        start_row = len(headers) + 2
+        df.to_excel(writer, sheet_name="Backup", index=False, startrow=start_row)
+        wb = writer.book
+        ws = writer.sheets["Backup"]
+
+        title = f"BKP {c_name or ''} {start_m:%B %Y}"
+        title_fmt = wb.add_format({"bold": True, "font_size": 14, "align": "center"})
+        ws.merge_range(0, 0, 0, len(df.columns) - 1, title, title_fmt)
+
+        for i, (k, v) in enumerate(headers):
+            ws.write(1 + i, 0, k)
+            ws.write(1 + i, 1, v)
 
         hdr_fmt = wb.add_format(
             {

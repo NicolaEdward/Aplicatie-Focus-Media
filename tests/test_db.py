@@ -141,3 +141,5 @@ def test_init_rezervari_mysql_add_columns():
     db.cursor = old_cursor
 
     assert any("ALTER TABLE rezervari ADD COLUMN firma_id" in sql for sql in executed)
+    assert any("ALTER TABLE rezervari ADD COLUMN decor_cost" in sql for sql in executed)
+    assert any("ALTER TABLE rezervari ADD COLUMN prod_cost" in sql for sql in executed)
