@@ -4,11 +4,9 @@ import webbrowser
 import tkinter as tk
 from tkinter import filedialog, messagebox, simpledialog, ttk
 
-import pandas as pd
 from UI.date_picker import DatePicker
-import xlsxwriter
 
-from utils import PREVIEW_FOLDER, make_preview
+from utils import make_preview
 from db import conn, update_statusuri_din_rezervari, create_user, get_location_by_id
 
 
@@ -1309,7 +1307,6 @@ def export_sales_report():
                 .fillna(0)
                 .sum()
             )
-            total_val = sold_income + sale_free
 
             merge_end = min(STAT_MERGE_END, len(df_sheet.columns) - 2)
             value_col = merge_end + 1
@@ -1522,7 +1519,6 @@ def export_sales_report():
                 else:
                     width = max(len(col), df_sheet[col].astype(str).map(len).max()) + 2
                 ws.set_column(idx, idx, width)
-            sold_mask = df_sheet["Luni vândută"] > 0
             pct_months_sold = (
                 pd.to_numeric(df_sheet["Luni vândută"], errors="coerce").fillna(0).sum()
                 / (len(df_sheet) * 12)
@@ -1645,8 +1641,6 @@ def open_offer_window(tree):
     import datetime
     import tkinter as tk
     from tkinter import ttk, messagebox, filedialog
-    import os
-    from utils import PREVIEW_FOLDER
     from db import read_sql_query
 
     # 1. Preluare selecție
@@ -2410,7 +2404,6 @@ def export_vendor_report():
 
 def open_users_window(root):
     """Admin window to manage user accounts."""
-    import tkinter.simpledialog as simpledialog
 
     win = tk.Toplevel(root)
     win.title("Utilizatori")

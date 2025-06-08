@@ -50,11 +50,8 @@ def show_login(root=None):
     else:
         root.wait_window(win)
 
-    if owns_root:
-        try:
-            root.destroy()
-        except Exception:
-            pass
+    if owns_root and root.winfo_exists():
+        root.destroy()
 
     return result["user"]
 
