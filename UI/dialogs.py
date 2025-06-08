@@ -11,12 +11,13 @@ import xlsxwriter
 from utils import PREVIEW_FOLDER, make_preview
 from db import conn, update_statusuri_din_rezervari, create_user, get_location_by_id
 
+
 def open_detail_window(tree, event):
     """Display extended information about the selected location."""
     rowid = tree.identify_row(event.y)
     if not rowid:
         return
-    loc_id = int(rowid)     # folosim iid-ul (id-ul real din DB), nu valoarea din coloane
+    loc_id = int(rowid)  # folosim iid-ul (id-ul real din DB), nu valoarea din coloane
     # extrage detaliile locației și le afișează într-o fereastră dedicată
 
     data = get_location_by_id(loc_id)
@@ -61,19 +62,24 @@ def open_detail_window(tree, event):
         lbl_img.image = img
     else:
         lbl_img = ttk.Label(frm, text="Fără preview")
-    lbl_img.grid(row=0, column=0, columnspan=2, pady=(0,15))
+    lbl_img.grid(row=0, column=0, columnspan=2, pady=(0, 15))
 
     # helper pentru rânduri
     def add_field(r, label, widget):
-        ttk.Label(frm, text=label+":", font=("Segoe UI", 9, "bold"))\
-           .grid(row=r, column=0, sticky="e", padx=5, pady=2)
+        ttk.Label(frm, text=label + ":", font=("Segoe UI", 9, "bold")).grid(
+            row=r, column=0, sticky="e", padx=5, pady=2
+        )
         widget.grid(row=r, column=1, sticky="w", padx=5, pady=2)
 
     r = 1
-    add_field(r, "City",       ttk.Label(frm, text=city)); r += 1
-    add_field(r, "County",     ttk.Label(frm, text=county)); r += 1
-    add_field(r, "Address",    ttk.Label(frm, text=address)); r += 1
-    add_field(r, "Type",       ttk.Label(frm, text=type_)); r += 1
+    add_field(r, "City", ttk.Label(frm, text=city))
+    r += 1
+    add_field(r, "County", ttk.Label(frm, text=county))
+    r += 1
+    add_field(r, "Address", ttk.Label(frm, text=address))
+    r += 1
+    add_field(r, "Type", ttk.Label(frm, text=type_))
+    r += 1
 
     # GPS ca hyperlink către Google Maps, cu text "Google Maps"
     if gps:
@@ -82,63 +88,88 @@ def open_detail_window(tree, event):
         lbl_gps.bind("<Button-1>", lambda e: webbrowser.open(url_maps))
     else:
         lbl_gps = ttk.Label(frm, text="-")
-    add_field(r, "GPS", lbl_gps); r += 1
+    add_field(r, "GPS", lbl_gps)
+    r += 1
 
-    add_field(r, "Code",      ttk.Label(frm, text=code)); r += 1
-    add_field(r, "Size",      ttk.Label(frm, text=size_)); r += 1
+    add_field(r, "Code", ttk.Label(frm, text=code))
+    r += 1
+    add_field(r, "Size", ttk.Label(frm, text=size_))
+    r += 1
 
     # Photo Link ca hyperlink
     if photo_link:
         href = photo_link.strip()
-        if not href.lower().startswith(("http://","https://")):
+        if not href.lower().startswith(("http://", "https://")):
             href = "https://" + href
         lbl_photo = ttk.Label(frm, text="Vezi poza", cursor="hand2", foreground="blue")
         lbl_photo.bind("<Button-1>", lambda e: webbrowser.open(href))
     else:
         lbl_photo = ttk.Label(frm, text="-")
-    add_field(r, "Photo Link", lbl_photo); r += 1
+    add_field(r, "Photo Link", lbl_photo)
+    r += 1
 
-    add_field(r, "SQM",       ttk.Label(frm, text=str(sqm))); r += 1
-    add_field(r, "Illumination",
-                         ttk.Label(frm, text=illumination)); r += 1
-    add_field(r, "RateCard",  ttk.Label(frm, text=str(ratecard))); r += 1
-    add_field(r, "Preț de vânzare",
-                         ttk.Label(frm, text=str(pret_vanzare))); r += 1
-    add_field(r, "Preț Flotant", ttk.Label(frm, text=str(pret_flotant))); r += 1
-    add_field(r, "Preț de decorare",
-                         ttk.Label(frm, text=str(decoration_cost))); r += 1
+    add_field(r, "SQM", ttk.Label(frm, text=str(sqm)))
+    r += 1
+    add_field(r, "Illumination", ttk.Label(frm, text=illumination))
+    r += 1
+    add_field(r, "RateCard", ttk.Label(frm, text=str(ratecard)))
+    r += 1
+    add_field(r, "Preț de vânzare", ttk.Label(frm, text=str(pret_vanzare)))
+    r += 1
+    add_field(r, "Preț Flotant", ttk.Label(frm, text=str(pret_flotant)))
+    r += 1
+    add_field(r, "Preț de decorare", ttk.Label(frm, text=str(decoration_cost)))
+    r += 1
 
-    add_field(r, "Observații",
-                         ttk.Label(frm, text=observatii or "-")); r += 1
-    add_field(r, "Status",    ttk.Label(frm, text=status)); r += 1
+    add_field(r, "Observații", ttk.Label(frm, text=observatii or "-"))
+    r += 1
+    add_field(r, "Status", ttk.Label(frm, text=status))
+    r += 1
 
     # Client și perioadă doar dacă există
     if client:
-        add_field(r, "Client",   ttk.Label(frm, text=client)); r += 1
+        add_field(r, "Client", ttk.Label(frm, text=client))
+        r += 1
         period = f"{ds} → {de}" if ds and de else "-"
-        add_field(r, "Perioadă", ttk.Label(frm, text=period)); r += 1
+        add_field(r, "Perioadă", ttk.Label(frm, text=period))
+        r += 1
         fee_row = None
         if ds and de:
             fee_row = cur.execute(
                 "SELECT suma FROM rezervari WHERE loc_id=? AND data_start=? AND data_end=? ORDER BY data_start DESC LIMIT 1",
-                (loc_id, ds, de)
+                (loc_id, ds, de),
             ).fetchone()
         if fee_row:
-            add_field(r, "Sumă închiriere", ttk.Label(frm, text=str(fee_row[0]))); r += 1
+            add_field(r, "Sumă închiriere", ttk.Label(frm, text=str(fee_row[0])))
+            r += 1
 
     # face fereastra redimensionabilă
     for i in range(r):
         win.rowconfigure(i, weight=0)
     win.columnconfigure(1, weight=1)
 
+
 def open_add_window(root, refresh_cb):
     win = tk.Toplevel(root)
     win.title("Adaugă locație")
     labels = [
-        "City", "County", "Address", "Type", "GPS", "Code",
-        "Size", "Photo Link", "SQM", "Illumination", "RateCard",
-        "Preț Vânzare", "Preț Flotant", "Decoration cost",
-        "Observații", "Grup", "Față"
+        "City",
+        "County",
+        "Address",
+        "Type",
+        "GPS",
+        "Code",
+        "Size",
+        "Photo Link",
+        "SQM",
+        "Illumination",
+        "RateCard",
+        "Preț Vânzare",
+        "Preț Flotant",
+        "Decoration cost",
+        "Observații",
+        "Grup",
+        "Față",
     ]
     entries = {}
     for i, lbl in enumerate(labels):
@@ -166,51 +197,81 @@ def open_add_window(root, refresh_cb):
             vals.setdefault("Type", "Prismă mobilă")
             vals.setdefault("Size", "3.2x2.4")
         cur = conn.cursor()
-        cur.execute("""
+        cur.execute(
+            """
             INSERT INTO locatii (
                 city, county, address, type, gps, code, size,
                 photo_link, sqm, illumination, ratecard,
                 pret_vanzare, pret_flotant, decoration_cost,
                 observatii, grup, face, is_mobile, parent_id
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, [
-            vals["City"], vals["County"], vals["Address"], vals["Type"],
-            vals["GPS"], vals["Code"], vals["Size"],
-            vals["Photo Link"], vals["SQM"], vals["Illumination"],
-            vals["RateCard"],
-            vals["Preț Vânzare"] or None,
-            vals["Preț Flotant"] or None,
-            vals["Decoration cost"] or None,
-            vals["Observații"], vals["Grup"], vals["Față"],
-            1 if var_mobile.get() else 0, None
-        ])
+        """,
+            [
+                vals["City"],
+                vals["County"],
+                vals["Address"],
+                vals["Type"],
+                vals["GPS"],
+                vals["Code"],
+                vals["Size"],
+                vals["Photo Link"],
+                vals["SQM"],
+                vals["Illumination"],
+                vals["RateCard"],
+                vals["Preț Vânzare"] or None,
+                vals["Preț Flotant"] or None,
+                vals["Decoration cost"] or None,
+                vals["Observații"],
+                vals["Grup"],
+                vals["Față"],
+                1 if var_mobile.get() else 0,
+                None,
+            ],
+        )
         conn.commit()
         refresh_cb()
         win.destroy()
 
-    ttk.Button(win, text="Salvează", command=save)\
-        .grid(row=len(labels)+1, column=0, columnspan=2, pady=10)
+    ttk.Button(win, text="Salvează", command=save).grid(
+        row=len(labels) + 1, column=0, columnspan=2, pady=10
+    )
 
 
 def open_edit_window(root, loc_id, load_cb, refresh_groups_cb):
     cur = conn.cursor()
-    cur.execute("""
+    cur.execute(
+        """
         SELECT
             city, county, address, type, gps, code, size,
             photo_link, sqm, illumination, ratecard,
             pret_vanzare, pret_flotant, decoration_cost,
             observatii, grup, face
         FROM locatii WHERE id=?
-    """, (loc_id,))
+    """,
+        (loc_id,),
+    )
     row = cur.fetchone()
     if not row:
         return
 
     labels = [
-        "City", "County", "Address", "Type", "GPS", "Code",
-        "Size", "Photo Link", "SQM", "Illumination", "RateCard",
-        "Preț Vânzare", "Preț Flotant", "Decoration cost",
-        "Observații", "Grup", "Față"
+        "City",
+        "County",
+        "Address",
+        "Type",
+        "GPS",
+        "Code",
+        "Size",
+        "Photo Link",
+        "SQM",
+        "Illumination",
+        "RateCard",
+        "Preț Vânzare",
+        "Preț Flotant",
+        "Decoration cost",
+        "Observații",
+        "Grup",
+        "Față",
     ]
 
     win = tk.Toplevel(root)
@@ -239,50 +300,66 @@ def open_edit_window(root, loc_id, load_cb, refresh_groups_cb):
             messagebox.showwarning("Lipsește date", "Completează City.")
             return
         cur = conn.cursor()
-        cur.execute("""
+        cur.execute(
+            """
             UPDATE locatii SET
                 city=?, county=?, address=?, type=?, gps=?, code=?, size=?,
                 photo_link=?, sqm=?, illumination=?, ratecard=?,
                 pret_vanzare=?, pret_flotant=?, decoration_cost=?,
                 observatii=?, grup=?, face=?
             WHERE id=?
-        """, [
-            vals["City"], vals["County"], vals["Address"], vals["Type"],
-            vals["GPS"], vals["Code"], vals["Size"],
-            vals["Photo Link"], vals["SQM"], vals["Illumination"],
-            vals["RateCard"],
-            vals["Preț Vânzare"] or None,
-            vals["Preț Flotant"] or None,
-            vals["Decoration cost"] or None,
-            vals["Observații"], vals["Grup"], vals["Față"],
-            loc_id
-        ])
+        """,
+            [
+                vals["City"],
+                vals["County"],
+                vals["Address"],
+                vals["Type"],
+                vals["GPS"],
+                vals["Code"],
+                vals["Size"],
+                vals["Photo Link"],
+                vals["SQM"],
+                vals["Illumination"],
+                vals["RateCard"],
+                vals["Preț Vânzare"] or None,
+                vals["Preț Flotant"] or None,
+                vals["Decoration cost"] or None,
+                vals["Observații"],
+                vals["Grup"],
+                vals["Față"],
+                loc_id,
+            ],
+        )
         conn.commit()
         refresh_groups_cb()
         load_cb()
         win.destroy()
 
-    ttk.Button(win, text="Salvează modificările", command=save_edit)\
-        .grid(row=len(labels), column=0, columnspan=2, pady=10)
+    ttk.Button(win, text="Salvează modificările", command=save_edit).grid(
+        row=len(labels), column=0, columnspan=2, pady=10
+    )
 
 
 def cancel_reservation(root, loc_id, load_cb):
     if not messagebox.askyesno(
         "Confirmă anulare",
-        "Sigur vrei să anulezi rezervarea/închirierea acestei locații?"
+        "Sigur vrei să anulezi rezervarea/închirierea acestei locații?",
     ):
         return
 
     cur = conn.cursor()
     # Resetăm câmpurile în locatii
-    cur.execute("""
+    cur.execute(
+        """
         UPDATE locatii
            SET status     = 'Disponibil',
                client     = NULL,
                data_start = NULL,
                data_end   = NULL
          WHERE id = ?
-    """, (loc_id,))
+    """,
+        (loc_id,),
+    )
 
     # Ștergem și intrările din tabelul rezervari
     cur.execute("DELETE FROM rezervari WHERE loc_id=?", (loc_id,))
@@ -326,7 +403,10 @@ def open_reserve_window(root, loc_id, load_cb, user):
         load_cb()
         win.destroy()
 
-    ttk.Button(win, text="Rezervă", command=save).grid(row=1, column=0, columnspan=2, pady=10)
+    ttk.Button(win, text="Rezervă", command=save).grid(
+        row=1, column=0, columnspan=2, pady=10
+    )
+
 
 def open_rent_window(root, loc_id, load_cb, user):
     """Dialog pentru adăugarea unei închirieri în tabelul ``rezervari``.
@@ -344,13 +424,30 @@ def open_rent_window(root, loc_id, load_cb, user):
     is_base_mobile = is_mobile and not loc_data.get("parent_id")
 
     ttk.Label(win, text="Client:").grid(row=0, column=0, sticky="e", padx=5, pady=5)
+
     def client_list():
-        return [r[0] for r in conn.cursor().execute("SELECT nume FROM clienti ORDER BY nume").fetchall()]
+        return [
+            r[0]
+            for r in conn.cursor()
+            .execute("SELECT nume FROM clienti ORDER BY nume")
+            .fetchall()
+        ]
+
     cb_client = ttk.Combobox(win, values=client_list(), width=27)
     cb_client.grid(row=0, column=1, padx=5, pady=5)
-    ttk.Button(win, text="+", command=lambda: (open_add_client_window(win, lambda: cb_client.configure(values=client_list())))).grid(row=0, column=2, padx=2, pady=5)
+    ttk.Button(
+        win,
+        text="+",
+        command=lambda: (
+            open_add_client_window(
+                win, lambda: cb_client.configure(values=client_list())
+            )
+        ),
+    ).grid(row=0, column=2, padx=2, pady=5)
 
-    ttk.Label(win, text="Client final (dacă agenție):").grid(row=1, column=0, sticky="e", padx=5, pady=5)
+    ttk.Label(win, text="Client final (dacă agenție):").grid(
+        row=1, column=0, sticky="e", padx=5, pady=5
+    )
     entry_final = ttk.Entry(win, width=30)
     entry_final.grid(row=1, column=1, padx=5, pady=5)
 
@@ -367,11 +464,15 @@ def open_rent_window(root, loc_id, load_cb, user):
 
     row_extra = len(labels) + 2
     if is_base_mobile:
-        ttk.Label(win, text="Adresă montaj:").grid(row=row_extra, column=0, sticky="e", padx=5, pady=5)
+        ttk.Label(win, text="Adresă montaj:").grid(
+            row=row_extra, column=0, sticky="e", padx=5, pady=5
+        )
         entry_addr = ttk.Entry(win, width=30)
         entry_addr.grid(row=row_extra, column=1, padx=5, pady=5)
         row_extra += 1
-        ttk.Label(win, text="GPS:").grid(row=row_extra, column=0, sticky="e", padx=5, pady=5)
+        ttk.Label(win, text="GPS:").grid(
+            row=row_extra, column=0, sticky="e", padx=5, pady=5
+        )
         entry_gps = ttk.Entry(win, width=30)
         entry_gps.grid(row=row_extra, column=1, padx=5, pady=5)
         row_extra += 1
@@ -386,7 +487,9 @@ def open_rent_window(root, loc_id, load_cb, user):
             return
 
         cur = conn.cursor()
-        row = cur.execute("SELECT id, tip FROM clienti WHERE nume=?", (client,)).fetchone()
+        row = cur.execute(
+            "SELECT id, tip FROM clienti WHERE nume=?", (client,)
+        ).fetchone()
         if row:
             client_id, tip = row
         else:
@@ -399,7 +502,9 @@ def open_rent_window(root, loc_id, load_cb, user):
         client_display = client
         if tip == "agency":
             if not final_client:
-                messagebox.showwarning("Lipsește client final", "Completează clientul final.")
+                messagebox.showwarning(
+                    "Lipsește client final", "Completează clientul final."
+                )
                 return
             client_display = f"{client} - {final_client}"
 
@@ -457,7 +562,9 @@ def open_rent_window(root, loc_id, load_cb, user):
             addr_val = entry_addr.get().strip() if entry_addr else ""
             gps_val = entry_gps.get().strip() if entry_gps else ""
             if not addr_val or not gps_val:
-                messagebox.showwarning("Lipsește adresa", "Completează adresa și GPS-ul.")
+                messagebox.showwarning(
+                    "Lipsește adresa", "Completează adresa și GPS-ul."
+                )
                 return
 
             base = get_location_by_id(loc_id)
@@ -471,11 +578,24 @@ def open_rent_window(root, loc_id, load_cb, user):
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)
                 """,
                 [
-                    base.get("city"), base.get("county"), addr_val, base.get("type"), gps_val,
-                    base.get("code"), base.get("size"), base.get("photo_link"), base.get("sqm"),
-                    base.get("illumination"), base.get("ratecard"), base.get("pret_vanzare"),
-                    base.get("pret_flotant"), base.get("decoration_cost"), base.get("observatii"),
-                    base.get("grup"), base.get("face"), loc_id
+                    base.get("city"),
+                    base.get("county"),
+                    addr_val,
+                    base.get("type"),
+                    gps_val,
+                    base.get("code"),
+                    base.get("size"),
+                    base.get("photo_link"),
+                    base.get("sqm"),
+                    base.get("illumination"),
+                    base.get("ratecard"),
+                    base.get("pret_vanzare"),
+                    base.get("pret_flotant"),
+                    base.get("decoration_cost"),
+                    base.get("observatii"),
+                    base.get("grup"),
+                    base.get("face"),
+                    loc_id,
                 ],
             )
             new_loc_id = cur.lastrowid
@@ -528,8 +648,9 @@ def open_rent_window(root, loc_id, load_cb, user):
         load_cb()
         win.destroy()
 
-    ttk.Button(win, text="Confirmă închiriere", command=save_rent)\
-        .grid(row=row_extra, column=0, columnspan=3, pady=10)
+    ttk.Button(win, text="Confirmă închiriere", command=save_rent).grid(
+        row=row_extra, column=0, columnspan=3, pady=10
+    )
 
 
 def open_edit_rent_window(root, rid, load_cb, parent=None):
@@ -540,8 +661,7 @@ def open_edit_rent_window(root, rid, load_cb, parent=None):
     """
     cur = conn.cursor()
     row = cur.execute(
-        "SELECT data_start, data_end FROM rezervari WHERE id=?",
-        (rid,)
+        "SELECT data_start, data_end FROM rezervari WHERE id=?", (rid,)
     ).fetchone()
     if not row:
         return
@@ -584,7 +704,9 @@ def open_edit_rent_window(root, rid, load_cb, parent=None):
         load_cb()
         win.destroy()
 
-    ttk.Button(win, text="Salvează", command=save_edit).grid(row=2, column=0, columnspan=2, pady=10)
+    ttk.Button(win, text="Salvează", command=save_edit).grid(
+        row=2, column=0, columnspan=2, pady=10
+    )
 
 
 def open_release_window(root, loc_id, load_cb, user):
@@ -596,7 +718,9 @@ def open_release_window(root, loc_id, load_cb, user):
     ).fetchall()
 
     if not rows:
-        messagebox.showinfo("Eliberează", "Nu există închirieri pentru această locație.")
+        messagebox.showinfo(
+            "Eliberează", "Nu există închirieri pentru această locație."
+        )
         return
 
     win = tk.Toplevel(root)
@@ -617,14 +741,9 @@ def open_release_window(root, loc_id, load_cb, user):
         start = datetime.date.fromisoformat(ds)
         end = datetime.date.fromisoformat(de)
         duration = (end - start).days + 1
-        if (
-            user.get("role") != "admin"
-            and end < datetime.date.today()
-            and duration > 3
-        ):
+        if user.get("role") != "admin" and end < datetime.date.today() and duration > 3:
             messagebox.showwarning(
-                "Refuzat",
-                "Doar adminul poate șterge închirierile finalizate."
+                "Refuzat", "Doar adminul poate șterge închirierile finalizate."
             )
             return
 
@@ -633,7 +752,9 @@ def open_release_window(root, loc_id, load_cb, user):
             "Ștergi complet perioada de închiriere?\nAlege 'Nu' pentru a modifica perioada.",
         ):
             cur.execute("DELETE FROM rezervari WHERE id=?", (rid,))
-            parent_id = cur.execute("SELECT parent_id FROM locatii WHERE id=?", (loc_id,)).fetchone()
+            parent_id = cur.execute(
+                "SELECT parent_id FROM locatii WHERE id=?", (loc_id,)
+            ).fetchone()
             if parent_id and parent_id[0]:
                 cur.execute(
                     "DELETE FROM rezervari WHERE loc_id=? AND data_start=? AND data_end=? AND suma=0",
@@ -645,7 +766,9 @@ def open_release_window(root, loc_id, load_cb, user):
             load_cb()
             win.destroy()
         else:
-            parent_id = cur.execute("SELECT parent_id FROM locatii WHERE id=?", (loc_id,)).fetchone()
+            parent_id = cur.execute(
+                "SELECT parent_id FROM locatii WHERE id=?", (loc_id,)
+            ).fetchone()
             win.destroy()
             open_edit_rent_window(
                 root,
@@ -654,13 +777,16 @@ def open_release_window(root, loc_id, load_cb, user):
                 parent=(parent_id[0], ds, de) if parent_id and parent_id[0] else None,
             )
 
-    ttk.Button(win, text="Confirmă", command=delete_selected).grid(row=1, column=0, padx=5, pady=5)
-    ttk.Button(win, text="Închide", command=win.destroy).grid(row=1, column=1, padx=5, pady=5)
+    ttk.Button(win, text="Confirmă", command=delete_selected).grid(
+        row=1, column=0, padx=5, pady=5
+    )
+    ttk.Button(win, text="Închide", command=win.destroy).grid(
+        row=1, column=1, padx=5, pady=5
+    )
 
 
 def export_available_excel(
-    grup_filter, status_filter, search_term,
-    ignore_dates, start_date, end_date
+    grup_filter, status_filter, search_term, ignore_dates, start_date, end_date
 ):
     import datetime
     import pandas as pd
@@ -670,19 +796,23 @@ def export_available_excel(
     # 1) Construim WHERE identic cu load_locations()
     cond, params = [], []
     if grup_filter and grup_filter != "Toate":
-        cond.append("grup = ?");       params.append(grup_filter)
+        cond.append("grup = ?")
+        params.append(grup_filter)
     if status_filter and status_filter != "Toate":
-        cond.append("status = ?");     params.append(status_filter)
+        cond.append("status = ?")
+        params.append(status_filter)
     if search_term:
         cond.append("(city LIKE ? OR county LIKE ? OR address LIKE ?)")
         params += [f"%{search_term}%"] * 3
     if not ignore_dates:
-        cond.append("""
+        cond.append(
+            """
             (data_start IS NULL
              OR data_end   IS NULL
              OR data_end   < ?
              OR data_start > ?)
-        """)
+        """
+        )
         params += [start_date.isoformat(), end_date.isoformat()]
 
     where = ("WHERE " + " AND ".join(cond)) if cond else ""
@@ -700,72 +830,114 @@ def export_available_excel(
     """
 
     # 2) Citim datele
-    df = read_sql_query(
-        sql, params=params,
-        parse_dates=['data_start', 'data_end']
-    )
+    df = read_sql_query(sql, params=params, parse_dates=["data_start", "data_end"])
     if df.empty:
-        messagebox.showinfo("Export Excel", "Nu există locații pentru criteriile alese.")
+        messagebox.showinfo(
+            "Export Excel", "Nu există locații pentru criteriile alese."
+        )
         return
 
     # 3) Calculăm mesajul de Availability
     today = datetime.datetime.now().date()
+
     def avail_msg(r):
-        ds, de = r['data_start'], r['data_end']
+        ds, de = r["data_start"], r["data_end"]
         if pd.notna(ds) and ds.date() > today:
-            until = (ds.date() - datetime.timedelta(days=1)).strftime('%d.%m.%Y')
+            until = (ds.date() - datetime.timedelta(days=1)).strftime("%d.%m.%Y")
             return f"Disponibil până la {until}"
         if pd.notna(de) and de.date() >= today:
-            frm = (de.date() + datetime.timedelta(days=1)).strftime('%d.%m.%Y')
+            frm = (de.date() + datetime.timedelta(days=1)).strftime("%d.%m.%Y")
             return f"Disponibil din {frm}"
-        if r['status'] != 'Disponibil' and pd.notna(de) and de.date() < today:
-            frm = (de.date() + datetime.timedelta(days=1)).strftime('%d.%m.%Y')
+        if r["status"] != "Disponibil" and pd.notna(de) and de.date() < today:
+            frm = (de.date() + datetime.timedelta(days=1)).strftime("%d.%m.%Y")
             return f"Disponibil din {frm}"
         return "Disponibil"
 
-    df['Availability'] = df.apply(avail_msg, axis=1)
+    df["Availability"] = df.apply(avail_msg, axis=1)
 
     # 4) Coloane de export
     write_cols = [
-        'city','county','address','type',
-        'gps','photo_link',
-        'size','sqm','illumination',
-        'ratecard','decoration_cost',
-        'Availability'
+        "city",
+        "county",
+        "address",
+        "type",
+        "gps",
+        "photo_link",
+        "size",
+        "sqm",
+        "illumination",
+        "ratecard",
+        "decoration_cost",
+        "Availability",
     ]
 
     # 5) Alege fișierul de salvat
     fp = filedialog.asksaveasfilename(
         defaultextension=".xlsx",
         filetypes=[("Excel files", "*.xlsx")],
-        title="Salvează fișierul Excel"
+        title="Salvează fișierul Excel",
     )
     if not fp:
         return
 
     # 6) Scriem Excel: câte o foaie per grup
-    with pd.ExcelWriter(fp, engine='xlsxwriter') as writer:
+    with pd.ExcelWriter(fp, engine="xlsxwriter") as writer:
         wb = writer.book
-        center_fmt = wb.add_format({'align': 'center', 'valign': 'vcenter', 'border': 1})
-        money_fmt = wb.add_format({'num_format': '€#,##0.00', 'align': 'center', 'valign': 'vcenter', 'border': 1})
-        link_fmt = wb.add_format({'font_color': 'blue', 'underline': True, 'align': 'center', 'valign': 'vcenter', 'border': 1})
-        title_fmt = wb.add_format({'bold': True, 'font_size': 14, 'align': 'center', 'valign': 'vcenter'})
-        hdr_fmt = wb.add_format({'bold': True, 'bg_color': '#4F81BD', 'font_color': 'white', 'align': 'center', 'valign': 'vcenter', 'border': 1})
+        center_fmt = wb.add_format(
+            {"align": "center", "valign": "vcenter", "border": 1}
+        )
+        money_fmt = wb.add_format(
+            {
+                "num_format": "€#,##0.00",
+                "align": "center",
+                "valign": "vcenter",
+                "border": 1,
+            }
+        )
+        link_fmt = wb.add_format(
+            {
+                "font_color": "blue",
+                "underline": True,
+                "align": "center",
+                "valign": "vcenter",
+                "border": 1,
+            }
+        )
+        title_fmt = wb.add_format(
+            {"bold": True, "font_size": 14, "align": "center", "valign": "vcenter"}
+        )
+        hdr_fmt = wb.add_format(
+            {
+                "bold": True,
+                "bg_color": "#4F81BD",
+                "font_color": "white",
+                "align": "center",
+                "valign": "vcenter",
+                "border": 1,
+            }
+        )
 
-        for grup, sub in df.groupby('grup'):
+        for grup, sub in df.groupby("grup"):
             grp_name = (grup or "").strip() or "FaraGrup"
             sheet = grp_name[:31]
             title = f"Locații {grp_name}"
 
             sub_df = sub.loc[:, write_cols].copy()
             sub_df.columns = [
-                'City', 'County', 'Address', 'Type',
-                'GPS', 'Photo Link',
-                'Size', 'SQM', 'Illum',
-                'Rate Card', 'Installation & Removal',
-                'Availability'
+                "City",
+                "County",
+                "Address",
+                "Type",
+                "GPS",
+                "Photo Link",
+                "Size",
+                "SQM",
+                "Illum",
+                "Rate Card",
+                "Installation & Removal",
+                "Availability",
             ]
-            sub_df.insert(0, 'Nr', range(1, len(sub_df) + 1))
+            sub_df.insert(0, "Nr", range(1, len(sub_df) + 1))
 
             startrow = 1
             ws = writer.book.add_worksheet(sheet)
@@ -777,45 +949,49 @@ def export_available_excel(
             for col_idx, name in enumerate(sub_df.columns):
                 ws.write(startrow, col_idx, name, hdr_fmt)
 
-            for row_idx, row in enumerate(sub_df.itertuples(index=False), start=startrow + 1):
+            for row_idx, row in enumerate(
+                sub_df.itertuples(index=False), start=startrow + 1
+            ):
                 for col_idx, value in enumerate(row):
                     col_name = sub_df.columns[col_idx]
                     if pd.isna(value):
                         value = ""
-                    if col_name in ('Rate Card', 'Installation & Removal'):
+                    if col_name in ("Rate Card", "Installation & Removal"):
                         fmt = money_fmt
                     else:
                         fmt = center_fmt
                     ws.write(row_idx, col_idx, value, fmt)
 
             for idx, col_name in enumerate(sub_df.columns):
-                if col_name in ('Rate Card', 'Installation & Removal'):
-                    vals = pd.to_numeric(sub_df[col_name], errors='coerce').fillna(0)
+                if col_name in ("Rate Card", "Installation & Removal"):
+                    vals = pd.to_numeric(sub_df[col_name], errors="coerce").fillna(0)
                     formatted = [f"€{v:,.2f}" for v in vals]
                     max_len = max(len(col_name), *(len(v) for v in formatted))
-                elif col_name == 'GPS':
-                    max_len = max(len(col_name), len('Maps'))
-                elif col_name == 'Photo Link':
-                    max_len = max(len(col_name), len('Photo'))
+                elif col_name == "GPS":
+                    max_len = max(len(col_name), len("Maps"))
+                elif col_name == "Photo Link":
+                    max_len = max(len(col_name), len("Photo"))
                 else:
-                    max_len = max(len(col_name), sub_df[col_name].astype(str).map(len).max())
+                    max_len = max(
+                        len(col_name), sub_df[col_name].astype(str).map(len).max()
+                    )
                 ws.set_column(idx, idx, max_len + 2)
 
-            gi = sub_df.columns.get_loc('GPS')
-            for r, coord in enumerate(sub['gps'], start=startrow + 1):
+            gi = sub_df.columns.get_loc("GPS")
+            for r, coord in enumerate(sub["gps"], start=startrow + 1):
                 if coord:
                     url = f"https://www.google.com/maps/search/?api=1&query={coord}"
                     ws.write_url(r, gi, url, link_fmt, string="Maps")
 
-            pi = sub_df.columns.get_loc('Photo Link')
-            for r, u in enumerate(sub['photo_link'], start=startrow + 1):
+            pi = sub_df.columns.get_loc("Photo Link")
+            for r, u in enumerate(sub["photo_link"], start=startrow + 1):
                 if u and u.strip():
                     url = u.strip()
-                    if not url.lower().startswith(('http://', 'https://')):
-                        url = 'https://' + url
-                    ws.write_url(r, pi, url, link_fmt, string='Photo')
+                    if not url.lower().startswith(("http://", "https://")):
+                        url = "https://" + url
+                    ws.write_url(r, pi, url, link_fmt, string="Photo")
                 else:
-                    ws.write(r, pi, '', center_fmt)
+                    ws.write(r, pi, "", center_fmt)
 
     messagebox.showinfo("Export Excel", f"Am salvat locațiile în:\n{fp}")
 
@@ -829,7 +1005,7 @@ def export_sales_report():
 
     update_statusuri_din_rezervari()
 
-    df_loc = read_sql_query(
+    df_loc_all = read_sql_query(
         """
         SELECT id, city, county, address, type, size, sqm, illumination,
                ratecard, pret_vanzare, grup, status, is_mobile, parent_id
@@ -837,12 +1013,18 @@ def export_sales_report():
          ORDER BY county, city, id
         """,
     )
-    df_loc = df_loc[~((df_loc["is_mobile"] == 1) & (df_loc["parent_id"].isna()))]
+    # ``df_loc`` is used for the monthly sheets where the base record for mobile
+    # prisms would only duplicate the actual rented units.  Keep the full
+    # dataframe separate so the "Total" sheet can include mobile bases as well.
+    df_loc = df_loc_all[
+        ~((df_loc_all["is_mobile"] == 1) & (df_loc_all["parent_id"].isna()))
+    ]
+
+    df_total_base = df_loc_all[df_loc_all["parent_id"].isna()].copy()
 
     if df_loc.empty:
         messagebox.showinfo("Export Excel", "Nu există locații în baza de date.")
         return
-
 
     path = filedialog.asksaveasfilename(
         defaultextension=".xlsx",
@@ -852,90 +1034,116 @@ def export_sales_report():
     if not path:
         return
 
-
     with pd.ExcelWriter(path, engine="xlsxwriter") as writer:
         wb = writer.book
-        hdr_fmt = wb.add_format({
-            "bold": True,
-            "bg_color": "#4F81BD",
-            "font_color": "white",
-            "align": "center",
-            "valign": "vcenter",
-            "border": 1,
-        })
+        hdr_fmt = wb.add_format(
+            {
+                "bold": True,
+                "bg_color": "#4F81BD",
+                "font_color": "white",
+                "align": "center",
+                "valign": "vcenter",
+                "border": 1,
+            }
+        )
         text_fmt = wb.add_format({"align": "center", "valign": "vcenter", "border": 1})
-        money_fmt = wb.add_format({
-            "num_format": "€#,##0.00",
-            "align": "center",
-            "valign": "vcenter",
-            "border": 1,
-        })
-        sold_text_fmt = wb.add_format({"align": "center", "valign": "vcenter", "border": 1, "bg_color": "#D9E1F2"})
-        sold_money_fmt = wb.add_format({
-            "num_format": "€#,##0.00",
-            "align": "center",
-            "valign": "vcenter",
-            "border": 1,
-            "bg_color": "#D9E1F2",
-        })
-        percent_fmt = wb.add_format({"num_format": "0.00%", "align": "center", "valign": "vcenter", "border": 1})
+        money_fmt = wb.add_format(
+            {
+                "num_format": "€#,##0.00",
+                "align": "center",
+                "valign": "vcenter",
+                "border": 1,
+            }
+        )
+        sold_text_fmt = wb.add_format(
+            {"align": "center", "valign": "vcenter", "border": 1, "bg_color": "#D9E1F2"}
+        )
+        sold_money_fmt = wb.add_format(
+            {
+                "num_format": "€#,##0.00",
+                "align": "center",
+                "valign": "vcenter",
+                "border": 1,
+                "bg_color": "#D9E1F2",
+            }
+        )
+        percent_fmt = wb.add_format(
+            {"num_format": "0.00%", "align": "center", "valign": "vcenter", "border": 1}
+        )
 
-        stat_lbl_fmt = wb.add_format({
-            "bold": True,
-            "bg_color": "#FFF2CC",
-            "font_size": 14,
-            "align": "center",
-            "valign": "vcenter",
-            "border": 1,
-        })
-        stat_money_fmt = wb.add_format({
-            "num_format": "€#,##0.00",
-            "bold": True,
-            "bg_color": "#FFF2CC",
-            "font_size": 14,
-            "align": "center",
-            "valign": "vcenter",
-            "border": 1,
-        })
-        stat_money_pos_fmt = wb.add_format({
-            "num_format": "€#,##0.00",
-            "bold": True,
-            "bg_color": "#FFF2CC",
-            "font_size": 14,
-            "font_color": "green",
-            "align": "center",
-            "valign": "vcenter",
-            "border": 1,
-        })
-        stat_money_neg_fmt = wb.add_format({
-            "num_format": "€#,##0.00",
-            "bold": True,
-            "bg_color": "#FFF2CC",
-            "font_size": 14,
-            "font_color": "red",
-            "align": "center",
-            "valign": "vcenter",
-            "border": 1,
-        })
-        stat_percent_fmt = wb.add_format({
-            "num_format": "0.00%",
-            "bold": True,
-            "bg_color": "#FFF2CC",
-            "font_size": 14,
-            "align": "center",
-            "valign": "vcenter",
-            "border": 1,
-        })
-        stat_int_fmt = wb.add_format({
-            "bold": True,
-            "bg_color": "#FFF2CC",
-            "font_size": 14,
-            "align": "center",
-            "valign": "vcenter",
-            "border": 1,
-        })
+        stat_lbl_fmt = wb.add_format(
+            {
+                "bold": True,
+                "bg_color": "#FFF2CC",
+                "font_size": 14,
+                "align": "center",
+                "valign": "vcenter",
+                "border": 1,
+            }
+        )
+        stat_money_fmt = wb.add_format(
+            {
+                "num_format": "€#,##0.00",
+                "bold": True,
+                "bg_color": "#FFF2CC",
+                "font_size": 14,
+                "align": "center",
+                "valign": "vcenter",
+                "border": 1,
+            }
+        )
+        stat_money_pos_fmt = wb.add_format(
+            {
+                "num_format": "€#,##0.00",
+                "bold": True,
+                "bg_color": "#FFF2CC",
+                "font_size": 14,
+                "font_color": "green",
+                "align": "center",
+                "valign": "vcenter",
+                "border": 1,
+            }
+        )
+        stat_money_neg_fmt = wb.add_format(
+            {
+                "num_format": "€#,##0.00",
+                "bold": True,
+                "bg_color": "#FFF2CC",
+                "font_size": 14,
+                "font_color": "red",
+                "align": "center",
+                "valign": "vcenter",
+                "border": 1,
+            }
+        )
+        stat_percent_fmt = wb.add_format(
+            {
+                "num_format": "0.00%",
+                "bold": True,
+                "bg_color": "#FFF2CC",
+                "font_size": 14,
+                "align": "center",
+                "valign": "vcenter",
+                "border": 1,
+            }
+        )
+        stat_int_fmt = wb.add_format(
+            {
+                "bold": True,
+                "bg_color": "#FFF2CC",
+                "font_size": 14,
+                "align": "center",
+                "valign": "vcenter",
+                "border": 1,
+            }
+        )
 
-        money_cols = {"Ratecard/month", "PRET DE VANZARE", "PRET DE INCHIRIERE", "SUMĂ AN"}
+        money_cols = {
+            "Ratecard/month",
+            "PRET DE VANZARE",
+            "PRET DE INCHIRIERE",
+            "SUMĂ AN",
+        }
         # Number of columns to span when merging statistic labels. A small value
         # keeps the merged cells narrow so the report prints nicely on A3 paper.
         STAT_MERGE_END = 3  # deprecated, retained for backward compatibility
@@ -949,13 +1157,37 @@ def export_sales_report():
                 + " → "
                 + df_sheet.loc[mask, "data_end"].dt.strftime("%d.%m.%Y")
             )
-            df_sheet = df_sheet[[
-                "city", "county", "address", "type", "size", "sqm", "illumination",
-                "ratecard", "pret_vanzare", "suma", "client", "Perioada", "status"
-            ]]
+            df_sheet = df_sheet[
+                [
+                    "city",
+                    "county",
+                    "address",
+                    "type",
+                    "size",
+                    "sqm",
+                    "illumination",
+                    "ratecard",
+                    "pret_vanzare",
+                    "suma",
+                    "client",
+                    "Perioada",
+                    "status",
+                ]
+            ]
             df_sheet.columns = [
-                "City", "County", "Address", "Type", "Size", "SQM", "Illum",
-                "Ratecard/month", "PRET DE VANZARE", "PRET DE INCHIRIERE", "Client", "Perioada", "status"
+                "City",
+                "County",
+                "Address",
+                "Type",
+                "Size",
+                "SQM",
+                "Illum",
+                "Ratecard/month",
+                "PRET DE VANZARE",
+                "PRET DE INCHIRIERE",
+                "Client",
+                "Perioada",
+                "status",
             ]
             df_sheet.insert(0, "Nr", range(1, len(df_sheet) + 1))
 
@@ -983,7 +1215,9 @@ def export_sales_report():
                     formatted = [f"€{v:,.2f}" for v in vals]
                     max_len = max(len(col_name), *(len(v) for v in formatted))
                 else:
-                    max_len = max(len(col_name), df_sheet[col_name].astype(str).map(len).max())
+                    max_len = max(
+                        len(col_name), df_sheet[col_name].astype(str).map(len).max()
+                    )
                 ws.set_column(idx, idx, max_len + 2)
 
             sold_mask = df_sheet["status"] == "Închiriat"
@@ -991,26 +1225,60 @@ def export_sales_report():
             pct_free = 1 - pct_sold
             count_sold = int(sold_mask.sum())
             count_free = int(len(df_sheet) - count_sold)
-            sum_sale_total = pd.to_numeric(df_sheet["PRET DE VANZARE"], errors="coerce").fillna(0)
-            sum_sale = sum_sale_total.sum()
-            sum_sale_sold = sum_sale_total[sold_mask].sum()
-            sum_sale_free = sum_sale_total[~sold_mask].sum()
+            sale_total = (
+                pd.to_numeric(df_sheet["PRET DE VANZARE"], errors="coerce")
+                .fillna(0)
+                .sum()
+            )
+            sold_income = (
+                pd.to_numeric(
+                    df_sheet.loc[sold_mask, "PRET DE INCHIRIERE"], errors="coerce"
+                )
+                .fillna(0)
+                .sum()
+            )
+            sale_free = sale_total - sold_income
 
             merge_end = min(STAT_MERGE_END, len(df_sheet.columns) - 2)
             value_col = merge_end + 1
             start = len(df_sheet) + 2
             ws.merge_range(start, 0, start, merge_end, "Locații vândute", stat_lbl_fmt)
             ws.write(start, value_col, f"{count_sold} ({pct_sold:.2%})", stat_int_fmt)
-            ws.merge_range(start + 1, 0, start + 1, merge_end, "Locații nevândute", stat_lbl_fmt)
-            ws.write(start + 1, value_col, f"{count_free} ({pct_free:.2%})", stat_int_fmt)
-            ws.merge_range(start + 2, 0, start + 2, merge_end, "Preț vânzare total", stat_lbl_fmt)
-            ws.write(start + 2, value_col, sum_sale, stat_money_fmt)
-            pct_sale_sold = sum_sale_sold / sum_sale if sum_sale else 0
-            pct_sale_free = sum_sale_free / sum_sale if sum_sale else 0
-            ws.merge_range(start + 3, 0, start + 3, merge_end, "Sumă locații vândute", stat_lbl_fmt)
-            ws.write(start + 3, value_col, f"€{sum_sale_sold:,.2f} ({pct_sale_sold:.2%})", stat_money_pos_fmt)
-            ws.merge_range(start + 4, 0, start + 4, merge_end, "Sumă locații nevândute", stat_lbl_fmt)
-            ws.write(start + 4, value_col, f"€{sum_sale_free:,.2f} ({pct_sale_free:.2%})", stat_money_neg_fmt)
+            ws.merge_range(
+                start + 1, 0, start + 1, merge_end, "Locații nevândute", stat_lbl_fmt
+            )
+            ws.write(
+                start + 1, value_col, f"{count_free} ({pct_free:.2%})", stat_int_fmt
+            )
+            ws.merge_range(
+                start + 2, 0, start + 2, merge_end, "Preț vânzare total", stat_lbl_fmt
+            )
+            ws.write(start + 2, value_col, sale_total, stat_money_fmt)
+            pct_sale_sold = sold_income / sale_total if sale_total else 0
+            pct_sale_free = sale_free / sale_total if sale_total else 0
+            ws.merge_range(
+                start + 3, 0, start + 3, merge_end, "Sumă locații vândute", stat_lbl_fmt
+            )
+            ws.write(
+                start + 3,
+                value_col,
+                f"€{sold_income:,.2f} ({pct_sale_sold:.2%})",
+                stat_money_pos_fmt,
+            )
+            ws.merge_range(
+                start + 4,
+                0,
+                start + 4,
+                merge_end,
+                "Sumă locații nevândute",
+                stat_lbl_fmt,
+            )
+            ws.write(
+                start + 4,
+                value_col,
+                f"€{sale_free:,.2f} ({pct_sale_free:.2%})",
+                stat_money_neg_fmt,
+            )
 
         current_year = datetime.date.today().year
         year_start = datetime.date(current_year, 1, 1)
@@ -1031,17 +1299,32 @@ def export_sales_report():
         )
         df_rez = df_rez[~((df_rez["is_mobile"] == 1) & (df_rez["parent_id"].isna()))]
 
-        df_all = df_loc[[
-            "id","city","county","address","type","size","sqm","illumination",
-            "ratecard","pret_vanzare","grup","status","is_mobile","parent_id"
-        ]].copy()
-        df_base = df_all[df_all["parent_id"].isna()].copy()
+        df_all = df_loc[
+            [
+                "id",
+                "city",
+                "county",
+                "address",
+                "type",
+                "size",
+                "sqm",
+                "illumination",
+                "ratecard",
+                "pret_vanzare",
+                "grup",
+                "status",
+                "is_mobile",
+                "parent_id",
+            ]
+        ].copy()
+        df_base = df_total_base.copy()
 
         # Calculăm numărul total de zile vândute și valoarea reală pentru fiecare locație
         import calendar
 
         records = []
         for row in df_rez.itertuples(index=False):
+            base_id = row.parent_id if pd.notna(row.parent_id) else row.id
             start = max(row.data_start.date(), year_start)
             end = min(row.data_end.date(), year_end)
             cur = start
@@ -1051,40 +1334,84 @@ def export_sales_report():
                 ov_end = min(end, month_end)
                 days = (ov_end - cur).days + 1
                 frac = days / dim
-                records.append({
-                    "id": row.id,
-                    "days": days,
-                    "months": frac,
-                    "val_real": row.suma * frac,
-                })
+                records.append(
+                    {
+                        "id": base_id,
+                        "days": days,
+                        "months": frac,
+                        "val_real": row.suma * frac,
+                    }
+                )
                 cur = ov_end + datetime.timedelta(days=1)
 
         df_rec = pd.DataFrame(records)
-        agg = df_rec.groupby("id").agg({"days": "sum", "months": "sum", "val_real": "sum"})
+        agg = df_rec.groupby("id").agg(
+            {"days": "sum", "months": "sum", "val_real": "sum"}
+        )
 
-        units_sold = df_rez.groupby("id")["id"].count()
+        units_sold = df_rez.groupby(df_rez["parent_id"].fillna(df_rez["id"]))[
+            "id"
+        ].nunique()
 
         # Sheet summarizing the entire year
         df_total = df_base.copy()
         df_total["Sold Days"] = df_total["id"].map(agg["days"]).fillna(0)
         df_total["Sold Months"] = df_total["id"].map(agg["months"]).fillna(0)
-        df_total["% Year Sold"] = df_total["Sold Months"] / 12
-        df_total["pret_vanzare"] = pd.to_numeric(df_total["pret_vanzare"], errors="coerce").fillna(0)
-        df_total["Total Sum"] = df_total["id"].map(agg["val_real"]).fillna(0)
         df_total["Units Sold"] = df_total["id"].map(units_sold).fillna(0).astype(int)
-        grp_order = df_total.groupby("grup")["pret_vanzare"].max().sort_values(ascending=False).index
+        df_total["pret_vanzare"] = pd.to_numeric(
+            df_total["pret_vanzare"], errors="coerce"
+        ).fillna(0)
+        df_total["Total Sum"] = df_total["id"].map(agg["val_real"]).fillna(0)
+        mob_mask = df_total["is_mobile"] == 1
+        df_total.loc[mob_mask, "Sold Months"] = df_total.loc[mob_mask, "Units Sold"]
+        df_total["% Year Sold"] = df_total.apply(
+            lambda r: (
+                (r["Units Sold"] / 20) if r["is_mobile"] else (r["Sold Months"] / 12)
+            ),
+            axis=1,
+        )
+        grp_order = (
+            df_total.groupby("grup")["pret_vanzare"]
+            .max()
+            .sort_values(ascending=False)
+            .index
+        )
         order_map = {g: i for i, g in enumerate(grp_order)}
         df_total["__grp"] = df_total["grup"].map(order_map)
-        df_total = df_total.sort_values(["__grp","pret_vanzare"], ascending=[True, False]).drop(columns="__grp")
+        df_total = df_total.sort_values(
+            ["__grp", "pret_vanzare"], ascending=[True, False]
+        ).drop(columns="__grp")
 
         def write_total_sheet(df_sheet):
-            df_sheet = df_sheet[[
-                "city","county","address","type","size","sqm","illumination",
-                "ratecard","pret_vanzare","Sold Months","% Year Sold","Total Sum"
-            ]].copy()
+            df_sheet = df_sheet[
+                [
+                    "city",
+                    "county",
+                    "address",
+                    "type",
+                    "size",
+                    "sqm",
+                    "illumination",
+                    "ratecard",
+                    "pret_vanzare",
+                    "Sold Months",
+                    "% Year Sold",
+                    "Total Sum",
+                ]
+            ].copy()
             df_sheet.columns = [
-                "City","County","Address","Type","Size","SQM","Illum",
-                "Ratecard/month","PRET DE VANZARE","Luni vândută","% An vândut","SUMĂ AN"
+                "City",
+                "County",
+                "Address",
+                "Type",
+                "Size",
+                "SQM",
+                "Illum",
+                "Ratecard/month",
+                "PRET DE VANZARE",
+                "Luni vândută",
+                "% An vândut",
+                "SUMĂ AN",
             ]
             df_sheet.insert(0, "Nr", range(1, len(df_sheet) + 1))
             ws = wb.add_worksheet("Total")
@@ -1115,10 +1442,16 @@ def export_sales_report():
             merge_end = min(STAT_MERGE_END, len(df_sheet.columns) - 2)
             value_col = merge_end + 1
             start = len(df_sheet) + 2
-            ws.merge_range(start, 0, start, merge_end, "% Locații vândute în an", stat_lbl_fmt)
+            ws.merge_range(
+                start, 0, start, merge_end, "% Locații vândute în an", stat_lbl_fmt
+            )
             ws.write(start, value_col, pct_sold, stat_percent_fmt)
-            total_sum = pd.to_numeric(df_sheet["SUMĂ AN"], errors="coerce").fillna(0).sum()
-            ws.merge_range(start + 1, 0, start + 1, merge_end, "Sumă totală", stat_lbl_fmt)
+            total_sum = (
+                pd.to_numeric(df_sheet["SUMĂ AN"], errors="coerce").fillna(0).sum()
+            )
+            ws.merge_range(
+                start + 1, 0, start + 1, merge_end, "Sumă totală", stat_lbl_fmt
+            )
             ws.write(start + 1, value_col, total_sum, stat_money_fmt)
 
         write_total_sheet(df_total)
@@ -1133,32 +1466,55 @@ def export_sales_report():
                 sub["overlap_start"] = sub["data_start"].clip(lower=start_m)
                 sub["overlap_end"] = sub["data_end"].clip(upper=end_m)
                 sub["suma"] = sub.apply(
-                    lambda r: r.suma * ((r.overlap_end - r.overlap_start).days + 1) / mdays,
+                    lambda r: r.suma
+                    * ((r.overlap_end - r.overlap_start).days + 1)
+                    / mdays,
                     axis=1,
                 )
-                grouped = sub.groupby("id").agg({
-                    "client": "first",
-                    "overlap_start": "min",
-                    "overlap_end": "max",
-                    "suma": "sum",
-                }).reset_index().rename(columns={"overlap_start": "data_start", "overlap_end": "data_end"})
+                grouped = (
+                    sub.groupby("id")
+                    .agg(
+                        {
+                            "client": "first",
+                            "overlap_start": "min",
+                            "overlap_end": "max",
+                            "suma": "sum",
+                        }
+                    )
+                    .reset_index()
+                    .rename(
+                        columns={
+                            "overlap_start": "data_start",
+                            "overlap_end": "data_end",
+                        }
+                    )
+                )
             else:
-                grouped = pd.DataFrame(columns=["id","client","data_start","data_end","suma"])
+                grouped = pd.DataFrame(
+                    columns=["id", "client", "data_start", "data_end", "suma"]
+                )
             df_month = df_all.merge(grouped, on="id", how="left")
-            df_month["status"] = df_month["client"].apply(lambda x: "Închiriat" if pd.notna(x) else "Disponibil")
-            df_month["pret_vanzare"] = pd.to_numeric(df_month["pret_vanzare"], errors="coerce").fillna(0)
-            grp_order = df_month.groupby("grup")["pret_vanzare"].max().sort_values(ascending=False).index
+            df_month["status"] = df_month["client"].apply(
+                lambda x: "Închiriat" if pd.notna(x) else "Disponibil"
+            )
+            df_month["pret_vanzare"] = pd.to_numeric(
+                df_month["pret_vanzare"], errors="coerce"
+            ).fillna(0)
+            grp_order = (
+                df_month.groupby("grup")["pret_vanzare"]
+                .max()
+                .sort_values(ascending=False)
+                .index
+            )
             order_map = {g: i for i, g in enumerate(grp_order)}
             df_month["__grp"] = df_month["grup"].map(order_map)
-            df_month = df_month.sort_values(["__grp","pret_vanzare"], ascending=[True, False]).drop(columns="__grp")
+            df_month = df_month.sort_values(
+                ["__grp", "pret_vanzare"], ascending=[True, False]
+            ).drop(columns="__grp")
             name = start_m.strftime("%B")
             write_sheet(name, df_month)
 
         messagebox.showinfo("Export Excel", f"Raport salvat:\n{path}")
-
-
-
-
 
 
 def open_offer_window(tree):
@@ -1185,11 +1541,13 @@ def open_offer_window(tree):
     params = [
         ("Discount (%)", "20"),
         ("Decorare / m² (€)", "10"),
-        ("Producție / m² (€)", "5")
+        ("Producție / m² (€)", "5"),
     ]
     entries = {}
     for i, (label, default) in enumerate(params):
-        ttk.Label(win, text=label + ":").grid(row=i, column=0, sticky="e", padx=5, pady=3)
+        ttk.Label(win, text=label + ":").grid(
+            row=i, column=0, sticky="e", padx=5, pady=3
+        )
         e = ttk.Entry(win, width=10)
         e.insert(0, default)
         e.grid(row=i, column=1, padx=5, pady=3)
@@ -1197,21 +1555,29 @@ def open_offer_window(tree):
 
     # 2b. Alegere Preț de Bază
     price_var = tk.StringVar(value="ratecard")
-    ttk.Label(win, text="Preț de bază:").grid(row=3, column=0, sticky="e", padx=5, pady=3)
+    ttk.Label(win, text="Preț de bază:").grid(
+        row=3, column=0, sticky="e", padx=5, pady=3
+    )
     frm_price = ttk.Frame(win)
     frm_price.grid(row=3, column=1, sticky="w", padx=5, pady=3)
-    ttk.Radiobutton(frm_price, text="Rate Card", variable=price_var, value="ratecard").pack(side="left")
-    ttk.Radiobutton(frm_price, text="Preț Vânzare", variable=price_var, value="pret_vanzare").pack(side="left")
+    ttk.Radiobutton(
+        frm_price, text="Rate Card", variable=price_var, value="ratecard"
+    ).pack(side="left")
+    ttk.Radiobutton(
+        frm_price, text="Preț Vânzare", variable=price_var, value="pret_vanzare"
+    ).pack(side="left")
 
     # 2c. Checkbox Discount personalizat
     personal_var = tk.BooleanVar(value=False)
-    chk_personal = ttk.Checkbutton(win, text="Discount personalizat per locație", variable=personal_var)
+    chk_personal = ttk.Checkbutton(
+        win, text="Discount personalizat per locație", variable=personal_var
+    )
     chk_personal.grid(row=4, column=0, columnspan=2, pady=5)
 
     def export():
         # 3. Validare input
         try:
-            disc_pct  = float(entries["Discount (%)"].get())
+            disc_pct = float(entries["Discount (%)"].get())
             cost_deco = float(entries["Decorare / m² (€)"].get())
             cost_prod = float(entries["Producție / m² (€)"].get())
         except ValueError:
@@ -1248,61 +1614,110 @@ def open_offer_window(tree):
 
         # 5. Calcul disponibilitate
         today = datetime.date.today()
+
         def avail(r):
             if r.get("is_mobile") and not r.get("parent_id"):
                 return "Disponibil"
-            ds, de = r['data_start'], r['data_end']
+            ds, de = r["data_start"], r["data_end"]
             if pd.notna(ds) and ds.date() > today:
                 return f"Până pe {(ds.date() - datetime.timedelta(days=1)).strftime('%d.%m.%Y')}"
             if pd.notna(de) and de.date() >= today:
                 return f"Din {(de.date() + datetime.timedelta(days=1)).strftime('%d.%m.%Y')}"
             return "Disponibil"
-        df['Availability'] = df.apply(avail, axis=1)
+
+        df["Availability"] = df.apply(avail, axis=1)
 
         # 6. Calcul costuri
-        df['Installation & Removal'] = df['sqm'] * cost_deco * df['qty']
-        df['Production']             = df['sqm'] * cost_prod * df['qty']
+        df["Installation & Removal"] = df["sqm"] * cost_deco * df["qty"]
+        df["Production"] = df["sqm"] * cost_prod * df["qty"]
 
         # 7. Alege prețul de bază
         base_col = price_var.get()  # 'ratecard' sau 'pret_vanzare'
-        df['Base Price'] = df[base_col].fillna(0).astype(float) * df['qty']
+        df["Base Price"] = df[base_col].fillna(0).astype(float) * df["qty"]
 
         # Funcție comună de scriere Excel
         def write_excel(df_export):
-            df_export = df_export.sort_values(by=['City', 'CODE'])
-            df_export.insert(0, 'No.', range(1, len(df_export) + 1))
+            df_export = df_export.sort_values(by=["City", "CODE"])
+            df_export.insert(0, "No.", range(1, len(df_export) + 1))
 
             fp = filedialog.asksaveasfilename(
-                defaultextension='.xlsx',
-                filetypes=[('Excel', '*.xlsx')],
-                title='Salvează oferta'
+                defaultextension=".xlsx",
+                filetypes=[("Excel", "*.xlsx")],
+                title="Salvează oferta",
             )
             if not fp:
                 return
 
-            with pd.ExcelWriter(fp, engine='xlsxwriter') as writer:
-                sheet = 'Ofertă'
+            with pd.ExcelWriter(fp, engine="xlsxwriter") as writer:
+                sheet = "Ofertă"
                 wb = writer.book
                 ws = wb.add_worksheet(sheet)
                 writer.sheets[sheet] = ws
 
-                title_fmt = wb.add_format({'align': 'center', 'valign': 'vcenter', 'bold': True, 'font_size': 14})
-                hdr_fmt = wb.add_format({'align': 'center', 'valign': 'vcenter', 'bold': True, 'bg_color': '#4F81BD', 'font_color': 'white', 'border': 1})
-                txt_fmt = wb.add_format({'align': 'center', 'valign': 'vcenter', 'border': 1})
-                money_fmt = wb.add_format({'align': 'center', 'valign': 'vcenter', 'num_format': '€#,##0.00', 'border': 1})
-                link_fmt = wb.add_format({'font_color': 'blue', 'underline': True, 'align': 'center', 'valign': 'vcenter', 'border': 1})
-                percent_fmt = wb.add_format({'align': 'center', 'valign': 'vcenter', 'num_format': '0.00%', 'border': 1})
+                title_fmt = wb.add_format(
+                    {
+                        "align": "center",
+                        "valign": "vcenter",
+                        "bold": True,
+                        "font_size": 14,
+                    }
+                )
+                hdr_fmt = wb.add_format(
+                    {
+                        "align": "center",
+                        "valign": "vcenter",
+                        "bold": True,
+                        "bg_color": "#4F81BD",
+                        "font_color": "white",
+                        "border": 1,
+                    }
+                )
+                txt_fmt = wb.add_format(
+                    {"align": "center", "valign": "vcenter", "border": 1}
+                )
+                money_fmt = wb.add_format(
+                    {
+                        "align": "center",
+                        "valign": "vcenter",
+                        "num_format": "€#,##0.00",
+                        "border": 1,
+                    }
+                )
+                link_fmt = wb.add_format(
+                    {
+                        "font_color": "blue",
+                        "underline": True,
+                        "align": "center",
+                        "valign": "vcenter",
+                        "border": 1,
+                    }
+                )
+                percent_fmt = wb.add_format(
+                    {
+                        "align": "center",
+                        "valign": "vcenter",
+                        "num_format": "0.00%",
+                        "border": 1,
+                    }
+                )
 
                 last_col = len(df_export.columns) - 1
-                ws.merge_range(0, 0, 0, last_col, 'OFERTĂ PERSONALIZATĂ', title_fmt)
+                ws.merge_range(0, 0, 0, last_col, "OFERTĂ PERSONALIZATĂ", title_fmt)
 
                 for col_idx, hdr in enumerate(df_export.columns):
                     ws.write(1, col_idx, hdr, hdr_fmt)
 
-                money_cols = {'Base Price', 'Final Price', 'Installation & Removal', 'Production'}
-                percent_cols = {'% Discount'}
+                money_cols = {
+                    "Base Price",
+                    "Final Price",
+                    "Installation & Removal",
+                    "Production",
+                }
+                percent_cols = {"% Discount"}
 
-                for row_idx, row in enumerate(df_export.itertuples(index=False), start=2):
+                for row_idx, row in enumerate(
+                    df_export.itertuples(index=False), start=2
+                ):
                     for col_idx, value in enumerate(row):
                         col_name = df_export.columns[col_idx]
                         if col_name in money_cols:
@@ -1315,32 +1730,38 @@ def open_offer_window(tree):
 
                 for idx, col in enumerate(df_export.columns):
                     if col in money_cols:
-                        vals = pd.to_numeric(df_export[col], errors='coerce').fillna(0)
+                        vals = pd.to_numeric(df_export[col], errors="coerce").fillna(0)
                         width = max(len(col), *(len(f"€{v:,.2f}") for v in vals)) + 2
-                    elif col == 'GPS':
-                        width = max(len(col), len('Maps')) + 2
-                    elif col == 'Photo Link':
-                        width = max(len(col), len('Photo')) + 2
+                    elif col == "GPS":
+                        width = max(len(col), len("Maps")) + 2
+                    elif col == "Photo Link":
+                        width = max(len(col), len("Photo")) + 2
                     else:
-                        width = max(len(col), df_export[col].astype(str).map(len).max()) + 2
+                        width = (
+                            max(len(col), df_export[col].astype(str).map(len).max()) + 2
+                        )
                     ws.set_column(idx, idx, width)
 
-                gps_idx = df_export.columns.get_loc('GPS')
-                for r, coord in enumerate(df_export['GPS'], start=2):
+                gps_idx = df_export.columns.get_loc("GPS")
+                for r, coord in enumerate(df_export["GPS"], start=2):
                     if isinstance(coord, str) and coord.strip():
-                        ws.write_url(r, gps_idx,
-                                     f"https://www.google.com/maps/search/?api=1&query={coord.strip()}",
-                                     link_fmt, string='Maps')
+                        ws.write_url(
+                            r,
+                            gps_idx,
+                            f"https://www.google.com/maps/search/?api=1&query={coord.strip()}",
+                            link_fmt,
+                            string="Maps",
+                        )
 
-                photo_idx = df_export.columns.get_loc('Photo Link')
-                for r, url in enumerate(df_export['Photo Link'], start=2):
+                photo_idx = df_export.columns.get_loc("Photo Link")
+                for r, url in enumerate(df_export["Photo Link"], start=2):
                     if isinstance(url, str) and url.strip():
                         link = url.strip()
-                        if not link.lower().startswith(('http://', 'https://')):
-                            link = 'https://' + link
-                        ws.write_url(r, photo_idx, link, link_fmt, string='Photo')
+                        if not link.lower().startswith(("http://", "https://")):
+                            link = "https://" + link
+                        ws.write_url(r, photo_idx, link, link_fmt, string="Photo")
 
-            messagebox.showinfo('Succes', f'Fișierul a fost salvat:\n{fp}')
+            messagebox.showinfo("Succes", f"Fișierul a fost salvat:\n{fp}")
             win.destroy()
 
         # 8. Branch pentru discount personalizat
@@ -1351,56 +1772,111 @@ def open_offer_window(tree):
             ttk.Label(win2, text="Adresa").grid(row=0, column=0, padx=5, pady=3)
             ttk.Label(win2, text="Discount (%)").grid(row=0, column=1, padx=5, pady=3)
             for i, row in df.iterrows():
-                ttk.Label(win2, text=row['address']).grid(row=i+1, column=0, padx=5, pady=2)
+                ttk.Label(win2, text=row["address"]).grid(
+                    row=i + 1, column=0, padx=5, pady=2
+                )
                 e = ttk.Entry(win2, width=5)
                 e.insert(0, "0")
-                e.grid(row=i+1, column=1, padx=5, pady=2)
-                entry_map[row['id']] = e
+                e.grid(row=i + 1, column=1, padx=5, pady=2)
+                entry_map[row["id"]] = e
+
             def on_ok():
                 # Aplic discount per locație (în fracțiune)
-                discounts = {loc_id: float(ent.get()) for loc_id, ent in entry_map.items()}
-                df['% Discount']      = df['id'].map(discounts) / 100
-                df['Discount Amount'] = df['Base Price'] * df['% Discount']
-                df['Final Price']     = df['Base Price'] - df['Discount Amount']
+                discounts = {
+                    loc_id: float(ent.get()) for loc_id, ent in entry_map.items()
+                }
+                df["% Discount"] = df["id"].map(discounts) / 100
+                df["Discount Amount"] = df["Base Price"] * df["% Discount"]
+                df["Final Price"] = df["Base Price"] - df["Discount Amount"]
 
-                df_export = df[[
-                    'city','county','address','code','gps','photo_link','sqm','type',
-                    'Base Price','% Discount','Final Price',
-                    'Installation & Removal','Production','Availability'
-                ]].copy()
+                df_export = df[
+                    [
+                        "city",
+                        "county",
+                        "address",
+                        "code",
+                        "gps",
+                        "photo_link",
+                        "sqm",
+                        "type",
+                        "Base Price",
+                        "% Discount",
+                        "Final Price",
+                        "Installation & Removal",
+                        "Production",
+                        "Availability",
+                    ]
+                ].copy()
                 df_export.columns = [
-                    'City','County','Address','CODE','GPS','Photo Link','SQM','Type',
-                    'Base Price','% Discount','Final Price',
-                    'Installation & Removal','Production','Availability'
+                    "City",
+                    "County",
+                    "Address",
+                    "CODE",
+                    "GPS",
+                    "Photo Link",
+                    "SQM",
+                    "Type",
+                    "Base Price",
+                    "% Discount",
+                    "Final Price",
+                    "Installation & Removal",
+                    "Production",
+                    "Availability",
                 ]
                 write_excel(df_export)
                 win2.destroy()
 
-            ttk.Button(win2, text="OK", command=on_ok)\
-                .grid(row=len(df)+1, column=0, columnspan=2, pady=10)
+            ttk.Button(win2, text="OK", command=on_ok).grid(
+                row=len(df) + 1, column=0, columnspan=2, pady=10
+            )
 
         else:
             # Discount global
             # Discount global (în fracțiune, pentru format % corect)
-            df['% Discount']      = disc_pct / 100
-            df['Discount Amount'] = df['Base Price'] * df['% Discount']
-            df['Final Price']     = df['Base Price'] - df['Discount Amount']
+            df["% Discount"] = disc_pct / 100
+            df["Discount Amount"] = df["Base Price"] * df["% Discount"]
+            df["Final Price"] = df["Base Price"] - df["Discount Amount"]
 
-            df_export = df[[
-                'city','county','address','code','gps','photo_link','sqm','type',
-                'Base Price','% Discount','Final Price',
-                'Installation & Removal','Production','Availability'
-            ]].copy()
+            df_export = df[
+                [
+                    "city",
+                    "county",
+                    "address",
+                    "code",
+                    "gps",
+                    "photo_link",
+                    "sqm",
+                    "type",
+                    "Base Price",
+                    "% Discount",
+                    "Final Price",
+                    "Installation & Removal",
+                    "Production",
+                    "Availability",
+                ]
+            ].copy()
             df_export.columns = [
-                'City','County','Address','CODE','GPS','Photo Link','SQM','Type',
-                'Base Price','% Discount','Final Price',
-                'Installation & Removal','Production','Availability'
+                "City",
+                "County",
+                "Address",
+                "CODE",
+                "GPS",
+                "Photo Link",
+                "SQM",
+                "Type",
+                "Base Price",
+                "% Discount",
+                "Final Price",
+                "Installation & Removal",
+                "Production",
+                "Availability",
             ]
             write_excel(df_export)
 
     # 9. Butonul de export (am mutat rândul la 5 pentru UI)
-    ttk.Button(win, text='Generează Excel', command=export)\
-        .grid(row=5, column=0, columnspan=2, pady=10)
+    ttk.Button(win, text="Generează Excel", command=export).grid(
+        row=5, column=0, columnspan=2, pady=10
+    )
 
 
 def open_add_client_window(parent, refresh_cb=None):
@@ -1422,7 +1898,9 @@ def open_add_client_window(parent, refresh_cb=None):
         e.grid(row=i, column=1, padx=5, pady=2)
         entries[lbl] = e
 
-    ttk.Label(win, text="Tip:").grid(row=len(labels), column=0, sticky="e", padx=5, pady=2)
+    ttk.Label(win, text="Tip:").grid(
+        row=len(labels), column=0, sticky="e", padx=5, pady=2
+    )
     cb_tip = ttk.Combobox(win, values=["direct", "agency"], state="readonly", width=37)
     cb_tip.current(0)
     cb_tip.grid(row=len(labels), column=1, padx=5, pady=2)
@@ -1449,7 +1927,9 @@ def open_add_client_window(parent, refresh_cb=None):
             refresh_cb()
         win.destroy()
 
-    ttk.Button(win, text="Salvează", command=save).grid(row=len(labels)+1, column=0, columnspan=2, pady=10)
+    ttk.Button(win, text="Salvează", command=save).grid(
+        row=len(labels) + 1, column=0, columnspan=2, pady=10
+    )
 
 
 def export_client_backup(month, year, client_id=None):
@@ -1489,22 +1969,24 @@ def export_client_backup(month, year, client_id=None):
         days = (ov_end - ov_start).days + 1
         frac = days / days_in_month
         amount = price * frac
-        data.append([
-            city,
-            addr,
-            code,
-            typ,
-            sqm,
-            ds_dt,
-            de_dt,
-            frac,
-            "EUR",
-            price,
-            amount,
-            0.0,
-            0.0,
-            nume,
-        ])
+        data.append(
+            [
+                city,
+                addr,
+                code,
+                typ,
+                sqm,
+                ds_dt,
+                de_dt,
+                frac,
+                "EUR",
+                price,
+                amount,
+                0.0,
+                0.0,
+                nume,
+            ]
+        )
 
     df = pd.DataFrame(
         data,
@@ -1534,7 +2016,9 @@ def export_client_backup(month, year, client_id=None):
     total_deco = df["Decoration"].sum()
     total_prod = df["Production"].sum()
 
-    path = filedialog.asksaveasfilename(defaultextension=".xlsx", filetypes=[("Excel", "*.xlsx")])
+    path = filedialog.asksaveasfilename(
+        defaultextension=".xlsx", filetypes=[("Excel", "*.xlsx")]
+    )
     if not path:
         return
 
@@ -1543,7 +2027,14 @@ def export_client_backup(month, year, client_id=None):
         wb = writer.book
         ws = writer.sheets["Backup"]
 
-        hdr_fmt = wb.add_format({"bold": True, "bg_color": "#4F81BD", "font_color": "white", "align": "center"})
+        hdr_fmt = wb.add_format(
+            {
+                "bold": True,
+                "bg_color": "#4F81BD",
+                "font_color": "white",
+                "align": "center",
+            }
+        )
         euro_fmt = wb.add_format({"num_format": "€#,##0.00", "align": "center"})
         center_fmt = wb.add_format({"align": "center"})
 
@@ -1584,11 +2075,20 @@ def open_clients_window(root):
 
     def refresh():
         tree.delete(*tree.get_children())
-        rows = conn.cursor().execute(
-            "SELECT id, nume, tip, contact, email, phone, observatii FROM clienti ORDER BY nume"
-        ).fetchall()
+        rows = (
+            conn.cursor()
+            .execute(
+                "SELECT id, nume, tip, contact, email, phone, observatii FROM clienti ORDER BY nume"
+            )
+            .fetchall()
+        )
         for cid, nume, tip, contact, email, phone, obs in rows:
-            tree.insert("", "end", iid=str(cid), values=(nume, tip or "direct", contact, email, phone, obs or ""))
+            tree.insert(
+                "",
+                "end",
+                iid=str(cid),
+                values=(nume, tip or "direct", contact, email, phone, obs or ""),
+            )
 
     def add_client():
         open_add_client_window(win, refresh)
@@ -1608,11 +2108,18 @@ def open_clients_window(root):
         sel = tree.selection()
         cid = int(sel[0]) if sel else None
         today = datetime.date.today()
-        year = simpledialog.askinteger("An", "Anul", initialvalue=today.year, parent=win)
+        year = simpledialog.askinteger(
+            "An", "Anul", initialvalue=today.year, parent=win
+        )
         if year is None:
             return
         month = simpledialog.askinteger(
-            "Luna", "Luna (1-12)", minvalue=1, maxvalue=12, initialvalue=today.month, parent=win
+            "Luna",
+            "Luna (1-12)",
+            minvalue=1,
+            maxvalue=12,
+            initialvalue=today.month,
+            parent=win,
         )
         if month is None:
             return
@@ -1625,6 +2132,7 @@ def open_clients_window(root):
         b.grid(row=1, column=i, padx=5, pady=5, sticky="w")
 
     refresh()
+
 
 def export_vendor_report():
     """Exporta un raport detaliat pentru fiecare vânzător."""
@@ -1664,12 +2172,14 @@ def export_vendor_report():
 
     with pd.ExcelWriter(path, engine="xlsxwriter") as writer:
         wb = writer.book
-        hdr_fmt = wb.add_format({
-            "bold": True,
-            "bg_color": "#4F81BD",
-            "font_color": "white",
-            "align": "center",
-        })
+        hdr_fmt = wb.add_format(
+            {
+                "bold": True,
+                "bg_color": "#4F81BD",
+                "font_color": "white",
+                "align": "center",
+            }
+        )
         money_fmt = wb.add_format({"num_format": "€#,##0.00", "align": "center"})
         center_fmt = wb.add_format({"align": "center"})
 
@@ -1686,7 +2196,9 @@ def export_vendor_report():
                 cur = ov_end + datetime.timedelta(days=1)
             return total
 
-        def split_by_month(ds: datetime.date, de: datetime.date, price_per_month: float):
+        def split_by_month(
+            ds: datetime.date, de: datetime.date, price_per_month: float
+        ):
             cur = ds
             while cur <= de:
                 dim = calendar.monthrange(cur.year, cur.month)[1]
@@ -1698,7 +2210,7 @@ def export_vendor_report():
 
         for _, row in users.iterrows():
             uname = row["username"]
-            comune = {c for c in (row["comune"] or "").split(',') if c}
+            comune = {c for c in (row["comune"] or "").split(",") if c}
             sub = df[df["created_by"] == uname]
             if comune:
                 sub = sub[sub["county"].isin(comune)]
@@ -1706,18 +2218,23 @@ def export_vendor_report():
                 continue
 
             sub = sub.copy()
-            sub["Luni"] = sub.apply(lambda r: contract_months(r["data_start"].date(), r["data_end"].date()), axis=1)
+            sub["Luni"] = sub.apply(
+                lambda r: contract_months(r["data_start"].date(), r["data_end"].date()),
+                axis=1,
+            )
             sub["Chirie/lună"] = sub["suma"] / sub["Luni"]
             sub["Valoare"] = sub["suma"]
 
-            df_det = sub[[
-                "city",
-                "county",
-                "address",
-                "Chirie/lună",
-                "Luni",
-                "Valoare",
-            ]].copy()
+            df_det = sub[
+                [
+                    "city",
+                    "county",
+                    "address",
+                    "Chirie/lună",
+                    "Luni",
+                    "Valoare",
+                ]
+            ].copy()
             df_det.columns = [
                 "Oraș",
                 "Județ",
@@ -1742,9 +2259,15 @@ def export_vendor_report():
             for r in sub.itertuples(index=False):
                 months_total = r.Luni
                 price_per_month = r.suma / months_total if months_total else 0
-                for mname, val in split_by_month(r.data_start.date(), r.data_end.date(), price_per_month):
+                for mname, val in split_by_month(
+                    r.data_start.date(), r.data_end.date(), price_per_month
+                ):
                     month_records.append((mname, val))
-            stats = pd.DataFrame(month_records, columns=["Luna", "Total"]).groupby("Luna", as_index=False).sum()
+            stats = (
+                pd.DataFrame(month_records, columns=["Luna", "Total"])
+                .groupby("Luna", as_index=False)
+                .sum()
+            )
             stats.columns = ["Luna", "Total"]
 
             start = len(df_det) + 3
@@ -1757,9 +2280,11 @@ def export_vendor_report():
 
     messagebox.showinfo("Raport", f"Raport salvat:\n{path}")
 
+
 def open_users_window(root):
     """Admin window to manage user accounts."""
     import tkinter.simpledialog as simpledialog
+
     win = tk.Toplevel(root)
     win.title("Utilizatori")
 
@@ -1772,7 +2297,9 @@ def open_users_window(root):
 
     def refresh():
         tree.delete(*tree.get_children())
-        rows = conn.cursor().execute("SELECT username, role, comune FROM users").fetchall()
+        rows = (
+            conn.cursor().execute("SELECT username, role, comune FROM users").fetchall()
+        )
         for u, r, c in rows:
             tree.insert("", "end", values=(u, r, c or ""))
 
@@ -1780,7 +2307,9 @@ def open_users_window(root):
         dlg = tk.Toplevel(win)
         dlg.title("Adaugă utilizator")
 
-        ttk.Label(dlg, text="Utilizator:").grid(row=0, column=0, padx=5, pady=5, sticky="e")
+        ttk.Label(dlg, text="Utilizator:").grid(
+            row=0, column=0, padx=5, pady=5, sticky="e"
+        )
         entry_user = ttk.Entry(dlg, width=30)
         entry_user.grid(row=0, column=1, padx=5, pady=5)
 
@@ -1800,7 +2329,9 @@ def open_users_window(root):
         def on_ok():
             u = entry_user.get().strip()
             if not u:
-                messagebox.showwarning("Date lipsă", "Completează utilizatorul.", parent=dlg)
+                messagebox.showwarning(
+                    "Date lipsă", "Completează utilizatorul.", parent=dlg
+                )
                 return
             p = entry_pass.get()
             if p is None:
@@ -1812,7 +2343,9 @@ def open_users_window(root):
             dlg.destroy()
             refresh()
 
-        ttk.Button(dlg, text="Salvează", command=on_ok).grid(row=4, column=0, columnspan=2, pady=10)
+        ttk.Button(dlg, text="Salvează", command=on_ok).grid(
+            row=4, column=0, columnspan=2, pady=10
+        )
         dlg.grab_set()
         entry_user.focus()
 
