@@ -333,6 +333,8 @@ def start_app(user, root=None):
     lbl_pret_flot_value    = ttk.Label(details, text="-")
     lbl_res_by_label       = ttk.Label(details, text="Rezervată de:")
     lbl_res_by_value       = ttk.Label(details, text="-")
+    lbl_next_rent_label    = ttk.Label(details, text="Următoarea închiriere:")
+    lbl_next_rent_value    = ttk.Label(details, text="-")
 
 
     # --- Bottom: butoane principale (stânga) și export (dreapta) ---
@@ -545,6 +547,7 @@ def start_app(user, root=None):
             lbl_pret_inch_label, lbl_pret_inch_value,
             lbl_pret_flot_label, lbl_pret_flot_value,
             lbl_res_by_label, lbl_res_by_value,
+            lbl_next_rent_label, lbl_next_rent_value,
 
         ):
             w.pack_forget()
@@ -636,6 +639,21 @@ def start_app(user, root=None):
                     text=f"{creator} ({days_left} zile)")
                 lbl_res_by_label.pack(anchor="center", pady=2)
                 lbl_res_by_value.pack(anchor="center", pady=2)
+            else:
+                today = datetime.date.today().isoformat()
+                next_rent = cursor.execute(
+                    "SELECT client, data_start, data_end FROM rezervari "
+                    "WHERE loc_id=? AND data_start>? AND suma IS NOT NULL "
+                    "ORDER BY data_start LIMIT 1",
+                    (loc_id, today),
+                ).fetchone()
+                if next_rent:
+                    n_client, n_start, n_end = next_rent
+                    lbl_next_rent_value.config(
+                        text=f"{n_client}: {n_start} → {n_end}"
+                    )
+                    lbl_next_rent_label.pack(anchor="center", pady=2)
+                    lbl_next_rent_value.pack(anchor="center", pady=2)
 
         if user.get("role") == 'admin':
             btn_edit.config(state='normal')
