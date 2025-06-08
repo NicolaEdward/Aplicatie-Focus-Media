@@ -103,7 +103,7 @@ def test_export_client_backup(monkeypatch, tmp_path):
     monkeypatch.setattr(dialogs.messagebox, "showinfo", lambda *a, **k: saved.setdefault("info", a))
 
     dialogs.export_client_backup(5, 2023, 1)
-    expected = tmp_path / "BKP Firma x Cli - Camp - May.xlsx"
+    expected = tmp_path / "Firma" / "BKP Firma x Cli - Camp - May.xlsx"
     assert expected.exists()
     assert saved.get("info")
 
