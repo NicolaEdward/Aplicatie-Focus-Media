@@ -12,6 +12,63 @@ from utils import PREVIEW_FOLDER, make_preview
 from db import conn, update_statusuri_din_rezervari, create_user, get_location_by_id
 
 
+def choose_report_year(parent=None):
+    """Return the year selected by the user for the sales report or ``None``."""
+    current_year = datetime.date.today().year
+    cur = conn.cursor()
+    try:
+        cur.execute("SELECT MIN(data_start), MAX(data_end) FROM rezervari")
+        row = cur.fetchone()
+    except Exception:
+        row = None
+    min_year = max_year = current_year
+    if row:
+        dmin, dmax = row
+        try:
+            if dmin:
+                if isinstance(dmin, str):
+                    min_year = datetime.date.fromisoformat(dmin).year
+                else:
+                    min_year = dmin.year
+        except Exception:
+            pass
+        try:
+            if dmax:
+                if isinstance(dmax, str):
+                    max_year = datetime.date.fromisoformat(dmax).year
+                else:
+                    max_year = dmax.year
+        except Exception:
+            pass
+    years = sorted({*range(min_year, max_year + 1), current_year})
+
+    win = tk.Toplevel(parent)
+    win.title("An raport vânzări")
+    ttk.Label(win, text="An:").grid(row=0, column=0, padx=5, pady=5)
+    year_var = tk.StringVar(value=str(current_year))
+    cb = ttk.Combobox(win, textvariable=year_var, values=[str(y) for y in years], state="readonly", width=8)
+    cb.grid(row=0, column=1, padx=5, pady=5)
+
+    result = {"year": None}
+
+    def ok():
+        try:
+            result["year"] = int(year_var.get())
+        except Exception:
+            result["year"] = current_year
+        win.destroy()
+
+    def cancel():
+        win.destroy()
+
+    ttk.Button(win, text="OK", command=ok).grid(row=1, column=0, padx=5, pady=5)
+    ttk.Button(win, text="Renunță", command=cancel).grid(row=1, column=1, padx=5, pady=5)
+
+    win.grab_set()
+    win.wait_window()
+    return result["year"]
+
+
 def open_detail_window(tree, event):
     """Display extended information about the selected location."""
     rowid = tree.identify_row(event.y)
@@ -1005,6 +1062,10 @@ def export_sales_report():
 
     update_statusuri_din_rezervari()
 
+    year = choose_report_year()
+    if year is None:
+        return
+
     df_loc_all = read_sql_query(
         """
         SELECT id, city, county, address, type, size, sqm, illumination,
@@ -1290,9 +1351,8 @@ def export_sales_report():
             # The "Raport sume vândute/nevândute" statistic is no longer shown
             # in the monthly sheets as it was not considered relevant.
 
-        current_year = datetime.date.today().year
-        year_start = datetime.date(current_year, 1, 1)
-        year_end = datetime.date(current_year, 12, 31)
+        year_start = datetime.date(year, 1, 1)
+        year_end = datetime.date(year, 12, 31)
         df_rez = read_sql_query(
             """
             SELECT l.id, l.grup, l.city, l.county, l.address, l.type, l.size, l.sqm, l.illumination,
@@ -1458,7 +1518,6 @@ def export_sales_report():
                     width = max(len(col), df_sheet[col].astype(str).map(len).max()) + 2
                 ws.set_column(idx, idx, width)
             sold_mask = df_sheet["Luni vândută"] > 0
-            pct_sold_loc = sold_mask.mean()
             pct_months_sold = (
                 pd.to_numeric(df_sheet["Luni vândută"], errors="coerce").fillna(0).sum()
                 / (len(df_sheet) * 12)
@@ -1482,36 +1541,32 @@ def export_sales_report():
                 0,
                 start,
                 merge_end,
-                f"Locații vândute în anul {current_year}",
+                f"Locații vândute în anul {year}",
                 stat_lbl_fmt,
             )
-            ws.write(start, value_col, pct_sold_loc, stat_percent_fmt)
+            ws.write(start, value_col, pct_months_sold, stat_percent_fmt)
             ws.merge_range(
-                start + 1, 0, start + 1, merge_end, "Locații vândute", stat_lbl_fmt
+                start + 1, 0, start + 1, merge_end, "Locații nevândute", stat_lbl_fmt
             )
-            ws.write(start + 1, value_col, pct_months_sold, stat_percent_fmt)
+            ws.write(start + 1, value_col, pct_months_free, stat_percent_fmt)
             ws.merge_range(
-                start + 2, 0, start + 2, merge_end, "Locații nevândute", stat_lbl_fmt
+                start + 2, 0, start + 2, merge_end, "Preț vânzare total", stat_lbl_fmt
             )
-            ws.write(start + 2, value_col, pct_months_free, stat_percent_fmt)
+            ws.write(start + 2, value_col, sale_total, stat_money_fmt)
             ws.merge_range(
-                start + 3, 0, start + 3, merge_end, "Preț vânzare total", stat_lbl_fmt
-            )
-            ws.write(start + 3, value_col, sale_total, stat_money_fmt)
-            ws.merge_range(
-                start + 4, 0, start + 4, merge_end, "Sumă locații vândute", stat_lbl_fmt
+                start + 3, 0, start + 3, merge_end, "Sumă locații vândute", stat_lbl_fmt
             )
             ws.write(
-                start + 4,
+                start + 3,
                 value_col,
                 f"€{sold_income:,.2f} ({pct_sale_sold:.2%})",
                 stat_money_pos_fmt,
             )
             ws.merge_range(
-                start + 5, 0, start + 5, merge_end, "Sumă locații nevândute", stat_lbl_fmt
+                start + 4, 0, start + 4, merge_end, "Sumă locații nevândute", stat_lbl_fmt
             )
             ws.write(
-                start + 5,
+                start + 4,
                 value_col,
                 f"€{sale_free:,.2f} ({pct_sale_free:.2%})",
                 stat_money_neg_fmt,
@@ -1520,7 +1575,7 @@ def export_sales_report():
         write_total_sheet(df_total)
 
         for month in range(1, 13):
-            start_m = pd.Timestamp(current_year, month, 1)
+            start_m = pd.Timestamp(year, month, 1)
             end_m = start_m + pd.offsets.MonthEnd(0)
             mask = (df_rez["data_end"] >= start_m) & (df_rez["data_start"] <= end_m)
             sub = df_rez.loc[mask].copy()
