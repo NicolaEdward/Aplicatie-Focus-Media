@@ -884,15 +884,19 @@ def export_sales_report():
             ws.write(start + 4, value_col, f"€{sum_sale_free:,.2f} ({pct_sale_free:.2%})", stat_money_neg_fmt)
 
         current_year = datetime.date.today().year
+        year_start = datetime.date(current_year, 1, 1)
+        year_end = datetime.date(current_year, 12, 31)
         df_rez = pd.read_sql_query(
             """
             SELECT l.id, l.grup, l.city, l.county, l.address, l.type, l.size, l.sqm, l.illumination,
                    l.ratecard, l.pret_vanzare, r.client, r.data_start, r.data_end, r.suma
               FROM rezervari r
               JOIN locatii l ON r.loc_id = l.id
+             WHERE NOT (r.data_end < ? OR r.data_start > ?)
              ORDER BY r.data_start
             """,
             pandas_conn(),
+            params=[year_start.isoformat(), year_end.isoformat()],
             parse_dates=["data_start", "data_end"],
         )
 
@@ -902,14 +906,34 @@ def export_sales_report():
         ]].copy()
 
         # Calculăm numărul total de zile vândute și valoarea reală pentru fiecare locație
-        df_rez["days"] = (df_rez["data_end"] - df_rez["data_start"]).dt.days + 1
-        df_rez["val_real"] = df_rez["suma"] / 30 * df_rez["days"]
-        agg = df_rez.groupby("id").agg({"days": "sum", "val_real": "sum"})
+        import calendar
+
+        records = []
+        for row in df_rez.itertuples(index=False):
+            start = max(row.data_start.date(), year_start)
+            end = min(row.data_end.date(), year_end)
+            cur = start
+            while cur <= end:
+                dim = calendar.monthrange(cur.year, cur.month)[1]
+                month_end = datetime.date(cur.year, cur.month, dim)
+                ov_end = min(end, month_end)
+                days = (ov_end - cur).days + 1
+                frac = days / dim
+                records.append({
+                    "id": row.id,
+                    "days": days,
+                    "months": frac,
+                    "val_real": row.suma * frac,
+                })
+                cur = ov_end + datetime.timedelta(days=1)
+
+        df_rec = pd.DataFrame(records)
+        agg = df_rec.groupby("id").agg({"days": "sum", "months": "sum", "val_real": "sum"})
 
         # Sheet summarizing the entire year
         df_total = df_base.copy()
         df_total["Sold Days"] = df_total["id"].map(agg["days"]).fillna(0)
-        df_total["Sold Months"] = df_total["Sold Days"] / 30
+        df_total["Sold Months"] = df_total["id"].map(agg["months"]).fillna(0)
         df_total["% Year Sold"] = df_total["Sold Months"] / 12
         df_total["pret_vanzare"] = pd.to_numeric(df_total["pret_vanzare"], errors="coerce").fillna(0)
         df_total["Total Sum"] = df_total["id"].map(agg["val_real"]).fillna(0)
@@ -1483,6 +1507,29 @@ def export_vendor_report():
         money_fmt = wb.add_format({"num_format": "€#,##0.00", "align": "center"})
         center_fmt = wb.add_format({"align": "center"})
 
+        import calendar
+
+        def contract_months(ds: datetime.date, de: datetime.date) -> float:
+            cur = ds
+            total = 0.0
+            while cur <= de:
+                dim = calendar.monthrange(cur.year, cur.month)[1]
+                month_end = datetime.date(cur.year, cur.month, dim)
+                ov_end = min(de, month_end)
+                total += ((ov_end - cur).days + 1) / dim
+                cur = ov_end + datetime.timedelta(days=1)
+            return total
+
+        def split_by_month(ds: datetime.date, de: datetime.date, price_per_month: float):
+            cur = ds
+            while cur <= de:
+                dim = calendar.monthrange(cur.year, cur.month)[1]
+                month_end = datetime.date(cur.year, cur.month, dim)
+                ov_end = min(de, month_end)
+                frac = ((ov_end - cur).days + 1) / dim
+                yield cur.strftime("%B"), price_per_month * frac
+                cur = ov_end + datetime.timedelta(days=1)
+
         for _, row in users.iterrows():
             uname = row["username"]
             comune = {c for c in (row["comune"] or "").split(',') if c}
@@ -1493,8 +1540,7 @@ def export_vendor_report():
                 continue
 
             sub = sub.copy()
-            days = (sub["data_end"] - sub["data_start"]).dt.days + 1
-            sub["Luni"] = days / 30
+            sub["Luni"] = sub.apply(lambda r: contract_months(r["data_start"].date(), r["data_end"].date()), axis=1)
             sub["Chirie/lună"] = sub["suma"] / sub["Luni"]
             sub["Valoare"] = sub["suma"]
 
@@ -1526,8 +1572,13 @@ def export_vendor_report():
                 ws.set_column(col_idx, col_idx, width, fmt)
                 ws.write(0, col_idx, col, hdr_fmt)
 
-            sub["Month"] = sub["data_start"].dt.to_period("M").dt.strftime("%B")
-            stats = sub.groupby("Month")["suma"].sum().reset_index()
+            month_records = []
+            for r in sub.itertuples(index=False):
+                months_total = r.Luni
+                price_per_month = r.suma / months_total if months_total else 0
+                for mname, val in split_by_month(r.data_start.date(), r.data_end.date(), price_per_month):
+                    month_records.append((mname, val))
+            stats = pd.DataFrame(month_records, columns=["Luna", "Total"]).groupby("Luna", as_index=False).sum()
             stats.columns = ["Luna", "Total"]
 
             start = len(df_det) + 3
