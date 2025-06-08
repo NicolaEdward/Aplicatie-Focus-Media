@@ -294,9 +294,6 @@ def init_db():
             )
             """
         )
-        # additional tables used by the application
-        init_firme_table()
-        init_decorari_table()
     else:
         # (1) Creăm tabelul cu toate coloanele, inclusiv noile preturi
         cursor.execute(
@@ -516,8 +513,7 @@ def init_firme_table():
         """
         )
     conn.commit()
-    row = cursor.execute("SELECT COUNT(*) FROM firme").fetchone()
-    if row and row[0] == 0:
+    if cursor.execute("SELECT COUNT(*) FROM firme").fetchone()[0] == 0:
         cursor.executemany(
             "INSERT INTO firme (nume,cui,adresa) VALUES (?,?,?)",
             [
