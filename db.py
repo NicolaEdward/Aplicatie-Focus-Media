@@ -35,18 +35,40 @@ class _CursorWrapper:
     def execute(self, sql, params=None):
         if self._mysql:
             sql = sql.replace("?", "%s")
-        # ``mysql.connector`` returns ``None`` from ``execute`` instead of the
-        # cursor instance like ``sqlite3`` does.  Since a lot of the code relies
-        # on chaining calls like ``cursor.execute(...).fetchall()``, always
-        # return ``self`` so the wrapper mimics the sqlite behaviour.
-        self._cur.execute(sql, params or ())
+        try:
+            # ``mysql.connector`` returns ``None`` from ``execute`` instead of
+            # the cursor instance like ``sqlite3`` does.  Since a lot of the code
+            # relies on chaining calls like ``cursor.execute(...).fetchall()``,
+            # always return ``self`` so the wrapper mimics the sqlite behaviour.
+            self._cur.execute(sql, params or ())
+        except Exception as exc:
+            if _needs_reconnect(exc):
+                reconnect()
+                self._cur = cursor._cur
+                self._mysql = cursor._mysql
+                if self._mysql:
+                    sql = sql.replace("?", "%s")
+                self._cur.execute(sql, params or ())
+            else:
+                raise
         return self
 
     def executemany(self, sql, params):
         if self._mysql:
             sql = sql.replace("?", "%s")
-        # See comment in ``execute`` above about return value.
-        self._cur.executemany(sql, params)
+        try:
+            # See comment in ``execute`` above about return value.
+            self._cur.executemany(sql, params)
+        except Exception as exc:
+            if _needs_reconnect(exc):
+                reconnect()
+                self._cur = cursor._cur
+                self._mysql = cursor._mysql
+                if self._mysql:
+                    sql = sql.replace("?", "%s")
+                self._cur.executemany(sql, params)
+            else:
+                raise
         return self
 
     def __getattr__(self, name):
@@ -59,14 +81,31 @@ class _ConnWrapper:
         self._mysql = mysql_mode
 
     def cursor(self):
-        return _CursorWrapper(self._conn.cursor(), self._mysql)
+        try:
+            return _CursorWrapper(self._conn.cursor(), self._mysql)
+        except Exception as exc:
+            if _needs_reconnect(exc):
+                reconnect()
+                self._conn = conn._conn
+                self._mysql = conn._mysql
+                return _CursorWrapper(self._conn.cursor(), self._mysql)
+            raise
 
     @property
     def mysql(self):
         return self._mysql
 
     def commit(self):
-        self._conn.commit()
+        try:
+            self._conn.commit()
+        except Exception as exc:
+            if _needs_reconnect(exc):
+                reconnect()
+                self._conn = conn._conn
+                self._mysql = conn._mysql
+                self._conn.commit()
+            else:
+                raise
         try:
             refresh_location_cache()
         except Exception:
@@ -134,6 +173,25 @@ def _create_connection():
     return _ConnWrapper(sqlite3.connect(get_db_path()), False)
 
 
+def _needs_reconnect(exc: Exception) -> bool:
+    """Return ``True`` if *exc* indicates a lost MySQL connection."""
+    if mysql is None:
+        return False
+    err = getattr(exc, "errno", None)
+    return err in (2006, 2013)
+
+
+def reconnect() -> None:
+    """Recreate the global connection and cursor."""
+    global conn, cursor
+    conn = _create_connection()
+    cursor = conn.cursor()
+    try:
+        refresh_location_cache()
+    except Exception:
+        pass
+
+
 conn = _create_connection()
 cursor = conn.cursor()
 
@@ -151,11 +209,13 @@ def refresh_location_cache() -> None:
     _location_cache = [dict(zip(cols, row)) for row in cur.fetchall()]
     _cache_timestamp = time.time()
 
+
 def get_location_cache() -> list[dict]:
     """Return the cached locations, loading them on first use."""
     if _location_cache is None:
         refresh_location_cache()
     return list(_location_cache)
+
 
 def maybe_refresh_location_cache(ttl: int = 300) -> bool:
     """Refresh cache if more than ``ttl`` seconds elapsed since last update."""
@@ -163,6 +223,7 @@ def maybe_refresh_location_cache(ttl: int = 300) -> bool:
         refresh_location_cache()
         return True
     return False
+
 
 def get_location_by_id(loc_id: int) -> dict | None:
     """Return location data from cache for the given ``loc_id``."""
@@ -254,9 +315,8 @@ def ensure_index(table: str, index_name: str, column: str) -> None:
                     length = "(255)"
             cur.execute(f"CREATE INDEX {index_name} ON {table}({column}{length})")
     else:
-        cursor.execute(
-            f"CREATE INDEX IF NOT EXISTS {index_name} ON {table}({column})"
-        )
+        cursor.execute(f"CREATE INDEX IF NOT EXISTS {index_name} ON {table}({column})")
+
 
 def init_db():
     if getattr(conn, "mysql", False):
@@ -376,18 +436,22 @@ def init_db():
     conn.commit()
 
     if not getattr(conn, "mysql", False):
-        existing = {col[1] for col in cursor.execute("PRAGMA table_info(locatii)").fetchall()}
-
-        to_add = {
-            "rental_fee":    "REAL DEFAULT 0",
-            "pret_vanzare":  "REAL",
-            "pret_flotant":  "REAL",
-            "client_id":    "INTEGER",
-            "is_mobile":   "INTEGER DEFAULT 0",
-            "parent_id":   "INTEGER",
+        existing = {
+            col[1] for col in cursor.execute("PRAGMA table_info(locatii)").fetchall()
         }
 
-        existing = {col[1] for col in cursor.execute("PRAGMA table_info(locatii)").fetchall()}
+        to_add = {
+            "rental_fee": "REAL DEFAULT 0",
+            "pret_vanzare": "REAL",
+            "pret_flotant": "REAL",
+            "client_id": "INTEGER",
+            "is_mobile": "INTEGER DEFAULT 0",
+            "parent_id": "INTEGER",
+        }
+
+        existing = {
+            col[1] for col in cursor.execute("PRAGMA table_info(locatii)").fetchall()
+        }
         if "face" not in existing:
             cursor.execute("ALTER TABLE locatii ADD COLUMN face TEXT DEFAULT 'Fața A'")
             conn.commit()
@@ -396,6 +460,7 @@ def init_db():
             if col not in existing:
                 cursor.execute(f"ALTER TABLE locatii ADD COLUMN {col} {definition}")
                 conn.commit()
+
 
 def init_clienti_table():
     if getattr(conn, "mysql", False):
@@ -441,6 +506,7 @@ def init_clienti_table():
                 conn.commit()
         conn.commit()
 
+
 def init_rezervari_table():
     if getattr(conn, "mysql", False):
         cursor.execute(
@@ -484,6 +550,7 @@ def init_rezervari_table():
             conn.commit()
         conn.commit()
 
+
 def init_users_table():
     if getattr(conn, "mysql", False):
         cursor.execute(
@@ -517,6 +584,8 @@ def init_users_table():
             ("admin", _hash_password("admin")),
         )
     conn.commit()
+
+
 def update_statusuri_din_rezervari():
     today = datetime.date.today().isoformat()
     cur = conn.cursor()
@@ -528,18 +597,20 @@ def update_statusuri_din_rezervari():
     )
 
     # 1) Resetăm totul la Disponibil
-    cur.execute("""
+    cur.execute(
+        """
         UPDATE locatii
         SET status='Disponibil',
             client=NULL,
             client_id=NULL,
             data_start=NULL,
             data_end=NULL
-    """)
-
+    """
+    )
 
     # 2) Marcăm rezervările curente fără sumă ca 'Rezervat'
-    cur.execute("""
+    cur.execute(
+        """
         UPDATE locatii
         SET status     = 'Rezervat',
             client     = (
@@ -573,10 +644,13 @@ def update_statusuri_din_rezervari():
                AND ? BETWEEN data_start AND data_end
                AND suma IS NULL
         )
-    """, (today, today, today, today))
+    """,
+        (today, today, today, today),
+    )
 
     # 3) Marcăm închirierile curente ca 'Închiriat'
-    cur.execute("""
+    cur.execute(
+        """
         UPDATE locatii
         SET status      = 'Închiriat',
             client      = (
@@ -622,7 +696,9 @@ def update_statusuri_din_rezervari():
               AND ? BETWEEN data_start AND data_end
               AND suma IS NOT NULL
         )
-    """, (today, today, today, today, today))
+    """,
+        (today, today, today, today, today),
+    )
 
     # Mark expired mobile instances as hidden
     cur.execute(
@@ -690,6 +766,7 @@ def check_login(username: str, password: str):
     if _verify_password(user["password"], password):
         return user
     return None
+
 
 # Initialize DB on import
 init_db()
