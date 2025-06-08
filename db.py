@@ -275,11 +275,8 @@ def init_db():
                 data_end TEXT NOT NULL,
                 suma DOUBLE,
                 created_by TEXT,
-                campaign TEXT,
-                firma_id INT,
                 FOREIGN KEY(loc_id) REFERENCES locatii(id),
-                FOREIGN KEY(client_id) REFERENCES clienti(id),
-                FOREIGN KEY(firma_id) REFERENCES firme(id)
+                FOREIGN KEY(client_id) REFERENCES clienti(id)
             )
             """
         )
@@ -294,9 +291,6 @@ def init_db():
             )
             """
         )
-        # additional tables used by the application
-        init_firme_table()
-        init_decorari_table()
     else:
         # (1) Creăm tabelul cu toate coloanele, inclusiv noile preturi
         cursor.execute(
@@ -330,8 +324,6 @@ def init_db():
         )
         init_clienti_table()
         init_rezervari_table()
-        init_firme_table()
-        init_decorari_table()
         init_users_table()
         conn.commit()
 
@@ -372,9 +364,7 @@ def init_clienti_table():
                 email TEXT,
                 phone TEXT,
                 observatii TEXT,
-                tip TEXT DEFAULT 'direct',
-                cui TEXT,
-                adresa TEXT
+                tip TEXT DEFAULT 'direct'
             )
             """
         )
@@ -388,9 +378,7 @@ def init_clienti_table():
             email TEXT,
             phone TEXT,
             observatii TEXT,
-            tip TEXT DEFAULT 'direct',
-            cui TEXT,
-            adresa TEXT
+            tip TEXT DEFAULT 'direct'
         )
         """
         )
@@ -402,8 +390,6 @@ def init_clienti_table():
             "phone": "TEXT",
             "observatii": "TEXT",
             "tip": "TEXT DEFAULT 'direct'",
-            "cui": "TEXT",
-            "adresa": "TEXT",
         }
         for col, definition in to_add.items():
             if col not in cols:
@@ -440,11 +426,8 @@ def init_rezervari_table():
         data_end TEXT NOT NULL,
         suma REAL,
         created_by TEXT,
-        campaign TEXT,
-        firma_id INTEGER,
         FOREIGN KEY(loc_id) REFERENCES locatii(id),
-        FOREIGN KEY(client_id) REFERENCES clienti(id),
-        FOREIGN KEY(firma_id) REFERENCES firme(id)
+        FOREIGN KEY(client_id) REFERENCES clienti(id)
     )
     """
         )
@@ -455,77 +438,6 @@ def init_rezervari_table():
         if "created_by" not in cols:
             cursor.execute("ALTER TABLE rezervari ADD COLUMN created_by TEXT")
             conn.commit()
-        if "campaign" not in cols:
-            cursor.execute("ALTER TABLE rezervari ADD COLUMN campaign TEXT")
-            conn.commit()
-        if "firma_id" not in cols:
-            cursor.execute("ALTER TABLE rezervari ADD COLUMN firma_id INTEGER")
-            conn.commit()
-        conn.commit()
-
-def init_decorari_table():
-    if getattr(conn, "mysql", False):
-        cursor.execute(
-            """
-            CREATE TABLE IF NOT EXISTS decorari (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                rez_id INT NOT NULL,
-                data TEXT NOT NULL,
-                cost DOUBLE,
-                productie DOUBLE,
-                FOREIGN KEY(rez_id) REFERENCES rezervari(id)
-            )
-            """
-        )
-    else:
-        cursor.execute(
-            """
-        CREATE TABLE IF NOT EXISTS decorari (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            rez_id INTEGER NOT NULL,
-            data TEXT NOT NULL,
-            cost REAL,
-            productie REAL,
-            FOREIGN KEY(rez_id) REFERENCES rezervari(id)
-        )
-        """
-        )
-        conn.commit()
-
-def init_firme_table():
-    if getattr(conn, "mysql", False):
-        cursor.execute(
-            """
-            CREATE TABLE IF NOT EXISTS firme (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                nume VARCHAR(255) UNIQUE NOT NULL,
-                cui TEXT,
-                adresa TEXT
-            )
-            """
-        )
-    else:
-        cursor.execute(
-            """
-        CREATE TABLE IF NOT EXISTS firme (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            nume TEXT UNIQUE NOT NULL,
-            cui TEXT,
-            adresa TEXT
-        )
-        """
-        )
-    conn.commit()
-    row = cursor.execute("SELECT COUNT(*) FROM firme").fetchone()
-    if row and row[0] == 0:
-        cursor.executemany(
-            "INSERT INTO firme (nume,cui,adresa) VALUES (?,?,?)",
-            [
-                ("Focus Media Outdoor", "", ""),
-                ("Excellence Media Production", "", ""),
-                ("Michi Media Advertising", "", ""),
-            ],
-        )
         conn.commit()
 
 def init_users_table():
@@ -560,46 +472,7 @@ def init_users_table():
             "INSERT INTO users (username, password, role) VALUES (?, ?, 'admin')",
             ("admin", _hash_password("admin")),
         )
-        conn.commit()
-
-def add_rental_with_decor(
-    loc_id,
-    client_display,
-    client_id,
-    start,
-    end,
-    fee,
-    created_by,
-    campaign=None,
-    firma_id=None,
-    deco_date=None,
-    deco_cost=0.0,
-    productie=0.0,
-):
-    cur = conn.cursor()
-    cur.execute(
-        "INSERT INTO rezervari (loc_id, client, client_id, data_start, data_end, suma, created_by, campaign, firma_id)"
-        " VALUES (?,?,?,?,?,?,?,?,?)",
-        (
-            loc_id,
-            client_display,
-            client_id,
-            start,
-            end,
-            fee,
-            created_by,
-            campaign,
-            firma_id,
-        ),
-    )
-    rid = cur.lastrowid
-    if deco_date:
-        cur.execute(
-            "INSERT INTO decorari (rez_id, data, cost, productie) VALUES (?,?,?,?)",
-            (rid, deco_date, deco_cost, productie),
-        )
     conn.commit()
-    return rid
 def update_statusuri_din_rezervari():
     today = datetime.date.today().isoformat()
     cur = conn.cursor()
