@@ -400,6 +400,19 @@ def open_rent_window(root, loc_id, load_cb, user):
                 )
                 return
 
+        # Ștergem rezervările care aparțin aceluiași vânzător în perioada aleasă
+        cur.execute(
+            "DELETE FROM rezervari "
+            "WHERE loc_id=? AND created_by=? AND suma IS NULL "
+            "AND NOT (data_end < ? OR data_start > ?)",
+            (
+                loc_id,
+                user["username"],
+                start.isoformat(),
+                end.isoformat(),
+            ),
+        )
+
         # inserăm noua închiriere
         cur.execute(
             "INSERT INTO rezervari (loc_id, client, client_id, data_start, data_end, suma, created_by)"
@@ -856,18 +869,19 @@ def export_sales_report():
             sum_sale_free = sum_sale_total[~sold_mask].sum()
 
             start = len(df_sheet) + 2
+            value_col = STAT_MERGE_END + 1
             ws.merge_range(start, 0, start, STAT_MERGE_END, "Locații vândute", stat_lbl_fmt)
-            ws.write(start, len(df_sheet.columns) - 1, f"{count_sold} ({pct_sold:.2%})", stat_int_fmt)
+            ws.write(start, value_col, f"{count_sold} ({pct_sold:.2%})", stat_int_fmt)
             ws.merge_range(start + 1, 0, start + 1, STAT_MERGE_END, "Locații nevândute", stat_lbl_fmt)
-            ws.write(start + 1, len(df_sheet.columns) - 1, f"{count_free} ({pct_free:.2%})", stat_int_fmt)
+            ws.write(start + 1, value_col, f"{count_free} ({pct_free:.2%})", stat_int_fmt)
             ws.merge_range(start + 2, 0, start + 2, STAT_MERGE_END, "Preț vânzare total", stat_lbl_fmt)
-            ws.write(start + 2, len(df_sheet.columns) - 1, sum_sale, stat_money_fmt)
+            ws.write(start + 2, value_col, sum_sale, stat_money_fmt)
             pct_sale_sold = sum_sale_sold / sum_sale if sum_sale else 0
             pct_sale_free = sum_sale_free / sum_sale if sum_sale else 0
             ws.merge_range(start + 3, 0, start + 3, STAT_MERGE_END, "Sumă locații vândute", stat_lbl_fmt)
-            ws.write(start + 3, len(df_sheet.columns) - 1, f"€{sum_sale_sold:,.2f} ({pct_sale_sold:.2%})", stat_money_pos_fmt)
+            ws.write(start + 3, value_col, f"€{sum_sale_sold:,.2f} ({pct_sale_sold:.2%})", stat_money_pos_fmt)
             ws.merge_range(start + 4, 0, start + 4, STAT_MERGE_END, "Sumă locații nevândute", stat_lbl_fmt)
-            ws.write(start + 4, len(df_sheet.columns) - 1, f"€{sum_sale_free:,.2f} ({pct_sale_free:.2%})", stat_money_neg_fmt)
+            ws.write(start + 4, value_col, f"€{sum_sale_free:,.2f} ({pct_sale_free:.2%})", stat_money_neg_fmt)
 
         current_year = datetime.date.today().year
         df_rez = pd.read_sql_query(
@@ -936,8 +950,9 @@ def export_sales_report():
                 ws.set_column(idx, idx, width)
             overall_pct = df_sheet["% An vândut"].mean()
             start = len(df_sheet) + 2
+            value_col = STAT_MERGE_END + 1
             ws.merge_range(start, 0, start, STAT_MERGE_END, "% Total an", stat_lbl_fmt)
-            ws.write(start, len(df_sheet.columns)-1, overall_pct, stat_percent_fmt)
+            ws.write(start, value_col, overall_pct, stat_percent_fmt)
 
         write_total_sheet(df_total)
 

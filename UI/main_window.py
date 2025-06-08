@@ -349,6 +349,7 @@ def start_app(user, root=None):
                              command=lambda: open_edit_window(root, selected_id[0], load_locations, refresh_groups))
 
     btn_rent    = ttk.Button(primary_frame, text="Închiriază", state="disabled")
+    btn_release = ttk.Button(primary_frame, text="Eliberează", state="disabled")
     btn_reserve = ttk.Button(primary_frame, text="Rezervă", state="disabled")
     btn_delete  = ttk.Button(primary_frame, text="Șterge", state="disabled",
                              command=lambda: delete_location())
@@ -363,7 +364,7 @@ def start_app(user, root=None):
     else:
         # vânzătorii pot doar închiria/elibera și gestiona clienți
         pass
-    for w in (btn_rent, btn_reserve, btn_clients):
+    for w in (btn_rent, btn_release, btn_reserve, btn_clients):
         w.pack(side="left", padx=5, pady=5)
 
 
@@ -552,6 +553,7 @@ def start_app(user, root=None):
         if not sel:
             btn_edit.config(state='disabled')
             btn_rent.config(state='disabled')
+            btn_release.config(state='disabled')
             btn_delete.config(state='disabled')
             img_label.config(image="", text="")
             btn_download.config(state='disabled')
@@ -638,19 +640,28 @@ def start_app(user, root=None):
         if user.get("role") == 'admin':
             btn_edit.config(state='normal')
 
-        # Buton închiriere/eliberare
-        if status == "Închiriat":
-            btn_rent.config(
-                text="Eliberează",
+        # Butoane închiriere și eliberare
+        btn_rent.config(
+            text="Închiriază",
+            state='normal',
+            command=lambda: open_rent_window(root, loc_id, load_locations, user),
+        )
+
+        rows = cursor.execute(
+            "SELECT created_by, suma FROM rezervari WHERE loc_id=?",
+            (loc_id,),
+        ).fetchall()
+        if user.get("role") == 'admin':
+            has_entry = bool(rows)
+        else:
+            has_entry = any(r[0] == user["username"] or r[1] is not None for r in rows)
+        if has_entry:
+            btn_release.config(
                 state='normal',
-                command=lambda: open_release_window(root, loc_id, load_locations, user)
+                command=lambda: open_release_window(root, loc_id, load_locations, user),
             )
         else:
-            btn_rent.config(
-                text="Închiriază",
-                state='normal',
-                command=lambda: open_rent_window(root, loc_id, load_locations, user)
-            )
+            btn_release.config(state='disabled', command=lambda: None)
 
         if status == "Disponibil":
             btn_reserve.config(
