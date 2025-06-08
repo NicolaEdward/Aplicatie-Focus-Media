@@ -886,29 +886,19 @@ def export_sales_report():
             "id","city","county","address","type","size","sqm","illumination",
             "ratecard","pret_vanzare","grup","status"
         ]].copy()
-        sold_count = {loc_id: 0 for loc_id in df_base["id"]}
-        for month in range(1, 13):
-            start_m = pd.Timestamp(current_year, month, 1)
-            end_m = start_m + pd.offsets.MonthEnd(0)
-            mask = (df_rez["data_end"] >= start_m) & (df_rez["data_start"] <= end_m)
-            ids = df_rez.loc[mask, "id"].unique()
-            for loc_id in ids:
-                sold_count[loc_id] += 1
+
+        # Calculăm numărul total de zile vândute și valoarea reală pentru fiecare locație
+        df_rez["days"] = (df_rez["data_end"] - df_rez["data_start"]).dt.days + 1
+        df_rez["val_real"] = df_rez["suma"] / 30 * df_rez["days"]
+        agg = df_rez.groupby("id").agg({"days": "sum", "val_real": "sum"})
 
         # Sheet summarizing the entire year
         df_total = df_base.copy()
-        df_total["Sold Months"] = df_total["id"].map(sold_count)
+        df_total["Sold Days"] = df_total["id"].map(agg["days"]).fillna(0)
+        df_total["Sold Months"] = df_total["Sold Days"] / 30
         df_total["% Year Sold"] = df_total["Sold Months"] / 12
         df_total["pret_vanzare"] = pd.to_numeric(df_total["pret_vanzare"], errors="coerce").fillna(0)
-        year_start = pd.Timestamp(current_year, 1, 1)
-        year_end = pd.Timestamp(current_year, 12, 31)
-        mask_year = (
-            (df_rez["data_end"] >= year_start)
-            & (df_rez["data_start"] <= year_end)
-            & df_rez["suma"].notna()
-        )
-        sum_year = df_rez.loc[mask_year].groupby("id")["suma"].sum()
-        df_total["Total Sum"] = df_total["id"].map(sum_year).fillna(0)
+        df_total["Total Sum"] = df_total["id"].map(agg["val_real"]).fillna(0)
         grp_order = df_total.groupby("grup")["pret_vanzare"].max().sort_values(ascending=False).index
         order_map = {g: i for i, g in enumerate(grp_order)}
         df_total["__grp"] = df_total["grup"].map(order_map)
@@ -949,33 +939,14 @@ def export_sales_report():
                 ws.set_column(idx, idx, width)
             sold_mask = df_sheet["Luni vândută"] > 0
             pct_sold = sold_mask.mean()
-            pct_free = 1 - pct_sold
-            count_sold = int(sold_mask.sum())
-            count_free = int(len(df_sheet) - count_sold)
-            sum_sale_total = pd.to_numeric(df_sheet["PRET DE VANZARE"], errors="coerce").fillna(0)
-            sum_sale = sum_sale_total.sum()
-            sum_sale_sold = sum_sale_total[sold_mask].sum()
-            sum_sale_free = sum_sale_total[~sold_mask].sum()
-
             merge_end = len(df_sheet.columns) - 2
             value_col = merge_end + 1
             start = len(df_sheet) + 2
-            ws.merge_range(start, 0, start, merge_end, "Locații vândute", stat_lbl_fmt)
-            ws.write(start, value_col, f"{count_sold} ({pct_sold:.2%})", stat_int_fmt)
-            ws.merge_range(start + 1, 0, start + 1, merge_end, "Locații nevândute", stat_lbl_fmt)
-            ws.write(start + 1, value_col, f"{count_free} ({pct_free:.2%})", stat_int_fmt)
-            ws.merge_range(start + 2, 0, start + 2, merge_end, "Preț vânzare total", stat_lbl_fmt)
-            ws.write(start + 2, value_col, sum_sale, stat_money_fmt)
-            pct_sale_sold = sum_sale_sold / sum_sale if sum_sale else 0
-            pct_sale_free = sum_sale_free / sum_sale if sum_sale else 0
-            ws.merge_range(start + 3, 0, start + 3, merge_end, "Sumă locații vândute", stat_lbl_fmt)
-            ws.write(start + 3, value_col, f"€{sum_sale_sold:,.2f} ({pct_sale_sold:.2%})", stat_money_pos_fmt)
-            ws.merge_range(start + 4, 0, start + 4, merge_end, "Sumă locații nevândute", stat_lbl_fmt)
-            ws.write(start + 4, value_col, f"€{sum_sale_free:,.2f} ({pct_sale_free:.2%})", stat_money_neg_fmt)
-            overall_pct = df_sheet["% An vândut"].mean()
-            start += 5
-            ws.merge_range(start, 0, start, merge_end, "% Total an", stat_lbl_fmt)
-            ws.write(start, value_col, overall_pct, stat_percent_fmt)
+            ws.merge_range(start, 0, start, merge_end, "% Locații vândute în an", stat_lbl_fmt)
+            ws.write(start, value_col, pct_sold, stat_percent_fmt)
+            total_sum = pd.to_numeric(df_sheet["SUMĂ AN"], errors="coerce").fillna(0).sum()
+            ws.merge_range(start + 1, 0, start + 1, merge_end, "Sumă totală", stat_lbl_fmt)
+            ws.write(start + 1, value_col, total_sum, stat_money_fmt)
 
         write_total_sheet(df_total)
 
