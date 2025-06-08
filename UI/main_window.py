@@ -76,6 +76,7 @@ from UI.dialogs import (
     open_detail_window,
     open_add_window,
     open_edit_window,
+    open_edit_rent_window,
     open_rent_window,
     open_reserve_window,
     open_release_window,
@@ -372,7 +373,7 @@ def start_app(user, root=None):
     else:
         # vânzătorii pot doar închiria/elibera și gestiona clienți
         pass
-    for w in (btn_rent, btn_release, btn_extend, btn_reserve, btn_clients):
+    for w in (btn_rent, btn_release, btn_reserve, btn_clients):
         w.pack(side="left", padx=5, pady=5)
 
 
@@ -688,6 +689,8 @@ def start_app(user, root=None):
             btn_release.config(state="disabled", command=lambda: None)
 
         if data.get("is_mobile") and data.get("parent_id"):
+            if not btn_extend.winfo_ismapped():
+                btn_extend.pack(side="left", padx=5, pady=5)
             rid_row = cursor.execute(
                 "SELECT id FROM rezervari WHERE loc_id=? AND ? BETWEEN data_start AND data_end AND suma IS NOT NULL ORDER BY id DESC LIMIT 1",
                 (loc_id, datetime.date.today().isoformat()),
@@ -701,6 +704,8 @@ def start_app(user, root=None):
             else:
                 btn_extend.config(state="disabled", command=lambda: None)
         else:
+            if btn_extend.winfo_ismapped():
+                btn_extend.pack_forget()
             btn_extend.config(state="disabled", command=lambda: None)
 
         if status == "Disponibil" and not (
