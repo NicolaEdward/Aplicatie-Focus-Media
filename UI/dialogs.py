@@ -536,7 +536,7 @@ def export_available_excel(
     import datetime
     import pandas as pd
     from tkinter import messagebox, filedialog
-    from db import pandas_conn
+    from db import read_sql_query
 
     # 1) Construim WHERE identic cu load_locations()
     cond, params = [], []
@@ -571,8 +571,8 @@ def export_available_excel(
     """
 
     # 2) Citim datele
-    df = pd.read_sql_query(
-        sql, pandas_conn(), params=params,
+    df = read_sql_query(
+        sql, params=params,
         parse_dates=['data_start', 'data_end']
     )
     if df.empty:
@@ -696,18 +696,17 @@ def export_sales_report():
     import pandas as pd
     import datetime
     from tkinter import messagebox, filedialog
-    from db import pandas_conn, update_statusuri_din_rezervari
+    from db import read_sql_query, update_statusuri_din_rezervari
 
     update_statusuri_din_rezervari()
 
-    df_loc = pd.read_sql_query(
+    df_loc = read_sql_query(
         """
         SELECT id, city, county, address, type, size, sqm, illumination,
                ratecard, pret_vanzare, grup, status
           FROM locatii
          ORDER BY county, city, id
         """,
-        pandas_conn(),
     )
 
     if df_loc.empty:
@@ -886,7 +885,7 @@ def export_sales_report():
         current_year = datetime.date.today().year
         year_start = datetime.date(current_year, 1, 1)
         year_end = datetime.date(current_year, 12, 31)
-        df_rez = pd.read_sql_query(
+        df_rez = read_sql_query(
             """
             SELECT l.id, l.grup, l.city, l.county, l.address, l.type, l.size, l.sqm, l.illumination,
                    l.ratecard, l.pret_vanzare, r.client, r.data_start, r.data_end, r.suma
@@ -895,7 +894,6 @@ def export_sales_report():
              WHERE NOT (r.data_end < ? OR r.data_start > ?)
              ORDER BY r.data_start
             """,
-            pandas_conn(),
             params=[year_start.isoformat(), year_end.isoformat()],
             parse_dates=["data_start", "data_end"],
         )
@@ -1018,7 +1016,7 @@ def open_offer_window(tree):
     from tkinter import ttk, messagebox, filedialog
     import os
     from utils import PREVIEW_FOLDER
-    from db import pandas_conn
+    from db import read_sql_query
 
     # 1. Preluare selecție
     sel = tree.selection()
@@ -1074,9 +1072,8 @@ def open_offer_window(tree):
             f"ratecard, pret_vanzare, data_start, data_end "
             f"FROM locatii WHERE id IN ({','.join(['?']*len(ids))})"
         )
-        df = pd.read_sql_query(
+        df = read_sql_query(
             sql,
-            pandas_conn(),
             params=ids,
             parse_dates=["data_start", "data_end"],
         )
@@ -1463,24 +1460,22 @@ def export_vendor_report():
     """Exporta un raport detaliat pentru fiecare vânzător."""
     import pandas as pd
     from tkinter import filedialog, messagebox
-    from db import pandas_conn
+    from db import read_sql_query
 
-    users = pd.read_sql_query(
+    users = read_sql_query(
         "SELECT username, comune FROM users WHERE role='seller'",
-        pandas_conn(),
     )
     if users.empty:
         messagebox.showinfo("Raport", "Nu există vânzători.")
         return
 
-    df = pd.read_sql_query(
+    df = read_sql_query(
         """
         SELECT r.created_by, r.suma, r.data_start, r.data_end,
                l.city, l.county, l.address
           FROM rezervari r
           JOIN locatii l ON r.loc_id = l.id
         """,
-        pandas_conn(),
         parse_dates=["data_start", "data_end"],
     )
 
