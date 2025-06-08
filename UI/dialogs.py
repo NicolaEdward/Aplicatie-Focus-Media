@@ -420,8 +420,11 @@ def open_rent_window(root, loc_id, load_cb, user):
         ).fetchall()
         for suma, owner in rows:
             # Orice închiriere existentă blochează intervalul, iar o rezervare
-            # făcută de alt vânzător nu poate fi suprascrisă.
-            if suma is not None or owner != user["username"]:
+            # făcută de alt vânzător nu poate fi suprascrisă. În cazul prismei
+            # mobile, pentru locația de bază există înregistrări cu ``suma``
+            # zero create de același utilizator, astfel că ignorăm aceste
+            # suprapuneri.
+            if (suma is not None and suma > 0) or owner != user["username"]:
                 messagebox.showerror(
                     "Perioadă ocupată",
                     "Locația este deja rezervată sau închiriată în intervalul ales.",
