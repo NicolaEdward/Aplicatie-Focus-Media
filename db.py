@@ -515,6 +515,12 @@ def update_statusuri_din_rezervari():
     today = datetime.date.today().isoformat()
     cur = conn.cursor()
 
+    # Ștergem rezervările expirate (fără sumă) care nu au fost anulate
+    cur.execute(
+        "DELETE FROM rezervari WHERE data_end < ? AND suma IS NULL",
+        (today,),
+    )
+
     # 1) Resetăm totul la Disponibil
     cur.execute("""
         UPDATE locatii

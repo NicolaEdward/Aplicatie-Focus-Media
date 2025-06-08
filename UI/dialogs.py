@@ -891,7 +891,7 @@ def export_sales_report():
                    l.ratecard, l.pret_vanzare, r.client, r.data_start, r.data_end, r.suma
               FROM rezervari r
               JOIN locatii l ON r.loc_id = l.id
-             WHERE NOT (r.data_end < ? OR r.data_start > ?)
+             WHERE r.suma IS NOT NULL AND NOT (r.data_end < ? OR r.data_start > ?)
              ORDER BY r.data_start
             """,
             params=[year_start.isoformat(), year_end.isoformat()],
@@ -1298,7 +1298,7 @@ def export_client_backup(month, year, client_id=None):
         "FROM rezervari r "
         "JOIN locatii l ON r.loc_id = l.id "
         "JOIN clienti c ON r.client_id = c.id "
-        "WHERE NOT (r.data_end < ? OR r.data_start > ?)"
+        "WHERE r.suma IS NOT NULL AND NOT (r.data_end < ? OR r.data_start > ?)"
     )
     params = [start_m.isoformat(), end_m.isoformat()]
     if client_id:
@@ -1475,6 +1475,7 @@ def export_vendor_report():
                l.city, l.county, l.address
           FROM rezervari r
           JOIN locatii l ON r.loc_id = l.id
+         WHERE r.suma IS NOT NULL
         """,
         parse_dates=["data_start", "data_end"],
     )
