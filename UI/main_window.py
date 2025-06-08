@@ -366,15 +366,17 @@ def start_app(user, root=None):
                              command=lambda: open_clients_window(root))
     btn_users = ttk.Button(primary_frame, text="Utilizatori",
                            command=lambda: open_users_window(root))
-    if user.get("role") == 'admin':
+    role = user.get("role")
+    if role in ("admin", "manager"):
         for w in (btn_add, btn_edit, btn_delete):
             w.pack(side="left", padx=5, pady=5)
-        btn_users.pack(side="left", padx=5, pady=5)
-    else:
-        # vânzătorii pot doar închiria/elibera și gestiona clienți
-        pass
-    for w in (btn_rent, btn_release, btn_reserve, btn_clients):
+        if role == "admin":
+            btn_users.pack(side="left", padx=5, pady=5)
+    for w in (btn_clients,):
         w.pack(side="left", padx=5, pady=5)
+    if role != "manager":
+        for w in (btn_rent, btn_release, btn_reserve):
+            w.pack(side="left", padx=5, pady=5)
 
 
     export_frame = ttk.Frame(frm_bot)
@@ -398,7 +400,7 @@ def start_app(user, root=None):
     btn_xlsx.pack(side="left", padx=5, pady=5)
     btn_offer.pack(side="left", padx=5, pady=5)
     btn_report.pack(side="left", padx=5, pady=5)
-    if user.get("role") == 'admin':
+    if role in ("admin", "manager"):
         btn_vendor.pack(side="left", padx=5, pady=5)
     btn_update.pack(side="left", padx=5, pady=5)
 
@@ -664,69 +666,83 @@ def start_app(user, root=None):
                     lbl_next_rent_label.pack(anchor="center", pady=2)
                     lbl_next_rent_value.pack(anchor="center", pady=2)
 
-        if user.get("role") == 'admin':
+        if role in ("admin", "manager"):
             btn_edit.config(state='normal')
-
+        
         # Butoane închiriere și eliberare
-        btn_rent.config(
-            text="Închiriază",
-            state='normal',
-            command=lambda: open_rent_window(root, loc_id, load_locations, user),
-        )
+        if role != "manager":
+            btn_rent.config(
+                text="Închiriază",
+                state='normal',
+                command=lambda: open_rent_window(root, loc_id, load_locations, user),
+            )
+        else:
+            btn_rent.config(state='disabled', command=lambda: None)
 
         has_rentals = cursor.execute(
             "SELECT 1 FROM rezervari WHERE loc_id=? AND suma IS NOT NULL LIMIT 1",
             (loc_id,),
         ).fetchone()
-        if has_rentals:
-            btn_release.config(
-                state="normal",
-                command=lambda: open_release_window(
-                    root, loc_id, load_locations, user
-                ),
-            )
+        if role != "manager":
+            if has_rentals:
+                btn_release.config(
+                    state="normal",
+                    command=lambda: open_release_window(
+                        root, loc_id, load_locations, user
+                    ),
+                )
+            else:
+                btn_release.config(state="disabled", command=lambda: None)
         else:
             btn_release.config(state="disabled", command=lambda: None)
 
-        if data.get("is_mobile") and data.get("parent_id"):
-            if not btn_extend.winfo_ismapped():
-                btn_extend.pack(side="left", padx=5, pady=5)
-            rid_row = cursor.execute(
-                "SELECT id FROM rezervari WHERE loc_id=? AND ? BETWEEN data_start AND data_end AND suma IS NOT NULL ORDER BY id DESC LIMIT 1",
-                (loc_id, datetime.date.today().isoformat()),
-            ).fetchone()
-            if rid_row:
-                rid = rid_row[0]
-                btn_extend.config(
-                    state="normal",
-                    command=lambda r=rid, ds=data.get("data_start"), de=data.get("data_end"), pid=data.get("parent_id"): open_edit_rent_window(root, r, load_locations, parent=(pid, ds, de)),
-                )
+        if role != "manager":
+            if data.get("is_mobile") and data.get("parent_id"):
+                if not btn_extend.winfo_ismapped():
+                    btn_extend.pack(side="left", padx=5, pady=5)
+                rid_row = cursor.execute(
+                    "SELECT id FROM rezervari WHERE loc_id=? AND ? BETWEEN data_start AND data_end AND suma IS NOT NULL ORDER BY id DESC LIMIT 1",
+                    (loc_id, datetime.date.today().isoformat()),
+                ).fetchone()
+                if rid_row:
+                    rid = rid_row[0]
+                    btn_extend.config(
+                        state="normal",
+                        command=lambda r=rid, ds=data.get("data_start"), de=data.get("data_end"), pid=data.get("parent_id"): open_edit_rent_window(root, r, load_locations, parent=(pid, ds, de)),
+                    )
+                else:
+                    btn_extend.config(state="disabled", command=lambda: None)
             else:
+                if btn_extend.winfo_ismapped():
+                    btn_extend.pack_forget()
                 btn_extend.config(state="disabled", command=lambda: None)
         else:
             if btn_extend.winfo_ismapped():
                 btn_extend.pack_forget()
             btn_extend.config(state="disabled", command=lambda: None)
 
-        if status == "Disponibil" and not (
-            data.get("is_mobile") and not data.get("parent_id")
-        ):
-            btn_reserve.config(
-                text="Rezervă",
-                state='normal',
-                command=lambda: open_reserve_window(root, loc_id, load_locations, user)
-            )
-        elif status == "Rezervat" and reserved_info and reserved_info[0] == user["username"]:
-            btn_reserve.config(
-                text="Anulează rezervarea",
-                state='normal',
-                command=lambda: cancel_reservation(root, loc_id, load_locations)
-            )
+        if role != "manager":
+            if status == "Disponibil" and not (
+                data.get("is_mobile") and not data.get("parent_id")
+            ):
+                btn_reserve.config(
+                    text="Rezervă",
+                    state='normal',
+                    command=lambda: open_reserve_window(root, loc_id, load_locations, user)
+                )
+            elif status == "Rezervat" and reserved_info and reserved_info[0] == user["username"]:
+                btn_reserve.config(
+                    text="Anulează rezervarea",
+                    state='normal',
+                    command=lambda: cancel_reservation(root, loc_id, load_locations)
+                )
+            else:
+                btn_reserve.config(text="Rezervă", state='disabled')
         else:
             btn_reserve.config(text="Rezervă", state='disabled')
 
 
-        if user.get("role") == 'admin':
+        if role in ("admin", "manager"):
             btn_delete.config(state='normal')
         else:
             btn_delete.config(state='disabled')
