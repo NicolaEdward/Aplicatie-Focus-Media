@@ -429,6 +429,22 @@ def open_rent_window(root, loc_id, load_cb, user):
                 return
 
         if is_base_mobile:
+            cnt = cur.execute(
+                """
+                SELECT COUNT(*) FROM rezervari
+                 WHERE loc_id IN (SELECT id FROM locatii WHERE parent_id=?)
+                   AND NOT (data_end < ? OR data_start > ?)
+                   AND suma IS NOT NULL
+                """,
+                (loc_id, start.isoformat(), end.isoformat()),
+            ).fetchone()[0]
+            if cnt >= 20:
+                messagebox.showerror(
+                    "Limită depășită",
+                    "Nu poți închiria mai mult de 20 de prisme simultan.",
+                )
+                return
+
             addr_val = entry_addr.get().strip() if entry_addr else ""
             gps_val = entry_gps.get().strip() if entry_gps else ""
             if not addr_val or not gps_val:
@@ -812,6 +828,7 @@ def export_sales_report():
          ORDER BY county, city, id
         """,
     )
+    df_loc = df_loc[~((df_loc["is_mobile"] == 1) & (df_loc["parent_id"].isna()))]
 
     if df_loc.empty:
         messagebox.showinfo("Export Excel", "Nu există locații în baza de date.")
@@ -970,7 +987,7 @@ def export_sales_report():
             sum_sale_sold = sum_sale_total[sold_mask].sum()
             sum_sale_free = sum_sale_total[~sold_mask].sum()
 
-            merge_end = len(df_sheet.columns) - 2
+            merge_end = min(STAT_MERGE_END, len(df_sheet.columns) - 2)
             value_col = merge_end + 1
             start = len(df_sheet) + 2
             ws.merge_range(start, 0, start, merge_end, "Locații vândute", stat_lbl_fmt)
@@ -1003,6 +1020,7 @@ def export_sales_report():
             params=[year_start.isoformat(), year_end.isoformat()],
             parse_dates=["data_start", "data_end"],
         )
+        df_rez = df_rez[~((df_rez["is_mobile"] == 1) & (df_rez["parent_id"].isna()))]
 
         df_all = df_loc[[
             "id","city","county","address","type","size","sqm","illumination",
@@ -1015,7 +1033,6 @@ def export_sales_report():
 
         records = []
         for row in df_rez.itertuples(index=False):
-            base_id = row.parent_id if pd.notna(row.parent_id) else row.id
             start = max(row.data_start.date(), year_start)
             end = min(row.data_end.date(), year_end)
             cur = start
@@ -1026,7 +1043,7 @@ def export_sales_report():
                 days = (ov_end - cur).days + 1
                 frac = days / dim
                 records.append({
-                    "id": base_id,
+                    "id": row.id,
                     "days": days,
                     "months": frac,
                     "val_real": row.suma * frac,
@@ -1036,10 +1053,7 @@ def export_sales_report():
         df_rec = pd.DataFrame(records)
         agg = df_rec.groupby("id").agg({"days": "sum", "months": "sum", "val_real": "sum"})
 
-        df_rez["base_id"] = df_rez["parent_id"].where(df_rez["parent_id"].notna(), df_rez["id"])
-        units_sold = df_rez.groupby("base_id")["id"].nunique()
-        ratecard_sum = df_rez.groupby("base_id")["ratecard"].sum()
-        sale_sum = df_rez.groupby("base_id")["pret_vanzare"].sum()
+        units_sold = df_rez.groupby("id")["id"].count()
 
         # Sheet summarizing the entire year
         df_total = df_base.copy()
@@ -1049,13 +1063,6 @@ def export_sales_report():
         df_total["pret_vanzare"] = pd.to_numeric(df_total["pret_vanzare"], errors="coerce").fillna(0)
         df_total["Total Sum"] = df_total["id"].map(agg["val_real"]).fillna(0)
         df_total["Units Sold"] = df_total["id"].map(units_sold).fillna(0).astype(int)
-
-        mask_mobile = df_total["is_mobile"] == 1
-        df_total.loc[mask_mobile, "address"] = df_total.loc[mask_mobile].apply(
-            lambda r: f"{r['address']} * {r['Units Sold']}", axis=1
-        )
-        df_total.loc[mask_mobile, "ratecard"] = df_total.loc[mask_mobile, "id"].map(ratecard_sum).fillna(df_total.loc[mask_mobile, "ratecard"])
-        df_total.loc[mask_mobile, "pret_vanzare"] = df_total.loc[mask_mobile, "id"].map(sale_sum).fillna(df_total.loc[mask_mobile, "pret_vanzare"])
         grp_order = df_total.groupby("grup")["pret_vanzare"].max().sort_values(ascending=False).index
         order_map = {g: i for i, g in enumerate(grp_order)}
         df_total["__grp"] = df_total["grup"].map(order_map)
@@ -1096,7 +1103,7 @@ def export_sales_report():
                 ws.set_column(idx, idx, width)
             sold_mask = df_sheet["Luni vândută"] > 0
             pct_sold = sold_mask.mean()
-            merge_end = len(df_sheet.columns) - 2
+            merge_end = min(STAT_MERGE_END, len(df_sheet.columns) - 2)
             value_col = merge_end + 1
             start = len(df_sheet) + 2
             ws.merge_range(start, 0, start, merge_end, "% Locații vândute în an", stat_lbl_fmt)
@@ -1111,9 +1118,24 @@ def export_sales_report():
             start_m = pd.Timestamp(current_year, month, 1)
             end_m = start_m + pd.offsets.MonthEnd(0)
             mask = (df_rez["data_end"] >= start_m) & (df_rez["data_start"] <= end_m)
-            sub = df_rez.loc[mask]
-            sub = sub.sort_values("data_start").groupby("id", as_index=False).first()
-            df_month = df_all.merge(sub[["id","client","data_start","data_end","suma"]], on="id", how="left")
+            sub = df_rez.loc[mask].copy()
+            if not sub.empty:
+                mdays = calendar.monthrange(start_m.year, start_m.month)[1]
+                sub["overlap_start"] = sub["data_start"].clip(lower=start_m)
+                sub["overlap_end"] = sub["data_end"].clip(upper=end_m)
+                sub["suma"] = sub.apply(
+                    lambda r: r.suma * ((r.overlap_end - r.overlap_start).days + 1) / mdays,
+                    axis=1,
+                )
+                grouped = sub.groupby("id").agg({
+                    "client": "first",
+                    "overlap_start": "min",
+                    "overlap_end": "max",
+                    "suma": "sum",
+                }).reset_index().rename(columns={"overlap_start": "data_start", "overlap_end": "data_end"})
+            else:
+                grouped = pd.DataFrame(columns=["id","client","data_start","data_end","suma"])
+            df_month = df_all.merge(grouped, on="id", how="left")
             df_month["status"] = df_month["client"].apply(lambda x: "Închiriat" if pd.notna(x) else "Disponibil")
             df_month["pret_vanzare"] = pd.to_numeric(df_month["pret_vanzare"], errors="coerce").fillna(0)
             grp_order = df_month.groupby("grup")["pret_vanzare"].max().sort_values(ascending=False).index
@@ -1208,6 +1230,7 @@ def open_offer_window(tree):
                     f"Câte bucăți pentru {row['address']}?",
                     parent=win,
                     minvalue=1,
+                    maxvalue=20,
                     initialvalue=1,
                 )
                 if q:
@@ -1217,6 +1240,8 @@ def open_offer_window(tree):
         # 5. Calcul disponibilitate
         today = datetime.date.today()
         def avail(r):
+            if r.get("is_mobile") and not r.get("parent_id"):
+                return "Disponibil"
             ds, de = r['data_start'], r['data_end']
             if pd.notna(ds) and ds.date() > today:
                 return f"Până pe {(ds.date() - datetime.timedelta(days=1)).strftime('%d.%m.%Y')}"
