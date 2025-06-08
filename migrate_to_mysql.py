@@ -76,7 +76,9 @@ def create_tables(cur):
             data_start TEXT,
             data_end TEXT,
             grup VARCHAR(255),
-            face VARCHAR(32) DEFAULT 'Fața A'
+            face VARCHAR(32) DEFAULT 'Fața A',
+            is_mobile TINYINT(1) DEFAULT 0,
+            parent_id INT
         )
         """
     )

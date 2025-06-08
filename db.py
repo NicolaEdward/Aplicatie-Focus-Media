@@ -460,6 +460,27 @@ def init_db():
             if col not in existing:
                 cursor.execute(f"ALTER TABLE locatii ADD COLUMN {col} {definition}")
                 conn.commit()
+    else:
+        cur = conn.cursor()
+        cur.execute("SHOW COLUMNS FROM locatii")
+        existing = {row[0] for row in cur.fetchall()}
+
+        to_add = {
+            "pret_vanzare": "DOUBLE",
+            "pret_flotant": "DOUBLE",
+            "client_id": "INT",
+            "is_mobile": "TINYINT(1) DEFAULT 0",
+            "parent_id": "INT",
+        }
+
+        if "face" not in existing:
+            cur.execute("ALTER TABLE locatii ADD COLUMN face VARCHAR(32) DEFAULT 'Fața A'")
+            conn.commit()
+
+        for col, definition in to_add.items():
+            if col not in existing:
+                cur.execute(f"ALTER TABLE locatii ADD COLUMN {col} {definition}")
+                conn.commit()
 
 
 def init_clienti_table():
