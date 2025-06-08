@@ -151,19 +151,28 @@ def open_add_window(root, refresh_cb):
         e.grid(row=i, column=1, padx=5, pady=2)
         entries[lbl] = e
 
+    var_mobile = tk.BooleanVar()
+    ttk.Checkbutton(win, text="Este locație mobilă", variable=var_mobile).grid(
+        row=len(labels), column=0, columnspan=2, pady=(5, 0)
+    )
+
     def save():
         vals = {k: e.get().strip() for k, e in entries.items()}
         if not vals["City"]:
             messagebox.showwarning("Lipsește date", "Completează City.")
             return
+        if var_mobile.get():
+            vals.setdefault("Grup", "Prisme mobile")
+            vals.setdefault("Type", "Prismă mobilă")
+            vals.setdefault("Size", "3.2x2.4")
         cur = conn.cursor()
         cur.execute("""
             INSERT INTO locatii (
                 city, county, address, type, gps, code, size,
                 photo_link, sqm, illumination, ratecard,
                 pret_vanzare, pret_flotant, decoration_cost,
-                observatii, grup, face
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                observatii, grup, face, is_mobile, parent_id
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, [
             vals["City"], vals["County"], vals["Address"], vals["Type"],
             vals["GPS"], vals["Code"], vals["Size"],
@@ -172,14 +181,15 @@ def open_add_window(root, refresh_cb):
             vals["Preț Vânzare"] or None,
             vals["Preț Flotant"] or None,
             vals["Decoration cost"] or None,
-            vals["Observații"], vals["Grup"], vals["Față"]
+            vals["Observații"], vals["Grup"], vals["Față"],
+            1 if var_mobile.get() else 0, None
         ])
         conn.commit()
         refresh_cb()
         win.destroy()
 
     ttk.Button(win, text="Salvează", command=save)\
-        .grid(row=len(labels), column=0, columnspan=2, pady=10)
+        .grid(row=len(labels)+1, column=0, columnspan=2, pady=10)
 
 
 def open_edit_window(root, loc_id, load_cb, refresh_groups_cb):
@@ -321,6 +331,10 @@ def open_rent_window(root, loc_id, load_cb, user):
     win = tk.Toplevel(root)
     win.title(f"Închiriază locația #{loc_id}")
 
+    loc_data = get_location_by_id(loc_id)
+    is_mobile = loc_data.get("is_mobile") if loc_data else 0
+    is_base_mobile = is_mobile and not loc_data.get("parent_id")
+
     ttk.Label(win, text="Client:").grid(row=0, column=0, sticky="e", padx=5, pady=5)
     def client_list():
         return [r[0] for r in conn.cursor().execute("SELECT nume FROM clienti ORDER BY nume").fetchall()]
@@ -342,6 +356,20 @@ def open_rent_window(root, loc_id, load_cb, user):
             e = ttk.Entry(win, width=30)
         e.grid(row=i, column=1, padx=5, pady=5)
         entries[lbl] = e
+
+    row_extra = len(labels) + 2
+    if is_base_mobile:
+        ttk.Label(win, text="Adresă montaj:").grid(row=row_extra, column=0, sticky="e", padx=5, pady=5)
+        entry_addr = ttk.Entry(win, width=30)
+        entry_addr.grid(row=row_extra, column=1, padx=5, pady=5)
+        row_extra += 1
+        ttk.Label(win, text="GPS:").grid(row=row_extra, column=0, sticky="e", padx=5, pady=5)
+        entry_gps = ttk.Entry(win, width=30)
+        entry_gps.grid(row=row_extra, column=1, padx=5, pady=5)
+        row_extra += 1
+    else:
+        entry_addr = None
+        entry_gps = None
 
     def save_rent():
         client = cb_client.get().strip()
@@ -400,20 +428,73 @@ def open_rent_window(root, loc_id, load_cb, user):
                 )
                 return
 
-        # inserăm noua închiriere
-        cur.execute(
-            "INSERT INTO rezervari (loc_id, client, client_id, data_start, data_end, suma, created_by)"
-            " VALUES (?, ?, ?, ?, ?, ?, ?)",
-            (
-                loc_id,
-                client_display,
-                client_id,
-                start.isoformat(),
-                end.isoformat(),
-                fee_val,
-                user["username"],
-            ),
-        )
+        if is_base_mobile:
+            addr_val = entry_addr.get().strip() if entry_addr else ""
+            gps_val = entry_gps.get().strip() if entry_gps else ""
+            if not addr_val or not gps_val:
+                messagebox.showwarning("Lipsește adresa", "Completează adresa și GPS-ul.")
+                return
+
+            base = get_location_by_id(loc_id)
+            cur.execute(
+                """
+                INSERT INTO locatii (
+                    city, county, address, type, gps, code, size,
+                    photo_link, sqm, illumination, ratecard,
+                    pret_vanzare, pret_flotant, decoration_cost,
+                    observatii, grup, face, is_mobile, parent_id
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)
+                """,
+                [
+                    base.get("city"), base.get("county"), addr_val, base.get("type"), gps_val,
+                    base.get("code"), base.get("size"), base.get("photo_link"), base.get("sqm"),
+                    base.get("illumination"), base.get("ratecard"), base.get("pret_vanzare"),
+                    base.get("pret_flotant"), base.get("decoration_cost"), base.get("observatii"),
+                    base.get("grup"), base.get("face"), loc_id
+                ],
+            )
+            new_loc_id = cur.lastrowid
+            cur.execute(
+                "INSERT INTO rezervari (loc_id, client, client_id, data_start, data_end, suma, created_by)"
+                " VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (
+                    new_loc_id,
+                    client_display,
+                    client_id,
+                    start.isoformat(),
+                    end.isoformat(),
+                    fee_val,
+                    user["username"],
+                ),
+            )
+            cur.execute(
+                "INSERT INTO rezervari (loc_id, client, client_id, data_start, data_end, suma, created_by)"
+                " VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (
+                    loc_id,
+                    client_display,
+                    client_id,
+                    start.isoformat(),
+                    end.isoformat(),
+                    0.0,
+                    user["username"],
+                ),
+            )
+        else:
+            # inserăm noua închiriere
+            cur.execute(
+                "INSERT INTO rezervari (loc_id, client, client_id, data_start, data_end, suma, created_by)"
+                " VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (
+                    loc_id,
+                    client_display,
+                    client_id,
+                    start.isoformat(),
+                    end.isoformat(),
+                    fee_val,
+                    user["username"],
+                ),
+            )
         conn.commit()
 
         # actualizăm statusurile pe baza tuturor rezervărilor
@@ -423,11 +504,15 @@ def open_rent_window(root, loc_id, load_cb, user):
         win.destroy()
 
     ttk.Button(win, text="Confirmă închiriere", command=save_rent)\
-        .grid(row=len(labels)+2, column=0, columnspan=3, pady=10)
+        .grid(row=row_extra, column=0, columnspan=3, pady=10)
 
 
-def open_edit_rent_window(root, rid, load_cb):
-    """Allow editing the rental period for reservation ``rid``."""
+def open_edit_rent_window(root, rid, load_cb, parent=None):
+    """Allow editing the rental period for reservation ``rid``.
+
+    If *parent* is provided as ``(parent_id, old_start, old_end)``, the matching
+    reservation for the parent location will be updated as well.
+    """
     cur = conn.cursor()
     row = cur.execute(
         "SELECT data_start, data_end FROM rezervari WHERE id=?",
@@ -463,6 +548,12 @@ def open_edit_rent_window(root, rid, load_cb):
             "UPDATE rezervari SET data_start=?, data_end=? WHERE id=?",
             (start.isoformat(), end.isoformat(), rid),
         )
+        if parent:
+            pid, ods, ode = parent
+            cur.execute(
+                "UPDATE rezervari SET data_start=?, data_end=? WHERE loc_id=? AND data_start=? AND data_end=? AND suma=0",
+                (start.isoformat(), end.isoformat(), pid, ods, ode),
+            )
         conn.commit()
         update_statusuri_din_rezervari()
         load_cb()
@@ -517,13 +608,26 @@ def open_release_window(root, loc_id, load_cb, user):
             "Ștergi complet perioada de închiriere?\nAlege 'Nu' pentru a modifica perioada.",
         ):
             cur.execute("DELETE FROM rezervari WHERE id=?", (rid,))
+            parent_id = cur.execute("SELECT parent_id FROM locatii WHERE id=?", (loc_id,)).fetchone()
+            if parent_id and parent_id[0]:
+                cur.execute(
+                    "DELETE FROM rezervari WHERE loc_id=? AND data_start=? AND data_end=? AND suma=0",
+                    (parent_id[0], ds, de),
+                )
+                cur.execute("DELETE FROM locatii WHERE id=?", (loc_id,))
             conn.commit()
             update_statusuri_din_rezervari()
             load_cb()
             win.destroy()
         else:
+            parent_id = cur.execute("SELECT parent_id FROM locatii WHERE id=?", (loc_id,)).fetchone()
             win.destroy()
-            open_edit_rent_window(root, rid, load_cb)
+            open_edit_rent_window(
+                root,
+                rid,
+                load_cb,
+                parent=(parent_id[0], ds, de) if parent_id and parent_id[0] else None,
+            )
 
     ttk.Button(win, text="Confirmă", command=delete_selected).grid(row=1, column=0, padx=5, pady=5)
     ttk.Button(win, text="Închide", command=win.destroy).grid(row=1, column=1, padx=5, pady=5)
@@ -703,7 +807,7 @@ def export_sales_report():
     df_loc = read_sql_query(
         """
         SELECT id, city, county, address, type, size, sqm, illumination,
-               ratecard, pret_vanzare, grup, status
+               ratecard, pret_vanzare, grup, status, is_mobile, parent_id
           FROM locatii
          ORDER BY county, city, id
         """,
@@ -888,26 +992,30 @@ def export_sales_report():
         df_rez = read_sql_query(
             """
             SELECT l.id, l.grup, l.city, l.county, l.address, l.type, l.size, l.sqm, l.illumination,
-                   l.ratecard, l.pret_vanzare, r.client, r.data_start, r.data_end, r.suma
+                   l.ratecard, l.pret_vanzare, l.is_mobile, l.parent_id,
+                   r.client, r.data_start, r.data_end, r.suma
               FROM rezervari r
               JOIN locatii l ON r.loc_id = l.id
-             WHERE r.suma IS NOT NULL AND NOT (r.data_end < ? OR r.data_start > ?)
+             WHERE r.suma IS NOT NULL AND r.suma > 0
+               AND NOT (r.data_end < ? OR r.data_start > ?)
              ORDER BY r.data_start
             """,
             params=[year_start.isoformat(), year_end.isoformat()],
             parse_dates=["data_start", "data_end"],
         )
 
-        df_base = df_loc[[
+        df_all = df_loc[[
             "id","city","county","address","type","size","sqm","illumination",
-            "ratecard","pret_vanzare","grup","status"
+            "ratecard","pret_vanzare","grup","status","is_mobile","parent_id"
         ]].copy()
+        df_base = df_all[df_all["parent_id"].isna()].copy()
 
         # Calculăm numărul total de zile vândute și valoarea reală pentru fiecare locație
         import calendar
 
         records = []
         for row in df_rez.itertuples(index=False):
+            base_id = row.parent_id if pd.notna(row.parent_id) else row.id
             start = max(row.data_start.date(), year_start)
             end = min(row.data_end.date(), year_end)
             cur = start
@@ -918,7 +1026,7 @@ def export_sales_report():
                 days = (ov_end - cur).days + 1
                 frac = days / dim
                 records.append({
-                    "id": row.id,
+                    "id": base_id,
                     "days": days,
                     "months": frac,
                     "val_real": row.suma * frac,
@@ -928,6 +1036,11 @@ def export_sales_report():
         df_rec = pd.DataFrame(records)
         agg = df_rec.groupby("id").agg({"days": "sum", "months": "sum", "val_real": "sum"})
 
+        df_rez["base_id"] = df_rez["parent_id"].where(df_rez["parent_id"].notna(), df_rez["id"])
+        units_sold = df_rez.groupby("base_id")["id"].nunique()
+        ratecard_sum = df_rez.groupby("base_id")["ratecard"].sum()
+        sale_sum = df_rez.groupby("base_id")["pret_vanzare"].sum()
+
         # Sheet summarizing the entire year
         df_total = df_base.copy()
         df_total["Sold Days"] = df_total["id"].map(agg["days"]).fillna(0)
@@ -935,6 +1048,14 @@ def export_sales_report():
         df_total["% Year Sold"] = df_total["Sold Months"] / 12
         df_total["pret_vanzare"] = pd.to_numeric(df_total["pret_vanzare"], errors="coerce").fillna(0)
         df_total["Total Sum"] = df_total["id"].map(agg["val_real"]).fillna(0)
+        df_total["Units Sold"] = df_total["id"].map(units_sold).fillna(0).astype(int)
+
+        mask_mobile = df_total["is_mobile"] == 1
+        df_total.loc[mask_mobile, "address"] = df_total.loc[mask_mobile].apply(
+            lambda r: f"{r['address']} * {r['Units Sold']}", axis=1
+        )
+        df_total.loc[mask_mobile, "ratecard"] = df_total.loc[mask_mobile, "id"].map(ratecard_sum).fillna(df_total.loc[mask_mobile, "ratecard"])
+        df_total.loc[mask_mobile, "pret_vanzare"] = df_total.loc[mask_mobile, "id"].map(sale_sum).fillna(df_total.loc[mask_mobile, "pret_vanzare"])
         grp_order = df_total.groupby("grup")["pret_vanzare"].max().sort_values(ascending=False).index
         order_map = {g: i for i, g in enumerate(grp_order)}
         df_total["__grp"] = df_total["grup"].map(order_map)
@@ -992,7 +1113,7 @@ def export_sales_report():
             mask = (df_rez["data_end"] >= start_m) & (df_rez["data_start"] <= end_m)
             sub = df_rez.loc[mask]
             sub = sub.sort_values("data_start").groupby("id", as_index=False).first()
-            df_month = df_base.merge(sub[["id","client","data_start","data_end","suma"]], on="id", how="left")
+            df_month = df_all.merge(sub[["id","client","data_start","data_end","suma"]], on="id", how="left")
             df_month["status"] = df_month["client"].apply(lambda x: "Închiriat" if pd.notna(x) else "Disponibil")
             df_month["pret_vanzare"] = pd.to_numeric(df_month["pret_vanzare"], errors="coerce").fillna(0)
             grp_order = df_month.groupby("grup")["pret_vanzare"].max().sort_values(ascending=False).index
@@ -1069,7 +1190,7 @@ def open_offer_window(tree):
         # 4. Citire date din DB (adăugăm address + pret_vanzare)
         sql = (
             f"SELECT id, city, county, address, gps, code, photo_link, sqm, type, "
-            f"ratecard, pret_vanzare, data_start, data_end "
+            f"ratecard, pret_vanzare, data_start, data_end, is_mobile, parent_id "
             f"FROM locatii WHERE id IN ({','.join(['?']*len(ids))})"
         )
         df = read_sql_query(
@@ -1077,6 +1198,21 @@ def open_offer_window(tree):
             params=ids,
             parse_dates=["data_start", "data_end"],
         )
+
+        # 4a. Cantitatea pentru locațiile mobile de bază
+        df["qty"] = 1
+        for idx, row in df.iterrows():
+            if row.get("is_mobile") and not row.get("parent_id"):
+                q = simpledialog.askinteger(
+                    "Cantitate",
+                    f"Câte bucăți pentru {row['address']}?",
+                    parent=win,
+                    minvalue=1,
+                    initialvalue=1,
+                )
+                if q:
+                    df.at[idx, "qty"] = int(q)
+                    df.at[idx, "address"] = f"{row['address']} * {int(q)}"
 
         # 5. Calcul disponibilitate
         today = datetime.date.today()
@@ -1090,12 +1226,12 @@ def open_offer_window(tree):
         df['Availability'] = df.apply(avail, axis=1)
 
         # 6. Calcul costuri
-        df['Installation & Removal'] = df['sqm'] * cost_deco
-        df['Production']             = df['sqm'] * cost_prod
+        df['Installation & Removal'] = df['sqm'] * cost_deco * df['qty']
+        df['Production']             = df['sqm'] * cost_prod * df['qty']
 
         # 7. Alege prețul de bază
         base_col = price_var.get()  # 'ratecard' sau 'pret_vanzare'
-        df['Base Price'] = df[base_col].fillna(0).astype(float)
+        df['Base Price'] = df[base_col].fillna(0).astype(float) * df['qty']
 
         # Funcție comună de scriere Excel
         def write_excel(df_export):
@@ -1475,7 +1611,7 @@ def export_vendor_report():
                l.city, l.county, l.address
           FROM rezervari r
           JOIN locatii l ON r.loc_id = l.id
-         WHERE r.suma IS NOT NULL
+         WHERE r.suma IS NOT NULL AND r.suma > 0
         """,
         parse_dates=["data_start", "data_end"],
     )
