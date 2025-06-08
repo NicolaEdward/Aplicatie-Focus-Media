@@ -202,10 +202,17 @@ def pandas_conn():
 
 
 def read_sql_query(sql: str, params=None, **kwargs):
-    """Return a DataFrame using ``pandas.read_sql_query`` with adapted placeholders."""
+    """Return a DataFrame using ``pandas.read_sql_query`` with adapted placeholders.
+
+    When connecting to MySQL through SQLAlchemy we should *not* replace the ``?``
+    placeholders since SQLAlchemy already handles them.  The replacement is only
+    required when talking directly to ``mysql.connector``.
+    """
     import pandas as pd
-    if getattr(conn, "mysql", False):
+
+    if getattr(conn, "mysql", False) and sqlalchemy is None:
         sql = sql.replace("?", "%s")
+
     return pd.read_sql_query(sql, pandas_conn(), params=params, **kwargs)
 
 
