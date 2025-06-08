@@ -327,31 +327,41 @@ def open_rent_window(root, loc_id, load_cb, user):
     win = tk.Toplevel(root)
     win.title(f"Închiriază locația #{loc_id}")
 
-    ttk.Label(win, text="Client:").grid(row=0, column=0, sticky="e", padx=5, pady=5)
-    def client_list():
-        return [r[0] for r in conn.cursor().execute("SELECT nume FROM clienti ORDER BY nume").fetchall()]
-    cb_client = ttk.Combobox(win, values=client_list(), width=27)
-    cb_client.grid(row=0, column=1, padx=5, pady=5)
-    ttk.Button(win, text="+", command=lambda: (open_add_client_window(win, lambda: cb_client.configure(values=client_list())))).grid(row=0, column=2, padx=2, pady=5)
-
-    ttk.Label(win, text="Client final (dacă agenție):").grid(row=1, column=0, sticky="e", padx=5, pady=5)
-    entry_final = ttk.Entry(win, width=30)
-    entry_final.grid(row=1, column=1, padx=5, pady=5)
-
-    ttk.Label(win, text="Campanie:").grid(row=2, column=0, sticky="e", padx=5, pady=5)
-    entry_campaign = ttk.Entry(win, width=30)
-    entry_campaign.grid(row=2, column=1, padx=5, pady=5)
-
-    ttk.Label(win, text="Firmă facturare:").grid(row=3, column=0, sticky="e", padx=5, pady=5)
+    ttk.Label(win, text="Firmă facturare:").grid(row=0, column=0, sticky="e", padx=5, pady=5)
     def firm_list():
         return [r[0] for r in conn.cursor().execute("SELECT nume FROM firme ORDER BY nume").fetchall()]
     cb_firma = ttk.Combobox(win, values=firm_list(), width=27, state="readonly")
     cb_firma.current(0)
-    cb_firma.grid(row=3, column=1, padx=5, pady=5)
+    cb_firma.grid(row=0, column=1, padx=5, pady=5)
 
-    labels = ["Data start", "Data end", "Sumă finală"]
+    ttk.Label(win, text="Client:").grid(row=1, column=0, sticky="e", padx=5, pady=5)
+    def client_list():
+        return [r[0] for r in conn.cursor().execute("SELECT nume FROM clienti ORDER BY nume").fetchall()]
+    cb_client = ttk.Combobox(win, values=client_list(), width=27)
+    cb_client.grid(row=1, column=1, padx=5, pady=5)
+    ttk.Button(win, text="+", command=lambda: (open_add_client_window(win, lambda: cb_client.configure(values=client_list())))).grid(row=1, column=2, padx=2, pady=5)
+
+    ttk.Label(win, text="Client final (dacă agenție):").grid(row=2, column=0, sticky="e", padx=5, pady=5)
+    entry_final = ttk.Entry(win, width=30)
+    entry_final.grid(row=2, column=1, padx=5, pady=5)
+    entry_final.config(state="disabled")
+
+    def _update_final(*_):
+        name = cb_client.get().strip()
+        cur = conn.cursor()
+        row = cur.execute("SELECT tip FROM clienti WHERE nume=?", (name,)).fetchone()
+        if row and row[0] == "agency":
+            entry_final.config(state="normal")
+        else:
+            entry_final.delete(0, "end")
+            entry_final.config(state="disabled")
+
+    cb_client.bind("<<ComboboxSelected>>", _update_final)
+    cb_client.bind("<FocusOut>", _update_final)
+
+    labels = ["Data start", "Data end", "Chirie/lună"]
     entries = {}
-    for i, lbl in enumerate(labels, start=4):
+    for i, lbl in enumerate(labels, start=3):
         ttk.Label(win, text=lbl + ":").grid(row=i, column=0, sticky="e", padx=5, pady=5)
         if "Data" in lbl:
             e = DatePicker(win)
@@ -359,35 +369,6 @@ def open_rent_window(root, loc_id, load_cb, user):
             e = ttk.Entry(win, width=30)
         e.grid(row=i, column=1, padx=5, pady=5)
         entries[lbl] = e
-
-    deco_info = conn.cursor().execute("SELECT decoration_cost, sqm FROM locatii WHERE id=?", (loc_id,)).fetchone()
-    deco_cost_default = deco_info[0] if deco_info else 0
-    sqm_val = deco_info[1] if deco_info else 0
-
-    ttk.Label(win, text="Data decorării:").grid(row=i+1, column=0, sticky="e", padx=5, pady=5)
-    dp_deco = DatePicker(win)
-    dp_deco.grid(row=i+1, column=1, padx=5, pady=5)
-
-    def _sync_deco(*_):
-        dp_deco.set_date(entries["Data start"].get_date())
-
-    entries["Data start"].bind("<<DateEntrySelected>>", _sync_deco)
-    _sync_deco()
-    ttk.Label(win, text="Cost decorare (€):").grid(row=i+2, column=0, sticky="e", padx=5, pady=5)
-    entry_deco = ttk.Entry(win, width=30)
-    entry_deco.insert(0, str(deco_cost_default or 0))
-    entry_deco.grid(row=i+2, column=1, padx=5, pady=5)
-    var_prod = tk.BooleanVar(value=False)
-    chk_prod = ttk.Checkbutton(win, text="Facem noi producția", variable=var_prod)
-    chk_prod.grid(row=i+3, column=0, columnspan=2, sticky="w", padx=5, pady=2)
-    ttk.Label(win, text="Preț producție (€):").grid(row=i+4, column=0, sticky="e", padx=5, pady=5)
-    entry_prod = ttk.Entry(win, width=30)
-    entry_prod.insert(0, f"{(sqm_val or 0)*7:.2f}")
-    entry_prod.grid(row=i+4, column=1, padx=5, pady=5)
-    def update_prod(*_):
-        entry_prod.config(state="normal" if var_prod.get() else "disabled")
-    var_prod.trace_add("write", update_prod)
-    update_prod()
 
     def save_rent():
         client = cb_client.get().strip()
@@ -422,7 +403,7 @@ def open_rent_window(root, loc_id, load_cb, user):
             )
             return
 
-        fee_txt = entries["Sumă finală"].get().strip()
+        fee_txt = entries["Chirie/lună"].get().strip()
         try:
             fee_val = float(fee_txt)
         except ValueError:
@@ -430,7 +411,6 @@ def open_rent_window(root, loc_id, load_cb, user):
             return
 
         cur = conn.cursor()
-        campaign = entry_campaign.get().strip() or None
         firma_name = cb_firma.get().strip()
         firma_id = None
         if firma_name:
@@ -438,26 +418,12 @@ def open_rent_window(root, loc_id, load_cb, user):
             if fr:
                 firma_id = fr[0]
 
-        deco_date = dp_deco.get_date().isoformat()
-        try:
-            deco_cost = float(entry_deco.get() or 0)
-        except ValueError:
-            messagebox.showwarning("Date incorecte", "Cost decorare invalid.")
-            return
-        try:
-            prod_cost = float(entry_prod.get() or 0) if var_prod.get() else 0.0
-        except ValueError:
-            messagebox.showwarning("Date incorecte", "Preț producție invalid.")
-            return
-
         # verificăm suprapuneri cu alte perioade
         rows = cur.execute(
             "SELECT suma, created_by FROM rezervari WHERE loc_id=? AND NOT (data_end < ? OR data_start > ?)",
             (loc_id, start.isoformat(), end.isoformat()),
         ).fetchall()
         for suma, owner in rows:
-            # Orice închiriere existentă blochează intervalul, iar o rezervare
-            # făcută de alt vânzător nu poate fi suprascrisă.
             if suma is not None or owner != user["username"]:
                 messagebox.showerror(
                     "Perioadă ocupată",
@@ -465,13 +431,11 @@ def open_rent_window(root, loc_id, load_cb, user):
                 )
                 return
 
-        # Ștergem rezervările existente pentru intervalul ales
         cur.execute(
             "DELETE FROM rezervari WHERE loc_id=? AND suma IS NULL AND NOT (data_end < ? OR data_start > ?)",
             (loc_id, start.isoformat(), end.isoformat()),
         )
 
-        # inserăm noua închiriere
         add_rental_with_decor(
             loc_id,
             client_display,
@@ -480,20 +444,16 @@ def open_rent_window(root, loc_id, load_cb, user):
             end.isoformat(),
             fee_val,
             user["username"],
-            campaign,
+            None,
             firma_id,
-            deco_date,
-            deco_cost,
-            prod_cost,
         )
-        # actualizăm statusurile pe baza tuturor rezervărilor
         update_statusuri_din_rezervari()
 
         load_cb()
         win.destroy()
 
     ttk.Button(win, text="Confirmă închiriere", command=save_rent)\
-        .grid(row=i+5, column=0, columnspan=3, pady=10)
+        .grid(row=i, column=0, columnspan=3, pady=10)
 
 
 def open_edit_rent_window(root, rid, load_cb):
