@@ -563,6 +563,8 @@ def init_rezervari_table():
                 suma DOUBLE,
                 created_by TEXT,
                 campaign TEXT,
+                decor_cost DOUBLE,
+                prod_cost DOUBLE,
                 FOREIGN KEY(loc_id) REFERENCES locatii(id),
                 FOREIGN KEY(client_id) REFERENCES clienti(id),
                 FOREIGN KEY(firma_id) REFERENCES firme(id)
@@ -577,6 +579,8 @@ def init_rezervari_table():
             "firma_id": "INT",
             "created_by": "TEXT",
             "campaign": "TEXT",
+            "decor_cost": "DOUBLE",
+            "prod_cost": "DOUBLE",
         }
         for col, definition in to_add.items():
             if col not in existing:
@@ -596,6 +600,8 @@ def init_rezervari_table():
         suma REAL,
         created_by TEXT,
         campaign TEXT,
+        decor_cost REAL,
+        prod_cost REAL,
         FOREIGN KEY(loc_id) REFERENCES locatii(id),
         FOREIGN KEY(client_id) REFERENCES clienti(id),
         FOREIGN KEY(firma_id) REFERENCES firme(id)
@@ -614,6 +620,12 @@ def init_rezervari_table():
             conn.commit()
         if "campaign" not in cols:
             cursor.execute("ALTER TABLE rezervari ADD COLUMN campaign TEXT")
+            conn.commit()
+        if "decor_cost" not in cols:
+            cursor.execute("ALTER TABLE rezervari ADD COLUMN decor_cost REAL")
+            conn.commit()
+        if "prod_cost" not in cols:
+            cursor.execute("ALTER TABLE rezervari ADD COLUMN prod_cost REAL")
             conn.commit()
         conn.commit()
 
