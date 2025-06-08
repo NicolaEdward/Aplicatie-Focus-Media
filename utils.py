@@ -1,46 +1,24 @@
+# utils.py
 import os
-from dotenv import load_dotenv
-import mysql.connector  # type: ignore
+from functools import lru_cache
+from PIL import Image, ImageTk
 
-# Load variables from the `.env` file placed in the project root so utilities
-# function correctly when imported from various modules.
-load_dotenv(os.path.join(os.path.dirname(os.path.dirname(__file__)), ".env"))
+PREVIEW_FOLDER = "previews"
+SCHITE_FOLDER  = "schite"
 
-
-def _parse_port(value: str | None) -> int | None:
-    """Return a validated port number from *value* or ``None``."""
-    if not value:
+@lru_cache(maxsize=64)
+def make_preview(code, max_w=280, max_h=180):
+    path = os.path.join(PREVIEW_FOLDER, f"{code}.png")
+    if not os.path.exists(path):
         return None
-    value = value.strip()
-    if value.isdigit():
-        if len(value) > 5:
-            value = value[-5:]
-        port = int(value)
-        if 0 < port <= 65535:
-            return port
-    raise ValueError(f"Invalid MYSQL_PORT value: {value!r}")
+    img_raw = Image.open(path)
+    w, h = img_raw.size
+    ratio = min(max_w / w, max_h / h, 1.0)
+    new_size = (int(w * ratio), int(h * ratio))
+    img_resized = img_raw.resize(new_size, Image.Resampling.LANCZOS)
+    return ImageTk.PhotoImage(img_resized)
 
-def get_db_connection():
-    """Return a new connection to the MySQL database."""
-    host = os.environ.get("MYSQL_HOST")
-    port = _parse_port(os.environ.get("MYSQL_PORT"))
+def get_schita_path(code):
+    path = os.path.join(SCHITE_FOLDER, f"{code}.png")
+    return path if os.path.exists(path) else None
 
-    if ":" in host:
-        host_part, host_port = host.rsplit(":", 1)
-        if host_port.isdigit():
-            host = host_part
-            if not port:
-                port = _parse_port(host_port)
-
-    params = {
-        "host": host,
-        "user": os.environ.get("MYSQL_USER"),
-        "password": os.environ.get("MYSQL_PASSWORD"),
-        "database": os.environ.get("MYSQL_DATABASE"),
-    }
-    if port:
-        params["port"] = port
-
-    # ``mysql.connector`` defaults the port to 3306 when not provided,
-    # so only include it if ``MYSQL_PORT`` or the host string specified it.
-    return mysql.connector.connect(**params)
