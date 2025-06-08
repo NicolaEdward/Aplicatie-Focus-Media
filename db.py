@@ -174,25 +174,33 @@ def get_location_by_id(loc_id: int) -> dict | None:
 
 def pandas_conn():
     """Return a connection/engine suitable for ``pandas.read_sql_query``."""
-    if getattr(conn, "mysql", False) and sqlalchemy is not None:
-        if not hasattr(pandas_conn, "_engine"):
-            host = os.environ.get("MYSQL_HOST")
-            port = _parse_port(os.environ.get("MYSQL_PORT"))
-            if host and ":" in host and not port:
-                host, host_port = host.rsplit(":", 1)
-                if host_port.isdigit():
-                    port = _parse_port(host_port)
+    if getattr(conn, "mysql", False):
+        host = os.environ.get("MYSQL_HOST")
+        port = _parse_port(os.environ.get("MYSQL_PORT"))
+        if host and ":" in host and not port:
+            host, host_port = host.rsplit(":", 1)
+            if host_port.isdigit():
+                port = _parse_port(host_port)
 
-            user = os.environ.get("MYSQL_USER", "")
-            password = os.environ.get("MYSQL_PASSWORD", "")
-            db_name = os.environ.get("MYSQL_DATABASE", "")
+        user = os.environ.get("MYSQL_USER", "")
+        password = os.environ.get("MYSQL_PASSWORD", "")
+        db_name = os.environ.get("MYSQL_DATABASE", "")
 
-            url = f"mysql+mysqlconnector://{user}:{password}@{host}"
-            if port:
-                url += f":{port}"
-            url += f"/{db_name}"
-            pandas_conn._engine = sqlalchemy.create_engine(url)
-        return pandas_conn._engine
+        url = f"mysql+mysqlconnector://{user}:{password}@{host}"
+        if port:
+            url += f":{port}"
+        url += f"/{db_name}"
+
+        if sqlalchemy is not None:
+            if not hasattr(pandas_conn, "_engine"):
+                pandas_conn._engine = sqlalchemy.create_engine(url)
+            return pandas_conn._engine
+
+        # ``pandas.read_sql_query`` also accepts an SQLAlchemy URL string
+        # and will create the engine on demand if SQLAlchemy is available.
+        # Returning the URL avoids passing the raw ``mysql.connector``
+        # connection which triggers a UserWarning.
+        return url
     # ``pandas.read_sql_query`` expects a raw DB-API connection or SQLAlchemy
     # engine.  When using SQLite we wrap the connection in ``_ConnWrapper``
     # so translate it back to the underlying connection object.
@@ -213,6 +221,20 @@ def read_sql_query(sql: str, params=None, **kwargs):
 
     if getattr(conn, "mysql", False):
         sql = sql.replace("?", "%s")
+
+        # Avoid ``UserWarning`` when ``sqlalchemy`` is missing by falling back
+        # to manual fetches instead of passing the raw DB-API connection.
+        if sqlalchemy is None:
+            cur = conn.cursor()
+            cur.execute(sql, params or ())
+            cols = [d[0] for d in cur.description]
+            df = pd.DataFrame(cur.fetchall(), columns=cols)
+
+            parse_dates = kwargs.pop("parse_dates", None)
+            if parse_dates:
+                for col in parse_dates:
+                    df[col] = pd.to_datetime(df[col])
+            return df
 
     return pd.read_sql_query(sql, pandas_conn(), params=params, **kwargs)
 
