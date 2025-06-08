@@ -103,7 +103,8 @@ def test_export_client_backup(monkeypatch, tmp_path):
     monkeypatch.setattr(dialogs.messagebox, "showinfo", lambda *a, **k: saved.setdefault("info", a))
 
     dialogs.export_client_backup(5, 2023, 1)
-    expected = tmp_path / "Firma" / "BKP Firma x Cli - Camp - May.xlsx"
+    month_dir = tmp_path / "BKP May 2023"
+    expected = month_dir / "Firma" / "BKP Firma x Cli - Camp - May.xlsx"
     assert expected.exists()
     assert saved.get("info")
 
@@ -177,7 +178,8 @@ def test_export_all_backups(monkeypatch, tmp_path):
     monkeypatch.setattr(dialogs.messagebox, "showinfo", lambda *a, **k: saved.setdefault("info", a))
 
     dialogs.export_all_backups(5, 2023)
-    assert (tmp_path / "Firma" / "BKP Firma x Cli - Camp1 - May.xlsx").exists()
-    assert (tmp_path / "Firma2" / "BKP Firma2 x Cli - Camp2 - May.xlsx").exists()
+    month_dir = tmp_path / "BKP May 2023"
+    assert (month_dir / "Firma" / "BKP Firma x Cli - Camp1 - May.xlsx").exists()
+    assert (month_dir / "Firma2" / "BKP Firma2 x Cli - Camp2 - May.xlsx").exists()
     assert saved.get("info")
 
