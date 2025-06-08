@@ -647,21 +647,15 @@ def start_app(user, root=None):
             command=lambda: open_rent_window(root, loc_id, load_locations, user),
         )
 
-        rows = cursor.execute(
-            "SELECT created_by, suma FROM rezervari WHERE loc_id=?",
-            (loc_id,),
-        ).fetchall()
-        if user.get("role") == 'admin':
-            has_entry = bool(rows)
-        else:
-            has_entry = any(r[0] == user["username"] or r[1] is not None for r in rows)
-        if has_entry:
+        if status == "Închiriat":
             btn_release.config(
-                state='normal',
-                command=lambda: open_release_window(root, loc_id, load_locations, user),
+                state="normal",
+                command=lambda: open_release_window(
+                    root, loc_id, load_locations, user
+                ),
             )
         else:
-            btn_release.config(state='disabled', command=lambda: None)
+            btn_release.config(state="disabled", command=lambda: None)
 
         if status == "Disponibil":
             btn_reserve.config(
