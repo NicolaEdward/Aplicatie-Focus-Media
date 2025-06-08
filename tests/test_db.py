@@ -101,3 +101,43 @@ def test_reconnect_on_lost_connection(monkeypatch):
     db.cursor.execute("SELECT 1")
     assert calls.get("reconnect")
     assert ok_cursor.sql == "SELECT 1"
+
+
+def test_init_rezervari_mysql_add_columns():
+    executed = []
+
+    class DummyCursor:
+        def __init__(self):
+            self.last_sql = ""
+
+        def execute(self, sql, params=()):
+            executed.append(sql.strip())
+            self.last_sql = sql.strip()
+            return self
+
+        def executemany(self, sql, params):
+            return self.execute(sql, params)
+
+        def fetchall(self):
+            if self.last_sql.startswith("SHOW COLUMNS FROM rezervari"):
+                return [("id",), ("loc_id",), ("client",)]
+            return []
+
+    class DummyConn:
+        def __init__(self):
+            self.cur = DummyCursor()
+
+        def cursor(self):
+            return self.cur
+
+        def commit(self):
+            executed.append("COMMIT")
+
+    old_conn, old_cursor = db.conn, db.cursor
+    db.conn = db._ConnWrapper(DummyConn(), True)
+    db.cursor = db.conn.cursor()
+    db.init_rezervari_table()
+    db.conn = old_conn
+    db.cursor = old_cursor
+
+    assert any("ALTER TABLE rezervari ADD COLUMN firma_id" in sql for sql in executed)

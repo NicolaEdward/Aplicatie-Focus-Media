@@ -188,15 +188,24 @@ def open_detail_window(tree, event):
         period = f"{ds} → {de}" if ds and de else "-"
         add_field(r, "Perioadă", ttk.Label(frm, text=period))
         r += 1
-        fee_row = None
         if ds and de:
-            fee_row = cur.execute(
-                "SELECT suma FROM rezervari WHERE loc_id=? AND data_start=? AND data_end=? ORDER BY data_start DESC LIMIT 1",
+            row_info = cur.execute(
+                "SELECT created_by, suma, campaign FROM rezervari WHERE loc_id=? AND data_start=? AND data_end=? ORDER BY data_start DESC LIMIT 1",
                 (loc_id, ds, de),
             ).fetchone()
-        if fee_row:
-            add_field(r, "Sumă închiriere", ttk.Label(frm, text=str(fee_row[0])))
-            r += 1
+        else:
+            row_info = None
+        if row_info:
+            created_by, suma_val, campaign_val = row_info
+            if suma_val is not None:
+                add_field(r, "Sumă închiriere", ttk.Label(frm, text=str(suma_val)))
+                r += 1
+            if created_by:
+                add_field(r, "Închiriat de", ttk.Label(frm, text=created_by))
+                r += 1
+            if campaign_val:
+                add_field(r, "Campanie", ttk.Label(frm, text=campaign_val))
+                r += 1
 
     # face fereastra redimensionabilă
     for i in range(r):
@@ -500,26 +509,19 @@ def open_rent_window(root, loc_id, load_cb, user):
         ),
     ).grid(row=0, column=2, padx=2, pady=5)
 
-    ttk.Label(win, text="Client final (dacă agenție):").grid(
-        row=1, column=0, sticky="e", padx=5, pady=5
-    )
-    entry_final = ttk.Entry(win, width=30)
-    entry_final.grid(row=1, column=1, padx=5, pady=5)
-
-    ttk.Label(win, text="Societate:").grid(row=2, column=0, sticky="e", padx=5, pady=5)
+    ttk.Label(win, text="Societate:").grid(row=1, column=0, sticky="e", padx=5, pady=5)
     def firma_list():
         return [r[0] for r in conn.cursor().execute("SELECT nume FROM firme ORDER BY nume").fetchall()]
     cb_firma = ttk.Combobox(win, values=firma_list(), width=27)
-    cb_firma.grid(row=2, column=1, padx=5, pady=5)
+    cb_firma.grid(row=1, column=1, padx=5, pady=5)
     ttk.Button(
         win,
         text="+",
         command=lambda: (open_firme_window(win), cb_firma.configure(values=firma_list()))
-    ).grid(row=2, column=2, padx=2, pady=5)
-
-    labels = ["Data start", "Data end", "Sumă finală", "Campanie"]
+    ).grid(row=1, column=2, padx=2, pady=5)
+    labels = ["Data start", "Data end", "Sumă finală"]
     entries = {}
-    for i, lbl in enumerate(labels, start=3):
+    for i, lbl in enumerate(labels, start=2):
         ttk.Label(win, text=lbl + ":").grid(row=i, column=0, sticky="e", padx=5, pady=5)
         if "Data" in lbl:
             e = DatePicker(win)
@@ -528,7 +530,29 @@ def open_rent_window(root, loc_id, load_cb, user):
         e.grid(row=i, column=1, padx=5, pady=5)
         entries[lbl] = e
 
-    row_extra = len(labels) + 3
+    row_campaign = len(labels) + 2
+    lbl_camp = ttk.Label(win, text="Campanie:")
+    entry_camp = ttk.Entry(win, width=30)
+    lbl_camp.grid(row=row_campaign, column=0, sticky="e", padx=5, pady=5)
+    entry_camp.grid(row=row_campaign, column=1, padx=5, pady=5)
+    lbl_camp.grid_remove()
+    entry_camp.grid_remove()
+
+    def toggle_campaign(_=None):
+        name = cb_client.get().strip()
+        r = conn.cursor().execute("SELECT tip FROM clienti WHERE nume=?", (name,)).fetchone()
+        if r and r[0] == "agency":
+            lbl_camp.grid()
+            entry_camp.grid()
+        else:
+            lbl_camp.grid_remove()
+            entry_camp.grid_remove()
+            entry_camp.delete(0, tk.END)
+
+    cb_client.bind("<<ComboboxSelected>>", toggle_campaign)
+    toggle_campaign()
+
+    row_extra = row_campaign + 1
     if is_base_mobile:
         ttk.Label(win, text="Adresă montaj:").grid(
             row=row_extra, column=0, sticky="e", padx=5, pady=5
@@ -564,15 +588,15 @@ def open_rent_window(root, loc_id, load_cb, user):
             client_id = cur.lastrowid
             tip = "direct"
 
-        final_client = entry_final.get().strip()
+        campaign_val = entry_camp.get().strip() if lbl_camp.winfo_ismapped() else ""
         client_display = client
         if tip == "agency":
-            if not final_client:
+            if not campaign_val:
                 messagebox.showwarning(
-                    "Lipsește client final", "Completează clientul final."
+                    "Lipsește campania", "Completează denumirea campaniei."
                 )
                 return
-            client_display = f"{client} - {final_client}"
+            client_display = f"{client} - {campaign_val}"
 
         start = entries["Data start"].get_date()
         end = entries["Data end"].get_date()
@@ -603,7 +627,7 @@ def open_rent_window(root, loc_id, load_cb, user):
         else:
             firma_id = None
 
-        campaign_val = entries["Campanie"].get().strip()
+        # ``campaign_val`` already computed above
 
         cur = conn.cursor()
 
@@ -2609,9 +2633,52 @@ def open_firme_window(root):
             conn.commit()
             refresh()
 
+    def edit_firma():
+        sel = tree.selection()
+        if not sel:
+            return
+        fid = int(sel[0])
+        row = conn.cursor().execute(
+            "SELECT nume, cui, adresa FROM firme WHERE id=?", (fid,)
+        ).fetchone()
+        if not row:
+            return
+        dlg = tk.Toplevel(win)
+        dlg.title("Editează firmă")
+
+        lbls = ["Nume", "CUI", "Adresă"]
+        ents = {}
+        for i, l in enumerate(lbls):
+            ttk.Label(dlg, text=l + ":").grid(row=i, column=0, padx=5, pady=5, sticky="e")
+            e = ttk.Entry(dlg, width=40)
+            e.grid(row=i, column=1, padx=5, pady=5)
+            ents[l] = e
+
+        ents["Nume"].insert(0, row[0])
+        ents["CUI"].insert(0, row[1] or "")
+        ents["Adresă"].insert(0, row[2] or "")
+
+        def on_ok():
+            name = ents["Nume"].get().strip()
+            if not name:
+                messagebox.showwarning("Date lipsă", "Completează numele.", parent=dlg)
+                return
+            conn.cursor().execute(
+                "UPDATE firme SET nume=?, cui=?, adresa=? WHERE id=?",
+                (name, ents["CUI"].get().strip(), ents["Adresă"].get().strip(), fid),
+            )
+            conn.commit()
+            dlg.destroy()
+            refresh()
+
+        ttk.Button(dlg, text="Salvează", command=on_ok).grid(row=len(lbls), column=0, columnspan=2, pady=10)
+        dlg.grab_set()
+        ents["Nume"].focus()
+
     ttk.Button(win, text="Adaugă", command=add_firma).grid(row=1, column=0, pady=5)
-    ttk.Button(win, text="Șterge", command=del_firma).grid(row=1, column=1, pady=5)
-    ttk.Button(win, text="Închide", command=win.destroy).grid(row=1, column=2, pady=5)
+    ttk.Button(win, text="Editează", command=edit_firma).grid(row=1, column=1, pady=5)
+    ttk.Button(win, text="Șterge", command=del_firma).grid(row=1, column=2, pady=5)
+    ttk.Button(win, text="Închide", command=win.destroy).grid(row=1, column=3, pady=5)
 
     refresh()
 
@@ -2622,14 +2689,18 @@ def open_manage_window(root):
     win = tk.Toplevel(root)
     win.title("Administrare aplicație")
 
-    ttk.Button(win, text="Utilizatori", command=lambda: open_users_window(win)).pack(
-        fill="x", padx=10, pady=5
-    )
-    ttk.Button(
-        win,
-        text="Firme facturare",
-        command=lambda: open_firme_window(win),
-    ).pack(fill="x", padx=10, pady=5)
-    ttk.Button(win, text="Locații", command=root.lift).pack(fill="x", padx=10, pady=5)
-    ttk.Button(win, text="Închide", command=win.destroy).pack(pady=10)
+    frm = ttk.Frame(win, padding=10)
+    frm.grid(sticky="nsew")
+    win.columnconfigure(0, weight=1)
+    win.rowconfigure(0, weight=1)
+
+    btns = [
+        ("Utilizatori", lambda: open_users_window(win)),
+        ("Firme facturare", lambda: open_firme_window(win)),
+        ("Locații", root.lift),
+        ("Închide", win.destroy),
+    ]
+    for i, (txt, cmd) in enumerate(btns):
+        ttk.Button(frm, text=txt, command=cmd).grid(row=i, column=0, sticky="ew", pady=5)
+    frm.columnconfigure(0, weight=1)
 

@@ -569,6 +569,19 @@ def init_rezervari_table():
             )
             """
         )
+        cur = conn.cursor()
+        cur.execute("SHOW COLUMNS FROM rezervari")
+        existing = {row[0] for row in cur.fetchall()}
+        to_add = {
+            "client_id": "INT",
+            "firma_id": "INT",
+            "created_by": "TEXT",
+            "campaign": "TEXT",
+        }
+        for col, definition in to_add.items():
+            if col not in existing:
+                cur.execute(f"ALTER TABLE rezervari ADD COLUMN {col} {definition}")
+                conn.commit()
     else:
         cursor.execute(
             """
