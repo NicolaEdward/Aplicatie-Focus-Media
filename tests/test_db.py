@@ -45,6 +45,13 @@ def test_create_and_get_user():
     assert not db.check_login(username, "wrong")
 
 
+def test_create_manager_user():
+    username = "mgr"
+    db.create_user(username, "pw123", role="manager")
+    user = db.get_user(username)
+    assert user["role"] == "manager"
+
+
 def test_reconnect_on_lost_connection(monkeypatch):
     calls = {}
 

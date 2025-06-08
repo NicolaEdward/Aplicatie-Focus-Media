@@ -69,7 +69,9 @@ La prima rulare este creat automat contul `admin` cu parola `admin`. Parolele
 sunt salvate folosind un hash PBKDF2 cu sare aleatorie pentru o securitate
 suplimentară. După autentificare, administratorul poate adăuga alte conturi din
 fereastra de administrare a utilizatorilor. Vânzătorii pot adăuga clienți și pot
-închiria locații, dar nu pot modifica sau șterge locațiile existente.
+închiria locații, dar nu pot modifica sau șterge locațiile existente. Rolul
+`manager` are acces la toate funcționalitățile administratorului cu excepția
+creării de conturi și a operațiunilor de închiriere sau rezervare.
 
 Funcția "Raport Vânzători" generează un Excel cu totalul contractelor pe lună
 pentru fiecare utilizator.

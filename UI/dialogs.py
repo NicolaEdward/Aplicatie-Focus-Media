@@ -2438,7 +2438,7 @@ def open_users_window(root):
         entry_pass.grid(row=1, column=1, padx=5, pady=5)
 
         ttk.Label(dlg, text="Rol:").grid(row=2, column=0, padx=5, pady=5, sticky="e")
-        combo_role = ttk.Combobox(dlg, values=["admin", "seller"], state="readonly")
+        combo_role = ttk.Combobox(dlg, values=["admin", "manager", "seller"], state="readonly")
         combo_role.current(1)
         combo_role.grid(row=2, column=1, padx=5, pady=5)
 
