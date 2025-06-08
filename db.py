@@ -352,46 +352,11 @@ def init_db():
             )
             """
         )
-        cursor.execute(
-            """
-            CREATE TABLE IF NOT EXISTS clienti (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                nume VARCHAR(255) UNIQUE NOT NULL,
-                contact TEXT,
-                email TEXT,
-                phone TEXT,
-                observatii TEXT,
-                tip VARCHAR(32) DEFAULT 'direct'
-            )
-            """
-        )
-        cursor.execute(
-            """
-            CREATE TABLE IF NOT EXISTS rezervari (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                loc_id INT NOT NULL,
-                client TEXT NOT NULL,
-                client_id INT,
-                data_start TEXT NOT NULL,
-                data_end TEXT NOT NULL,
-                suma DOUBLE,
-                created_by TEXT,
-                FOREIGN KEY(loc_id) REFERENCES locatii(id),
-                FOREIGN KEY(client_id) REFERENCES clienti(id)
-            )
-            """
-        )
-        cursor.execute(
-            """
-            CREATE TABLE IF NOT EXISTS users (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                username VARCHAR(255) UNIQUE NOT NULL,
-                password TEXT NOT NULL,
-                role TEXT NOT NULL,
-                comune TEXT
-            )
-            """
-        )
+        init_clienti_table()
+        init_firme_table()
+        init_rezervari_table()
+        init_users_table()
+        conn.commit()
     else:
         # (1) Creăm tabelul cu toate coloanele, inclusiv noile preturi
         cursor.execute(
@@ -426,6 +391,7 @@ def init_db():
         """
         )
         init_clienti_table()
+        init_firme_table()
         init_rezervari_table()
         init_users_table()
         conn.commit()
@@ -491,11 +457,13 @@ def init_clienti_table():
             CREATE TABLE IF NOT EXISTS clienti (
                 id INT AUTO_INCREMENT PRIMARY KEY,
                 nume VARCHAR(255) UNIQUE NOT NULL,
+                cui VARCHAR(64),
+                adresa TEXT,
                 contact TEXT,
                 email TEXT,
                 phone TEXT,
                 observatii TEXT,
-                tip TEXT DEFAULT 'direct'
+                tip VARCHAR(32) DEFAULT 'direct'
             )
             """
         )
@@ -505,6 +473,8 @@ def init_clienti_table():
         CREATE TABLE IF NOT EXISTS clienti (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             nume TEXT UNIQUE NOT NULL,
+            cui TEXT,
+            adresa TEXT,
             contact TEXT,
             email TEXT,
             phone TEXT,
@@ -521,13 +491,62 @@ def init_clienti_table():
             "phone": "TEXT",
             "observatii": "TEXT",
             "tip": "TEXT DEFAULT 'direct'",
+            "cui": "TEXT",
+            "adresa": "TEXT",
         }
         for col, definition in to_add.items():
             if col not in cols:
                 cursor.execute(f"ALTER TABLE clienti ADD COLUMN {col} {definition}")
                 conn.commit()
         conn.commit()
+    else:
+        cur = conn.cursor()
+        cur.execute("SHOW COLUMNS FROM clienti")
+        existing = {row[0] for row in cur.fetchall()}
+        to_add = {
+            "cui": "VARCHAR(64)",
+            "adresa": "TEXT",
+            "contact": "TEXT",
+            "email": "TEXT",
+            "phone": "TEXT",
+            "observatii": "TEXT",
+            "tip": "VARCHAR(32) DEFAULT 'direct'",
+        }
+        for col, definition in to_add.items():
+            if col not in existing:
+                cur.execute(f"ALTER TABLE clienti ADD COLUMN {col} {definition}")
+                conn.commit()
 
+def init_firme_table():
+    if getattr(conn, "mysql", False):
+        cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS firme (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                nume VARCHAR(255) UNIQUE NOT NULL,
+                cui VARCHAR(64),
+                adresa TEXT
+            )
+            """
+        )
+    else:
+        cursor.execute(
+            """
+        CREATE TABLE IF NOT EXISTS firme (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            nume TEXT UNIQUE NOT NULL,
+            cui TEXT,
+            adresa TEXT
+        )
+        """
+        )
+    if getattr(conn, "mysql", False):
+        cur = conn.cursor()
+        cur.execute("SHOW COLUMNS FROM firme")
+        existing = {row[0] for row in cur.fetchall()}
+    else:
+        existing = {c[1] for c in cursor.execute("PRAGMA table_info(firme)").fetchall()}
+    # no optional columns at the moment
 
 def init_rezervari_table():
     if getattr(conn, "mysql", False):
@@ -538,11 +557,15 @@ def init_rezervari_table():
                 loc_id INT NOT NULL,
                 client TEXT NOT NULL,
                 client_id INT,
+                firma_id INT,
                 data_start TEXT NOT NULL,
                 data_end TEXT NOT NULL,
                 suma DOUBLE,
+                created_by TEXT,
+                campaign TEXT,
                 FOREIGN KEY(loc_id) REFERENCES locatii(id),
-                FOREIGN KEY(client_id) REFERENCES clienti(id)
+                FOREIGN KEY(client_id) REFERENCES clienti(id),
+                FOREIGN KEY(firma_id) REFERENCES firme(id)
             )
             """
         )
@@ -554,12 +577,15 @@ def init_rezervari_table():
         loc_id INTEGER NOT NULL,
         client TEXT NOT NULL,
         client_id INTEGER,
+        firma_id INTEGER,
         data_start TEXT NOT NULL,
         data_end TEXT NOT NULL,
         suma REAL,
         created_by TEXT,
+        campaign TEXT,
         FOREIGN KEY(loc_id) REFERENCES locatii(id),
-        FOREIGN KEY(client_id) REFERENCES clienti(id)
+        FOREIGN KEY(client_id) REFERENCES clienti(id),
+        FOREIGN KEY(firma_id) REFERENCES firme(id)
     )
     """
         )
@@ -569,6 +595,12 @@ def init_rezervari_table():
             conn.commit()
         if "created_by" not in cols:
             cursor.execute("ALTER TABLE rezervari ADD COLUMN created_by TEXT")
+            conn.commit()
+        if "firma_id" not in cols:
+            cursor.execute("ALTER TABLE rezervari ADD COLUMN firma_id INTEGER")
+            conn.commit()
+        if "campaign" not in cols:
+            cursor.execute("ALTER TABLE rezervari ADD COLUMN campaign TEXT")
             conn.commit()
         conn.commit()
 

@@ -87,6 +87,8 @@ from UI.dialogs import (
     export_vendor_report,
     open_clients_window,
     open_users_window,
+    open_firme_window,
+    open_manage_window,
 )
 
 
@@ -364,15 +366,20 @@ def start_app(user, root=None):
                              command=lambda: delete_location())
     btn_clients = ttk.Button(primary_frame, text="Clienți",
                              command=lambda: open_clients_window(root))
+    btn_firme = ttk.Button(primary_frame, text="Firme",
+                            command=lambda: open_firme_window(root))
     btn_users = ttk.Button(primary_frame, text="Utilizatori",
                            command=lambda: open_users_window(root))
+    btn_manage = ttk.Button(primary_frame, text="Administrează",
+                            command=lambda: open_manage_window(root))
     role = user.get("role")
     if role in ("admin", "manager"):
         for w in (btn_add, btn_edit, btn_delete):
             w.pack(side="left", padx=5, pady=5)
         if role == "admin":
             btn_users.pack(side="left", padx=5, pady=5)
-    for w in (btn_clients,):
+            btn_manage.pack(side="left", padx=5, pady=5)
+    for w in (btn_clients, btn_firme):
         w.pack(side="left", padx=5, pady=5)
     if role != "manager":
         for w in (btn_rent, btn_release, btn_reserve):
