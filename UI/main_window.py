@@ -350,7 +350,6 @@ def start_app(user, root=None):
 
     btn_rent    = ttk.Button(primary_frame, text="Închiriază", state="disabled")
     btn_reserve = ttk.Button(primary_frame, text="Rezervă", state="disabled")
-    btn_release = ttk.Button(primary_frame, text="Eliberează", state="disabled")
     btn_delete  = ttk.Button(primary_frame, text="Șterge", state="disabled",
                              command=lambda: delete_location())
     btn_clients = ttk.Button(primary_frame, text="Clienți",
@@ -364,7 +363,7 @@ def start_app(user, root=None):
     else:
         # vânzătorii pot doar închiria/elibera și gestiona clienți
         pass
-    for w in (btn_rent, btn_reserve, btn_release, btn_clients):
+    for w in (btn_rent, btn_reserve, btn_clients):
         w.pack(side="left", padx=5, pady=5)
 
 
@@ -639,12 +638,19 @@ def start_app(user, root=None):
         if user.get("role") == 'admin':
             btn_edit.config(state='normal')
 
-        # Butoane pentru închiriere și eliberare
-        btn_rent.config(
-            text="Închiriază",
-            state='normal',
-            command=lambda: open_rent_window(root, loc_id, load_locations, user)
-        )
+        # Buton închiriere/eliberare
+        if status == "Închiriat":
+            btn_rent.config(
+                text="Eliberează",
+                state='normal',
+                command=lambda: open_release_window(root, loc_id, load_locations, user)
+            )
+        else:
+            btn_rent.config(
+                text="Închiriază",
+                state='normal',
+                command=lambda: open_rent_window(root, loc_id, load_locations, user)
+            )
 
         if status == "Disponibil":
             btn_reserve.config(
@@ -661,18 +667,6 @@ def start_app(user, root=None):
         else:
             btn_reserve.config(text="Rezervă", state='disabled')
 
-        has_rents = cursor.execute(
-            "SELECT COUNT(*) FROM rezervari WHERE loc_id=?",
-            (loc_id,)
-        ).fetchone()[0] > 0
-
-        if has_rents:
-            btn_release.config(
-                state='normal',
-                command=lambda: open_release_window(root, loc_id, load_locations, user)
-            )
-        else:
-            btn_release.config(state='disabled')
 
         if user.get("role") == 'admin':
             btn_delete.config(state='normal')
