@@ -757,8 +757,8 @@ def start_app(user, root=None):
         load_locations()
 
     def check_alerts():
-        # implementare alerte...
-        pass
+        """Placeholder for future alert functionality."""
+        print("check_alerts: not yet implemented")
 
     def watch_updates():
         if maybe_refresh_location_cache():

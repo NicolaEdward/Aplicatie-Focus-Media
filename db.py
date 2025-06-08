@@ -4,6 +4,7 @@ import datetime
 import hashlib
 import hmac
 import sqlite3
+import logging
 
 try:
     from dotenv import load_dotenv  # type: ignore
@@ -108,8 +109,8 @@ class _ConnWrapper:
                 raise
         try:
             refresh_location_cache()
-        except Exception:
-            pass
+        except Exception as exc:  # pragma: no cover - best effort
+            logging.warning("Failed to refresh location cache: %s", exc)
 
     def __getattr__(self, name):
         return getattr(self._conn, name)
