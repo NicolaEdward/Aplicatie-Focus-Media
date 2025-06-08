@@ -357,6 +357,7 @@ def start_app(user, root=None):
 
     btn_rent    = ttk.Button(primary_frame, text="Închiriază", state="disabled")
     btn_release = ttk.Button(primary_frame, text="Eliberează", state="disabled")
+    btn_extend  = ttk.Button(primary_frame, text="Extinde perioada", state="disabled")
     btn_reserve = ttk.Button(primary_frame, text="Rezervă", state="disabled")
     btn_delete  = ttk.Button(primary_frame, text="Șterge", state="disabled",
                              command=lambda: delete_location())
@@ -371,7 +372,7 @@ def start_app(user, root=None):
     else:
         # vânzătorii pot doar închiria/elibera și gestiona clienți
         pass
-    for w in (btn_rent, btn_release, btn_reserve, btn_clients):
+    for w in (btn_rent, btn_release, btn_extend, btn_reserve, btn_clients):
         w.pack(side="left", padx=5, pady=5)
 
 
@@ -510,6 +511,8 @@ def start_app(user, root=None):
         # 7) Populează TreeView, aplicând filtrul de date doar când "Toate datele" NU e bifat
         display_index = 0
         for row in rows:
+            if row.get("parent_id") and row.get("status") == "Expirat":
+                continue
             loc_id = row["id"]
             city = row["city"]
             county = row["county"]
@@ -683,6 +686,22 @@ def start_app(user, root=None):
             )
         else:
             btn_release.config(state="disabled", command=lambda: None)
+
+        if data.get("is_mobile") and data.get("parent_id"):
+            rid_row = cursor.execute(
+                "SELECT id FROM rezervari WHERE loc_id=? AND ? BETWEEN data_start AND data_end AND suma IS NOT NULL ORDER BY id DESC LIMIT 1",
+                (loc_id, datetime.date.today().isoformat()),
+            ).fetchone()
+            if rid_row:
+                rid = rid_row[0]
+                btn_extend.config(
+                    state="normal",
+                    command=lambda r=rid, ds=data.get("data_start"), de=data.get("data_end"), pid=data.get("parent_id"): open_edit_rent_window(root, r, load_locations, parent=(pid, ds, de)),
+                )
+            else:
+                btn_extend.config(state="disabled", command=lambda: None)
+        else:
+            btn_extend.config(state="disabled", command=lambda: None)
 
         if status == "Disponibil":
             btn_reserve.config(

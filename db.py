@@ -285,7 +285,9 @@ def init_db():
                 data_start TEXT,
                 data_end TEXT,
                 grup VARCHAR(255),
-                face VARCHAR(32) DEFAULT 'Fața A'
+                face VARCHAR(32) DEFAULT 'Fața A',
+                is_mobile TINYINT(1) DEFAULT 0,
+                parent_id INT
             )
             """
         )
@@ -356,7 +358,9 @@ def init_db():
             data_start TEXT,
             data_end TEXT,
             grup TEXT,
-            face TEXT DEFAULT 'Fața A'
+            face TEXT DEFAULT 'Fața A',
+            is_mobile INTEGER DEFAULT 0,
+            parent_id INTEGER
         )
         """
         )
@@ -379,6 +383,8 @@ def init_db():
             "pret_vanzare":  "REAL",
             "pret_flotant":  "REAL",
             "client_id":    "INTEGER",
+            "is_mobile":   "INTEGER DEFAULT 0",
+            "parent_id":   "INTEGER",
         }
 
         existing = {col[1] for col in cursor.execute("PRAGMA table_info(locatii)").fetchall()}
@@ -617,6 +623,17 @@ def update_statusuri_din_rezervari():
               AND suma IS NOT NULL
         )
     """, (today, today, today, today, today))
+
+    # Mark expired mobile instances as hidden
+    cur.execute(
+        """
+        UPDATE locatii
+           SET status='Expirat'
+         WHERE is_mobile=1 AND parent_id IS NOT NULL
+           AND data_end IS NOT NULL AND data_end < ?
+        """,
+        (today,),
+    )
 
     conn.commit()
 
