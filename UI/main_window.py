@@ -278,6 +278,11 @@ def start_app(user, root=None):
     def on_tree_press(event):
         iid = tree.identify_row(event.y)
         if iid:
+            # Allow default behaviour for Ctrl/Shift clicks so multiple
+            # rows can be selected using the standard shortcuts.
+            if event.state & 0x5:  # Ctrl or Shift pressed
+                drag_select["start"] = None
+                return
             drag_select["start"] = iid
             tree.selection_set(iid)
 
