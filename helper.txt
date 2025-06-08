@@ -1,0 +1,16 @@
+Aplicatia "Gestionare Locați Publicitare" permite administrarea locatiei, clientilor si rezervarilor.
+
+Functii principale:
+- Autentificare cu utilizatori. Cont "admin" creat la prima rulare.
+- Vizualizare locatii cu filtrare dupa grup, status, text si interval de date.
+- Detalii pentru fiecare locatie, inclusiv imagine si schita descarcabila.
+- Adaugare, editare si stergere locatii (doar admin).
+- Rezervare rapida pentru 5 zile si gestionarea perioadelor de inchiriere.
+- Inregistrare inchirieri si eliberare locatii; extinderea contractului pentru prisme mobile.
+- Administrare clienti: adaugare, stergere si export lunar de backup.
+- Administrare utilizatori (roluri "admin" si "seller").
+- Exporturi in Excel: lista disponibilitati, oferta personalizata, raport de vanzari anual si raport pe vanzatori.
+- Cache intern al locatiilor actualizat automat la fiecare modificare si la 5 minute.
+- Script de migrare a datelor din SQLite catre MySQL.
+
+Pentru pornire executa "main.py" dupa configurarea bazei de date in fisierul ".env".
