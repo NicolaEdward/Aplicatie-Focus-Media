@@ -426,6 +426,51 @@ def open_rent_window(root, loc_id, load_cb, user):
         .grid(row=len(labels)+2, column=0, columnspan=3, pady=10)
 
 
+def open_edit_rent_window(root, rid, load_cb):
+    """Allow editing the rental period for reservation ``rid``."""
+    cur = conn.cursor()
+    row = cur.execute(
+        "SELECT data_start, data_end FROM rezervari WHERE id=?",
+        (rid,)
+    ).fetchone()
+    if not row:
+        return
+
+    ds, de = row
+    win = tk.Toplevel(root)
+    win.title(f"Modifică perioada #{rid}")
+
+    ttk.Label(win, text="Data start:").grid(row=0, column=0, sticky="e", padx=5, pady=5)
+    dp_start = DatePicker(win)
+    dp_start.set_date(datetime.date.fromisoformat(ds))
+    dp_start.grid(row=0, column=1, padx=5, pady=5)
+
+    ttk.Label(win, text="Data end:").grid(row=1, column=0, sticky="e", padx=5, pady=5)
+    dp_end = DatePicker(win)
+    dp_end.set_date(datetime.date.fromisoformat(de))
+    dp_end.grid(row=1, column=1, padx=5, pady=5)
+
+    def save_edit():
+        start = dp_start.get_date()
+        end = dp_end.get_date()
+        if start > end:
+            messagebox.showwarning(
+                "Interval incorect",
+                "«Data start» trebuie înainte de «Data end».",
+            )
+            return
+        cur.execute(
+            "UPDATE rezervari SET data_start=?, data_end=? WHERE id=?",
+            (start.isoformat(), end.isoformat(), rid),
+        )
+        conn.commit()
+        update_statusuri_din_rezervari()
+        load_cb()
+        win.destroy()
+
+    ttk.Button(win, text="Salvează", command=save_edit).grid(row=2, column=0, columnspan=2, pady=10)
+
+
 def open_release_window(root, loc_id, load_cb, user):
     """Selectează și anulează o închiriere sau rezervare."""
     cur = conn.cursor()
@@ -443,7 +488,7 @@ def open_release_window(root, loc_id, load_cb, user):
     win = tk.Toplevel(root)
     win.title(f"Selectează închirierea #{loc_id}")
 
-    lst = tk.Listbox(win, width=40, height=10)
+    lst = tk.Listbox(win, width=55, height=10)
     for rid, client, ds, de, *_ in rows:
         lst.insert("end", f"{client}: {ds} → {de}")
     lst.grid(row=0, column=0, columnspan=2, padx=5, pady=5)
@@ -457,20 +502,16 @@ def open_release_window(root, loc_id, load_cb, user):
 
         if messagebox.askyesno(
             "Eliberează",
-            "Ștergi complet perioada de închiriere?\nAlege 'Nu' pentru a încheia contractul acum.",
+            "Ștergi complet perioada de închiriere?\nAlege 'Nu' pentru a modifica perioada.",
         ):
             cur.execute("DELETE FROM rezervari WHERE id=?", (rid,))
+            conn.commit()
+            update_statusuri_din_rezervari()
+            load_cb()
+            win.destroy()
         else:
-            today = datetime.date.today()
-            start = datetime.date.fromisoformat(ds)
-            if today < start:
-                cur.execute("DELETE FROM rezervari WHERE id=?", (rid,))
-            else:
-                cur.execute("UPDATE rezervari SET data_end=? WHERE id=?", (today.isoformat(), rid))
-        conn.commit()
-        update_statusuri_din_rezervari()
-        load_cb()
-        win.destroy()
+            win.destroy()
+            open_edit_rent_window(root, rid, load_cb)
 
     ttk.Button(win, text="Confirmă", command=delete_selected).grid(row=1, column=0, padx=5, pady=5)
     ttk.Button(win, text="Închide", command=win.destroy).grid(row=1, column=1, padx=5, pady=5)
