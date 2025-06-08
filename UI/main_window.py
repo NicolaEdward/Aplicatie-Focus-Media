@@ -703,7 +703,9 @@ def start_app(user, root=None):
         else:
             btn_extend.config(state="disabled", command=lambda: None)
 
-        if status == "Disponibil":
+        if status == "Disponibil" and not (
+            data.get("is_mobile") and not data.get("parent_id")
+        ):
             btn_reserve.config(
                 text="Rezervă",
                 state='normal',
