@@ -1237,7 +1237,15 @@ def export_sales_report():
                 .fillna(0)
                 .sum()
             )
-            sale_free = sale_total - sold_income
+            # Value of the unsold locations based on their sale price
+            sale_free = (
+                pd.to_numeric(
+                    df_sheet.loc[~sold_mask, "PRET DE VANZARE"], errors="coerce"
+                )
+                .fillna(0)
+                .sum()
+            )
+            total_val = sold_income + sale_free
 
             merge_end = min(STAT_MERGE_END, len(df_sheet.columns) - 2)
             value_col = merge_end + 1
@@ -1254,8 +1262,8 @@ def export_sales_report():
                 start + 2, 0, start + 2, merge_end, "Preț vânzare total", stat_lbl_fmt
             )
             ws.write(start + 2, value_col, sale_total, stat_money_fmt)
-            pct_sale_sold = sold_income / sale_total if sale_total else 0
-            pct_sale_free = sale_free / sale_total if sale_total else 0
+            pct_sale_sold = sold_income / total_val if total_val else 0
+            pct_sale_free = sale_free / total_val if total_val else 0
             ws.merge_range(
                 start + 3, 0, start + 3, merge_end, "Sumă locații vândute", stat_lbl_fmt
             )
@@ -2222,8 +2230,10 @@ def export_vendor_report():
                 lambda r: contract_months(r["data_start"].date(), r["data_end"].date()),
                 axis=1,
             )
-            sub["Chirie/lună"] = sub["suma"] / sub["Luni"]
-            sub["Valoare"] = sub["suma"]
+            # ``r.suma`` stores the monthly rent.  Calculate the total value
+            # over the contract period proportional to the number of months.
+            sub["Chirie/lună"] = sub["suma"]
+            sub["Valoare"] = sub["suma"] * sub["Luni"]
 
             df_det = sub[
                 [
@@ -2257,8 +2267,10 @@ def export_vendor_report():
 
             month_records = []
             for r in sub.itertuples(index=False):
-                months_total = r.Luni
-                price_per_month = r.suma / months_total if months_total else 0
+                # ``r.suma`` represents the monthly fee.  Distribute this value
+                # proportionally based on how many days of each month are
+                # covered by the contract.
+                price_per_month = r.suma
                 for mname, val in split_by_month(
                     r.data_start.date(), r.data_end.date(), price_per_month
                 ):
