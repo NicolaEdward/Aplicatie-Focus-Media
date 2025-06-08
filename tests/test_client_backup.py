@@ -19,14 +19,22 @@ def test_export_client_backup(tmp_path, monkeypatch):
     cur = conn.cursor()
     cur.execute("INSERT INTO clienti (nume) VALUES ('Test')")
     cid = cur.lastrowid
-    cur.execute("INSERT INTO locatii (city, county, address) VALUES ('A','B','C')")
+    cur.execute("INSERT INTO locatii (city, county, address, sqm) VALUES ('A','B','C',10)")
     loc_id = cur.lastrowid
-    cur.execute(
-        "INSERT INTO rezervari (loc_id, client, client_id, data_start, data_end, suma)"
-        " VALUES (?,?,?,?,?,?)",
-        (loc_id, 'Test', cid, '2025-06-15', '2025-07-15', 1000),
+    db.add_rental_with_decor(
+        loc_id,
+        'Test',
+        cid,
+        '2025-06-15',
+        '2025-07-15',
+        1000,
+        'tester',
+        'Camp',
+        None,
+        '2025-06-20',
+        50,
+        30,
     )
-    conn.commit()
 
     out = tmp_path / 'out.xlsx'
     monkeypatch.setattr(filedialog, 'asksaveasfilename', lambda **k: str(out))
@@ -63,4 +71,6 @@ def test_export_client_backup(tmp_path, monkeypatch):
 
     df = captured['df']
     assert round(df['Chirie net'].iloc[0], 2) == round(1000 * 16 / 30, 2)
+    assert df['Preț Decorare'].iloc[0] == 50
+    assert df['Preț Producție'].iloc[0] == 30
 

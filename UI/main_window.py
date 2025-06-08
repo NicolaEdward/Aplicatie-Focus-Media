@@ -86,6 +86,7 @@ from UI.dialogs import (
     export_vendor_report,
     open_clients_window,
     open_users_window,
+    open_firme_window,
 )
 
 
@@ -354,12 +355,15 @@ def start_app(user, root=None):
                              command=lambda: delete_location())
     btn_clients = ttk.Button(primary_frame, text="Clienți",
                              command=lambda: open_clients_window(root))
-    btn_users = ttk.Button(primary_frame, text="Utilizatori",
-                           command=lambda: open_users_window(root))
+    btn_admin = ttk.Menubutton(primary_frame, text="Admin Changes")
+    _admin_menu = tk.Menu(btn_admin, tearoff=False)
+    _admin_menu.add_command(label="Utilizatori", command=lambda: open_users_window(root))
+    _admin_menu.add_command(label="Firme", command=lambda: open_firme_window(root))
+    btn_admin.configure(menu=_admin_menu)
     if user.get("role") == 'admin':
         for w in (btn_add, btn_edit, btn_delete):
             w.pack(side="left", padx=5, pady=5)
-        btn_users.pack(side="left", padx=5, pady=5)
+        btn_admin.pack(side="left", padx=5, pady=5)
     else:
         # vânzătorii pot doar închiria/elibera și gestiona clienți
         pass
