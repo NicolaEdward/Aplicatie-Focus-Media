@@ -1137,17 +1137,6 @@ def export_sales_report():
                 "border": 1,
             }
         )
-        stat_ratio_fmt = wb.add_format(
-            {
-                "num_format": "0.00",
-                "bold": True,
-                "bg_color": "#FFF2CC",
-                "font_size": 14,
-                "align": "center",
-                "valign": "vcenter",
-                "border": 1,
-            }
-        )
 
         money_cols = {
             "Ratecard/month",
@@ -1307,7 +1296,7 @@ def export_sales_report():
                 "Raport sume vândute/nevândute",
                 stat_lbl_fmt,
             )
-            ws.write(start + 5, value_col, ratio_sales, stat_ratio_fmt)
+            ws.write(start + 5, value_col, ratio_sales, stat_percent_fmt)
 
         current_year = datetime.date.today().year
         year_start = datetime.date(current_year, 1, 1)
@@ -1386,16 +1375,19 @@ def export_sales_report():
         df_total = df_base.copy()
         df_total["Sold Days"] = df_total["id"].map(agg["days"]).fillna(0)
         df_total["Sold Months"] = df_total["id"].map(agg["months"]).fillna(0)
-        df_total["Units Sold"] = df_total["id"].map(units_sold).fillna(0).astype(int)
+        df_total["Units Sold"] = (
+            df_total["id"].map(units_sold).fillna(0).astype(int)
+        )
         df_total["pret_vanzare"] = pd.to_numeric(
             df_total["pret_vanzare"], errors="coerce"
         ).fillna(0)
         df_total["Total Sum"] = df_total["id"].map(agg["val_real"]).fillna(0)
         mob_mask = df_total["is_mobile"] == 1
-        df_total.loc[mob_mask, "Sold Months"] = df_total.loc[mob_mask, "Units Sold"]
         df_total["% Year Sold"] = df_total.apply(
             lambda r: (
-                (r["Units Sold"] / 20) if r["is_mobile"] else (r["Sold Months"] / 12)
+                r["Sold Months"] / (20 * 12)
+                if r["is_mobile"]
+                else (r["Sold Months"] / 12)
             ),
             axis=1,
         )
@@ -1424,6 +1416,7 @@ def export_sales_report():
                     "ratecard",
                     "pret_vanzare",
                     "Sold Months",
+                    "Units Sold",
                     "% Year Sold",
                     "Total Sum",
                 ]
@@ -1439,6 +1432,7 @@ def export_sales_report():
                 "Ratecard/month",
                 "PRET DE VANZARE",
                 "Luni vândută",
+                "Prisme vândute",
                 "% An vândut",
                 "SUMĂ AN",
             ]
@@ -1483,7 +1477,12 @@ def export_sales_report():
             )
             ws.write(start + 1, value_col, total_sum, stat_money_fmt)
             ws.merge_range(
-                start + 2, 0, start + 2, merge_end, "Prisme vândute total", stat_lbl_fmt
+                start + 2,
+                0,
+                start + 2,
+                merge_end,
+                "Prisme mobile vândute în an",
+                stat_lbl_fmt,
             )
             ws.write(start + 2, value_col, total_prisms, stat_int_fmt)
 
