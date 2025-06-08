@@ -1,5 +1,6 @@
 # UI/dialogs.py
 import datetime
+import re
 import webbrowser
 import tkinter as tk
 from tkinter import filedialog, messagebox, simpledialog, ttk
@@ -8,6 +9,11 @@ from UI.date_picker import DatePicker
 
 from utils import make_preview
 from db import conn, update_statusuri_din_rezervari, create_user, get_location_by_id
+
+
+def _safe_filename(name: str) -> str:
+    """Return *name* sanitized for filesystem usage."""
+    return re.sub(r"[\\/*?:\"<>|]", "_", name)
 
 
 def choose_report_year(parent=None):
@@ -2154,10 +2160,181 @@ def open_add_client_window(parent, refresh_cb=None):
     )
 
 
-def export_client_backup(month, year, client_id=None):
+def _write_backup_excel(rows, start_m: datetime.date, end_m: datetime.date, path: str) -> None:
+    """Write an Excel backup file using *rows* into *path*."""
+    import pandas as pd
+
+    if not rows:
+        return
+
+    days_in_month = (end_m - start_m).days + 1
+
+    data = []
+    header_info = None
+    for (
+        client_name,
+        client_cui,
+        client_addr,
+        firma_name,
+        firma_cui,
+        firma_addr,
+        campaign,
+        city,
+        addr,
+        code,
+        face,
+        typ,
+        size,
+        sqm,
+        ds,
+        de,
+        price,
+        deco_cost_loc,
+        cid,
+        deco_r,
+        prod_r,
+    ) in rows:
+        ds_dt = datetime.date.fromisoformat(ds)
+        de_dt = datetime.date.fromisoformat(de)
+        if header_info is None:
+            header_info = (
+                firma_name,
+                firma_cui,
+                firma_addr,
+                client_name,
+                client_cui,
+                client_addr,
+                campaign,
+            )
+        ov_start = max(ds_dt, start_m)
+        ov_end = min(de_dt, end_m)
+        days = (ov_end - ov_start).days + 1
+        frac = days / days_in_month
+        amount = price * frac
+        deco = deco_r if deco_r is not None else (deco_cost_loc or 0.0)
+        try:
+            prod_default = round(float(sqm or 0) * 7, 2)
+        except Exception:
+            prod_default = 0.0
+        prod = prod_r if prod_r is not None else prod_default
+        data.append(
+            [
+                city,
+                addr,
+                code,
+                1,
+                typ,
+                size,
+                ds_dt,
+                de_dt,
+                frac,
+                "EUR",
+                price,
+                amount,
+                deco,
+                prod,
+            ]
+        )
+
+    df = pd.DataFrame(
+        data,
+        columns=[
+            "Oraș",
+            "Adresă",
+            "Cod",
+            "Nr. bucăți",
+            "Tip Suport",
+            "Dimensiune",
+            "Data Început",
+            "Data Sfârșit",
+            "Perioadă (luni)",
+            "Valută",
+            "Preț chirie/lună",
+            "Chirie NET",
+            "Preț Decorare",
+            "Preț Producție",
+        ],
+    )
+
+    df["Perioadă (luni)"] = df["Perioadă (luni)"].round(2)
+    df.insert(0, "Nr. Crt", range(1, len(df) + 1))
+
+    total_rent = df["Chirie NET"].sum()
+    total_deco = df["Preț Decorare"].sum()
+    total_prod = df["Preț Producție"].sum()
+
+    with pd.ExcelWriter(path, engine="xlsxwriter") as writer:
+        wb = writer.book
+        ws = writer.book.add_worksheet("Backup")
+        writer.sheets["Backup"] = ws
+
+        if header_info:
+            f_name, f_cui, f_addr, c_name, c_cui, c_addr, camp = header_info
+        else:
+            f_name = f_cui = f_addr = c_name = c_cui = c_addr = camp = ""
+
+        title = f"BKP {f_name} x {c_name} - {camp or c_name} - {start_m:%B}"
+        title_fmt = wb.add_format({"bold": True, "font_size": 14, "align": "center"})
+        ws.merge_range(0, 0, 0, len(df.columns) - 1, title, title_fmt)
+
+        headers = [
+            ("Societatea care facturează", f_name),
+            ("CUI", f_cui),
+            ("Adresă", f_addr),
+            ("Client", c_name),
+            ("CUI client", c_cui),
+            ("Adresă client", c_addr),
+            (
+                "Campanie",
+                camp or c_name,
+            ),
+            (
+                "Perioadă facturare",
+                f"{start_m:%d.%m.%Y} - {end_m:%d.%m.%Y}",
+            ),
+        ]
+
+        for i, (k, v) in enumerate(headers):
+            col = (i // 2) * 2
+            row = 1 + (i % 2)
+            ws.write(row, col, k)
+            ws.write(row, col + 1, v)
+
+        start_row = 4
+        df.to_excel(writer, sheet_name="Backup", index=False, startrow=start_row)
+
+        hdr_fmt = wb.add_format(
+            {"bold": True, "bg_color": "#4F81BD", "font_color": "white", "align": "center"}
+        )
+        euro_fmt = wb.add_format({"num_format": "€#,##0.00", "align": "center"})
+        center_fmt = wb.add_format({"align": "center"})
+
+        money_cols = {"Preț chirie/lună", "Chirie NET", "Preț Decorare", "Preț Producție"}
+        for col_idx, col in enumerate(df.columns):
+            width = max(len(str(col)), df[col].astype(str).map(len).max()) + 2
+            fmt = euro_fmt if col in money_cols else center_fmt
+            ws.set_column(col_idx, col_idx, width, fmt)
+            ws.write(start_row, col_idx, col, hdr_fmt)
+
+        row_tot = start_row + len(df) + 1
+        bold = wb.add_format({"bold": True})
+        ws.write(row_tot, 0, "Total Decorare", bold)
+        ws.write(row_tot, df.columns.get_loc("Preț Decorare"), total_deco, euro_fmt)
+        row_tot += 1
+        ws.write(row_tot, 0, "Total Producție", bold)
+        ws.write(row_tot, df.columns.get_loc("Preț Producție"), total_prod, euro_fmt)
+        row_tot += 1
+        ws.write(row_tot, 0, "Total Chirii", bold)
+        ws.write(row_tot, df.columns.get_loc("Chirie NET"), total_rent, euro_fmt)
+        row_tot += 1
+        ws.write(row_tot, 0, "Total General", bold)
+        ws.write(row_tot, df.columns.get_loc("Chirie NET"), total_rent + total_deco + total_prod, euro_fmt)
+
+
+def export_client_backup(month, year, client_id=None, firma_id=None, campaign=None, directory=None):
     """Exportă un backup de facturare pentru luna dată, formatat în Excel."""
     import calendar
-    import pandas as pd
+    import os
 
     days_in_month = calendar.monthrange(year, month)[1]
     start_m = datetime.date(year, month, 1)
@@ -2180,143 +2357,81 @@ def export_client_backup(month, year, client_id=None):
     if client_id:
         sql += " AND r.client_id=?"
         params.append(client_id)
+    if firma_id:
+        sql += " AND r.firma_id=?"
+        params.append(firma_id)
+    if campaign:
+        sql += " AND IFNULL(r.campaign, '')=?"
+        params.append(campaign or "")
 
     rows = cur.execute(sql, params).fetchall()
     if not rows:
         messagebox.showinfo("Export", "Nu există închirieri pentru perioada aleasă.")
         return
 
-    data = []
-    header_info = None
-    for (client_name, client_cui, client_addr,
-         firma_name, firma_cui, firma_addr, campaign,
-         city, addr, code, face, typ, size, sqm,
-         ds, de, price, deco_cost_loc, cid, deco_r, prod_r) in rows:
-        ds_dt = datetime.date.fromisoformat(ds)
-        de_dt = datetime.date.fromisoformat(de)
-        if header_info is None:
-            header_info = (firma_name, firma_cui, firma_addr,
-                            client_name, client_cui, client_addr, campaign)
-        ov_start = max(ds_dt, start_m)
-        ov_end = min(de_dt, end_m)
-        days = (ov_end - ov_start).days + 1
-        frac = days / days_in_month
-        amount = price * frac
-        deco = deco_r if deco_r is not None else (deco_cost_loc or 0.0)
-        try:
-            prod_default = round(float(sqm or 0) * 7, 2)
-        except Exception:
-            prod_default = 0.0
-        prod = prod_r if prod_r is not None else prod_default
-        data.append(
-            [
-                city,
-                addr,
-                code,
-                face,
-                1,
-                typ,
-                size,
-                ds_dt,
-                de_dt,
-                frac,
-                "EUR",
-                price,
-                amount,
-                deco,
-                prod,
-            ]
-        )
+    f_name = rows[0][3] or ""
+    c_name = rows[0][0] or ""
+    camp = rows[0][6] or c_name
 
-    df = pd.DataFrame(
-        data,
-        columns=[
-            "Oraș",
-            "Adresă",
-            "Cod",
-            "Cod Față",
-            "Nr. bucăți",
-            "Tip Suport",
-            "Dimensiune",
-            "Data Început",
-            "Data Sfârșit",
-            "Perioadă (luni)",
-            "Valută",
-            "Preț chirie/lună",
-            "Chirie NET",
-            "Preț Decorare",
-            "Preț Producție",
-        ],
+    if directory is None:
+        directory = filedialog.askdirectory()
+        if not directory:
+            return
+
+    file_name = _safe_filename(f"BKP {f_name} x {c_name} - {camp} - {start_m:%B}.xlsx")
+    path = os.path.join(directory, file_name)
+
+    _write_backup_excel(rows, start_m, end_m, path)
+    messagebox.showinfo("Export", f"Backup salvat:\n{path}")
+
+
+def export_all_backups(month, year):
+    """Generează backupuri pentru toți clienții cu închiriere activă."""
+    import calendar
+    import os
+
+    days_in_month = calendar.monthrange(year, month)[1]
+    start_m = datetime.date(year, month, 1)
+    end_m = datetime.date(year, month, days_in_month)
+
+    cur = conn.cursor()
+    sql = (
+        "SELECT c.nume, c.cui, c.adresa, "
+        "       f.nume, f.cui, f.adresa, r.campaign, "
+        "       l.city, l.address, l.code, l.face, l.type, l.size, l.sqm, "
+        "       r.data_start, r.data_end, r.suma, l.decoration_cost, r.client_id, "
+        "       r.decor_cost, r.prod_cost "
+        "FROM rezervari r "
+        "JOIN locatii l ON r.loc_id = l.id "
+        "JOIN clienti c ON r.client_id = c.id "
+        "LEFT JOIN firme f ON r.firma_id = f.id "
+        "WHERE r.suma IS NOT NULL AND NOT (r.data_end < ? OR r.data_start > ?)"
     )
-
-    df["Perioadă (luni)"] = df["Perioadă (luni)"].round(2)
-
-    df.insert(0, "Nr. Crt", range(1, len(df) + 1))
-
-    total_rent = df["Chirie NET"].sum()
-    total_deco = df["Preț Decorare"].sum()
-    total_prod = df["Preț Producție"].sum()
-
-    path = filedialog.asksaveasfilename(
-        defaultextension=".xlsx", filetypes=[("Excel", "*.xlsx")]
-    )
-    if not path:
+    rows = cur.execute(sql, (start_m.isoformat(), end_m.isoformat())).fetchall()
+    if not rows:
+        messagebox.showinfo("Export", "Nu există închirieri pentru perioada aleasă.")
         return
 
-    with pd.ExcelWriter(path, engine="xlsxwriter") as writer:
-        headers = []
-        c_name = ""
-        if header_info:
-            f_name, f_cui, f_addr, c_name, c_cui, c_addr, camp = header_info
-            headers = [
-                ["Societatea care facturează", f_name or ""],
-                ["CUI", f_cui or ""],
-                ["Adresă", f_addr or ""],
-                ["Client", c_name or ""],
-                ["CUI client", c_cui or ""],
-                ["Adresă client", c_addr or ""],
-                ["Perioada campaniei", f"{start_m:%d.%m.%Y} - {end_m:%d.%m.%Y}"],
-                ["Denumire campanie", camp or c_name],
-            ]
+    base_dir = filedialog.askdirectory()
+    if not base_dir:
+        return
 
-        start_row = len(headers) + 2
-        df.to_excel(writer, sheet_name="Backup", index=False, startrow=start_row)
-        wb = writer.book
-        ws = writer.sheets["Backup"]
+    groups = {}
+    for row in rows:
+        f_name = row[3] or "FaraFirma"
+        c_name = row[0] or ""
+        camp = row[6] or c_name
+        key = (f_name, c_name, camp)
+        groups.setdefault(key, []).append(row)
 
-        title = f"BKP {c_name or ''} {start_m:%B %Y}"
-        title_fmt = wb.add_format({"bold": True, "font_size": 14, "align": "center"})
-        ws.merge_range(0, 0, 0, len(df.columns) - 1, title, title_fmt)
+    for (f_name, c_name, camp), grp_rows in groups.items():
+        sub = os.path.join(base_dir, _safe_filename(f_name))
+        os.makedirs(sub, exist_ok=True)
+        fname = _safe_filename(f"BKP {f_name} x {c_name} - {camp} - {start_m:%B}.xlsx")
+        path = os.path.join(sub, fname)
+        _write_backup_excel(grp_rows, start_m, end_m, path)
 
-        for i, (k, v) in enumerate(headers):
-            ws.write(1 + i, 0, k)
-            ws.write(1 + i, 1, v)
-
-        hdr_fmt = wb.add_format(
-            {
-                "bold": True,
-                "bg_color": "#4F81BD",
-                "font_color": "white",
-                "align": "center",
-            }
-        )
-        euro_fmt = wb.add_format({"num_format": "€#,##0.00", "align": "center"})
-        center_fmt = wb.add_format({"align": "center"})
-
-        money_cols = {"Preț chirie/lună", "Chirie NET", "Preț Decorare", "Preț Producție"}
-        for col_idx, col in enumerate(df.columns):
-            width = max(len(str(col)), df[col].astype(str).map(len).max()) + 2
-            fmt = euro_fmt if col in money_cols else center_fmt
-            ws.set_column(col_idx, col_idx, width, fmt)
-            ws.write(start_row, col_idx, col, hdr_fmt)
-
-        row_tot = start_row + len(df) + 1
-        ws.write(row_tot, 0, "Total", wb.add_format({"bold": True}))
-        ws.write(row_tot, df.columns.get_loc("Chirie NET"), total_rent, euro_fmt)
-        ws.write(row_tot, df.columns.get_loc("Preț Decorare"), total_deco, euro_fmt)
-        ws.write(row_tot, df.columns.get_loc("Preț Producție"), total_prod, euro_fmt)
-
-    messagebox.showinfo("Export", f"Backup salvat:\n{path}")
+    messagebox.showinfo("Export", f"Backupurile au fost salvate în:\n{base_dir}")
 
 
 def open_clients_window(root):
@@ -2390,10 +2505,28 @@ def open_clients_window(root):
             return
         export_client_backup(month, year, cid)
 
+    def export_all():
+        today = datetime.date.today()
+        year = simpledialog.askinteger("An", "Anul", initialvalue=today.year, parent=win)
+        if year is None:
+            return
+        month = simpledialog.askinteger(
+            "Luna",
+            "Luna (1-12)",
+            minvalue=1,
+            maxvalue=12,
+            initialvalue=today.month,
+            parent=win,
+        )
+        if month is None:
+            return
+        export_all_backups(month, year)
+
     btn_add = ttk.Button(win, text="Adaugă", command=add_client)
     btn_del = ttk.Button(win, text="Șterge", command=delete_client)
     btn_export = ttk.Button(win, text="Export Backup", command=export_current)
-    for i, b in enumerate((btn_add, btn_del, btn_export)):
+    btn_export_all = ttk.Button(win, text="Export Toți", command=export_all)
+    for i, b in enumerate((btn_add, btn_del, btn_export, btn_export_all)):
         b.grid(row=1, column=i, padx=5, pady=5, sticky="w")
 
     refresh()
