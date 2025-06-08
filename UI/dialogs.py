@@ -496,7 +496,21 @@ def open_release_window(root, loc_id, load_cb, user):
         if not sel:
             messagebox.showwarning("Selectează", "Alege o închiriere.")
             return
-        rid, _client, ds, _de, *_ = rows[sel[0]]
+        rid, _client, ds, de, *_ = rows[sel[0]]
+
+        start = datetime.date.fromisoformat(ds)
+        end = datetime.date.fromisoformat(de)
+        duration = (end - start).days + 1
+        if (
+            user.get("role") != "admin"
+            and end < datetime.date.today()
+            and duration > 3
+        ):
+            messagebox.showwarning(
+                "Refuzat",
+                "Doar adminul poate șterge închirierile finalizate."
+            )
+            return
 
         if messagebox.askyesno(
             "Eliberează",
