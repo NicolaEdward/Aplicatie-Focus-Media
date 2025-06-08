@@ -179,7 +179,12 @@ def _needs_reconnect(exc: Exception) -> bool:
     if mysql is None:
         return False
     err = getattr(exc, "errno", None)
-    return err in (2006, 2013)
+    if err in (2006, 2013):
+        return True
+    msg = str(exc).lower()
+    if "not available" in msg:
+        return True
+    return False
 
 
 def reconnect() -> None:
