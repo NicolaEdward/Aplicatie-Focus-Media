@@ -1137,6 +1137,17 @@ def export_sales_report():
                 "border": 1,
             }
         )
+        stat_ratio_fmt = wb.add_format(
+            {
+                "num_format": "0.00",
+                "bold": True,
+                "bg_color": "#FFF2CC",
+                "font_size": 14,
+                "align": "center",
+                "valign": "vcenter",
+                "border": 1,
+            }
+        )
 
         money_cols = {
             "Ratecard/month",
@@ -1262,8 +1273,9 @@ def export_sales_report():
                 start + 2, 0, start + 2, merge_end, "Preț vânzare total", stat_lbl_fmt
             )
             ws.write(start + 2, value_col, sale_total, stat_money_fmt)
-            pct_sale_sold = sold_income / total_val if total_val else 0
-            pct_sale_free = sale_free / total_val if total_val else 0
+            pct_sale_sold = sold_income / sale_total if sale_total else 0
+            pct_sale_free = sale_free / sale_total if sale_total else 0
+            ratio_sales = sold_income / sale_free if sale_free else 0
             ws.merge_range(
                 start + 3, 0, start + 3, merge_end, "Sumă locații vândute", stat_lbl_fmt
             )
@@ -1287,6 +1299,15 @@ def export_sales_report():
                 f"€{sale_free:,.2f} ({pct_sale_free:.2%})",
                 stat_money_neg_fmt,
             )
+            ws.merge_range(
+                start + 5,
+                0,
+                start + 5,
+                merge_end,
+                "Raport sume vândute/nevândute",
+                stat_lbl_fmt,
+            )
+            ws.write(start + 5, value_col, ratio_sales, stat_ratio_fmt)
 
         current_year = datetime.date.today().year
         year_start = datetime.date(current_year, 1, 1)
@@ -1390,7 +1411,7 @@ def export_sales_report():
             ["__grp", "pret_vanzare"], ascending=[True, False]
         ).drop(columns="__grp")
 
-        def write_total_sheet(df_sheet):
+        def write_total_sheet(df_sheet, total_prisms):
             df_sheet = df_sheet[
                 [
                     "city",
@@ -1461,8 +1482,13 @@ def export_sales_report():
                 start + 1, 0, start + 1, merge_end, "Sumă totală", stat_lbl_fmt
             )
             ws.write(start + 1, value_col, total_sum, stat_money_fmt)
+            ws.merge_range(
+                start + 2, 0, start + 2, merge_end, "Prisme vândute total", stat_lbl_fmt
+            )
+            ws.write(start + 2, value_col, total_prisms, stat_int_fmt)
 
-        write_total_sheet(df_total)
+        total_prisms = int(df_total["Units Sold"].sum())
+        write_total_sheet(df_total, total_prisms)
 
         for month in range(1, 13):
             start_m = pd.Timestamp(current_year, month, 1)
