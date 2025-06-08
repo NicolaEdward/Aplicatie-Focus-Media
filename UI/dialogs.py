@@ -5,7 +5,7 @@ import tkinter as tk
 from tkinter import filedialog, messagebox, simpledialog, ttk
 
 import pandas as pd
-from tkcalendar import DateEntry
+from UI.date_picker import DatePicker
 import xlsxwriter
 
 from utils import PREVIEW_FOLDER, make_preview
@@ -337,7 +337,7 @@ def open_rent_window(root, loc_id, load_cb, user):
     for i, lbl in enumerate(labels, start=2):
         ttk.Label(win, text=lbl + ":").grid(row=i, column=0, sticky="e", padx=5, pady=5)
         if "Data" in lbl:
-            e = DateEntry(win, date_pattern="yyyy-mm-dd")
+            e = DatePicker(win)
         else:
             e = ttk.Entry(win, width=30)
         e.grid(row=i, column=1, padx=5, pady=5)
@@ -453,16 +453,26 @@ def open_release_window(root, loc_id, load_cb, user):
         if not sel:
             messagebox.showwarning("Selectează", "Alege o închiriere.")
             return
-        rid = rows[sel[0]][0]
-        if not messagebox.askyesno("Confirmă", "Sigur vrei să anulezi această închiriere?"):
-            return
-        cur.execute("DELETE FROM rezervari WHERE id=?", (rid,))
+        rid, _client, ds, _de, *_ = rows[sel[0]]
+
+        if messagebox.askyesno(
+            "Eliberează",
+            "Ștergi complet perioada de închiriere?\nAlege 'Nu' pentru a încheia contractul acum.",
+        ):
+            cur.execute("DELETE FROM rezervari WHERE id=?", (rid,))
+        else:
+            today = datetime.date.today()
+            start = datetime.date.fromisoformat(ds)
+            if today < start:
+                cur.execute("DELETE FROM rezervari WHERE id=?", (rid,))
+            else:
+                cur.execute("UPDATE rezervari SET data_end=? WHERE id=?", (today.isoformat(), rid))
         conn.commit()
         update_statusuri_din_rezervari()
         load_cb()
         win.destroy()
 
-    ttk.Button(win, text="Șterge", command=delete_selected).grid(row=1, column=0, padx=5, pady=5)
+    ttk.Button(win, text="Confirmă", command=delete_selected).grid(row=1, column=0, padx=5, pady=5)
     ttk.Button(win, text="Închide", command=win.destroy).grid(row=1, column=1, padx=5, pady=5)
 
 
