@@ -386,16 +386,19 @@ def open_rent_window(root, loc_id, load_cb, user):
         cur = conn.cursor()
 
         # verificăm suprapuneri cu alte perioade
-        overlap = cur.execute(
-            "SELECT 1 FROM rezervari WHERE loc_id=? AND NOT (data_end < ? OR data_start > ?)",
+        rows = cur.execute(
+            "SELECT suma, created_by FROM rezervari WHERE loc_id=? AND NOT (data_end < ? OR data_start > ?)",
             (loc_id, start.isoformat(), end.isoformat()),
-        ).fetchone()
-        if overlap:
-            messagebox.showerror(
-                "Perioadă ocupată",
-                "Locația este deja rezervată sau închiriată în intervalul ales.",
-            )
-            return
+        ).fetchall()
+        for suma, owner in rows:
+            # Orice închiriere existentă blochează intervalul, iar o rezervare
+            # făcută de alt vânzător nu poate fi suprascrisă.
+            if suma is not None or owner != user["username"]:
+                messagebox.showerror(
+                    "Perioadă ocupată",
+                    "Locația este deja rezervată sau închiriată în intervalul ales.",
+                )
+                return
 
         # inserăm noua închiriere
         cur.execute(

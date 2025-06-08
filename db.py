@@ -193,6 +193,11 @@ def pandas_conn():
             url += f"/{db_name}"
             pandas_conn._engine = sqlalchemy.create_engine(url)
         return pandas_conn._engine
+    # ``pandas.read_sql_query`` expects a raw DB-API connection or SQLAlchemy
+    # engine.  When using SQLite we wrap the connection in ``_ConnWrapper``
+    # so translate it back to the underlying connection object.
+    if isinstance(conn, _ConnWrapper):
+        return conn._conn
     return conn
 
 
