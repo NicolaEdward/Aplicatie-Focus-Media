@@ -377,10 +377,11 @@ def start_app(user, root=None):
         for w in (btn_add, btn_edit, btn_delete):
             w.pack(side="left", padx=5, pady=5)
         if role == "admin":
-            btn_users.pack(side="left", padx=5, pady=5)
             btn_manage.pack(side="left", padx=5, pady=5)
-    for w in (btn_clients, btn_firme):
+    for w in (btn_clients,):
         w.pack(side="left", padx=5, pady=5)
+    if role != "admin":
+        btn_firme.pack(side="left", padx=5, pady=5)
     if role != "manager":
         for w in (btn_rent, btn_release, btn_reserve):
             w.pack(side="left", padx=5, pady=5)
