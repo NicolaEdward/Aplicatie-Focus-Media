@@ -294,6 +294,14 @@ def cancel_reservation(root, loc_id, load_cb):
 
 def open_reserve_window(root, loc_id, load_cb, user):
     """Rezervă locația pentru 5 zile folosind doar numele clientului."""
+    loc_data = get_location_by_id(loc_id)
+    if loc_data and loc_data.get("is_mobile") and not loc_data.get("parent_id"):
+        messagebox.showwarning(
+            "Refuzat",
+            "Prismele mobile nu pot fi rezervate. Folosește închirierea.",
+        )
+        return
+
     win = tk.Toplevel(root)
     win.title(f"Rezervă locația #{loc_id}")
 
@@ -415,16 +423,14 @@ def open_rent_window(root, loc_id, load_cb, user):
 
         # verificăm suprapuneri cu alte perioade
         rows = cur.execute(
-            "SELECT suma, created_by FROM rezervari WHERE loc_id=? AND NOT (data_end < ? OR data_start > ?)",
+            "SELECT suma FROM rezervari WHERE loc_id=? AND NOT (data_end < ? OR data_start > ?)",
             (loc_id, start.isoformat(), end.isoformat()),
         ).fetchall()
-        for suma, owner in rows:
-            # Orice închiriere existentă blochează intervalul, iar o rezervare
-            # făcută de alt vânzător nu poate fi suprascrisă. În cazul prismei
-            # mobile, pentru locația de bază există înregistrări cu ``suma``
-            # zero create de același utilizator, astfel că ignorăm aceste
-            # suprapuneri.
-            if (suma is not None and suma > 0) or owner != user["username"]:
+        for (suma,) in rows:
+            # Orice închiriere existentă blochează intervalul. În cazul prismei
+            # mobile, ignorăm suprapunerile cu înregistrări care au suma ``0``
+            # (create pentru locația de bază).
+            if suma is None or suma > 0:
                 messagebox.showerror(
                     "Perioadă ocupată",
                     "Locația este deja rezervată sau închiriată în intervalul ales.",
