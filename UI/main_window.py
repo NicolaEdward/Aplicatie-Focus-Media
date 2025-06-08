@@ -647,7 +647,11 @@ def start_app(user, root=None):
             command=lambda: open_rent_window(root, loc_id, load_locations, user),
         )
 
-        if status == "Închiriat":
+        has_rentals = cursor.execute(
+            "SELECT 1 FROM rezervari WHERE loc_id=? AND suma IS NOT NULL LIMIT 1",
+            (loc_id,),
+        ).fetchone()
+        if has_rentals:
             btn_release.config(
                 state="normal",
                 command=lambda: open_release_window(
