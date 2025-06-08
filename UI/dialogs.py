@@ -1211,13 +1211,16 @@ def export_sales_report():
 
         def write_sheet(name, df_sheet):
             df_sheet = df_sheet.copy()
+            df_sheet["data_start"] = pd.to_datetime(df_sheet["data_start"], errors="coerce")
+            df_sheet["data_end"] = pd.to_datetime(df_sheet["data_end"], errors="coerce")
             df_sheet["Perioada"] = ""
             mask = df_sheet["data_start"].notna() & df_sheet["data_end"].notna()
-            df_sheet.loc[mask, "Perioada"] = (
-                df_sheet.loc[mask, "data_start"].dt.strftime("%d.%m.%Y")
-                + " → "
-                + df_sheet.loc[mask, "data_end"].dt.strftime("%d.%m.%Y")
-            )
+            if mask.any():
+                df_sheet.loc[mask, "Perioada"] = (
+                    df_sheet.loc[mask, "data_start"].dt.strftime("%d.%m.%Y")
+                    + " → "
+                    + df_sheet.loc[mask, "data_end"].dt.strftime("%d.%m.%Y")
+                )
             df_sheet = df_sheet[
                 [
                     "city",
@@ -1415,6 +1418,8 @@ def export_sales_report():
                 cur = ov_end + datetime.timedelta(days=1)
 
         df_rec = pd.DataFrame(records)
+        if df_rec.empty:
+            df_rec = pd.DataFrame(columns=["id", "days", "months", "val_real"])
         agg = df_rec.groupby("id").agg(
             {"days": "sum", "months": "sum", "val_real": "sum"}
         )
