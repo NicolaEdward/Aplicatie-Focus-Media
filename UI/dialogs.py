@@ -2274,7 +2274,15 @@ def _write_backup_excel(rows, start_m: datetime.date, end_m: datetime.date, path
             f_name = f_cui = f_addr = c_name = c_cui = c_addr = camp = ""
 
         title = f"BKP {f_name} x {c_name} - {camp or c_name} - {start_m:%B}"
-        title_fmt = wb.add_format({"bold": True, "font_size": 14, "align": "center"})
+        title_fmt = wb.add_format(
+            {
+                "bold": True,
+                "font_size": 14,
+                "align": "center",
+                "bg_color": "#4F81BD",
+                "font_color": "white",
+            }
+        )
         ws.merge_range(0, 0, 0, len(df.columns) - 1, title, title_fmt)
 
         headers = [
@@ -2284,24 +2292,22 @@ def _write_backup_excel(rows, start_m: datetime.date, end_m: datetime.date, path
             ("Client", c_name),
             ("CUI client", c_cui),
             ("Adresă client", c_addr),
-            (
-                "Campanie",
-                camp or c_name,
-            ),
+            ("Campanie", camp or c_name),
             (
                 "Perioadă facturare",
                 f"{start_m:%d.%m.%Y} - {end_m:%d.%m.%Y}",
             ),
         ]
 
-        for i, (k, v) in enumerate(headers):
-            col = (i // 2) * 2
-            row = 1 + (i % 2)
-            ws.write(row, col, k)
-            ws.write(row, col + 1, v)
+        label_fmt = wb.add_format({"bold": True, "align": "center", "bg_color": "#D9E1F2"})
+        value_fmt = wb.add_format({"align": "center", "bg_color": "#D9E1F2"})
+        for i, (k, v) in enumerate(headers, start=1):
+            ws.write(i, 0, k, label_fmt)
+            ws.merge_range(i, 1, i, len(df.columns) - 1, v, value_fmt)
 
-        start_row = 4
+        start_row = len(headers) + 2
         df.to_excel(writer, sheet_name="Backup", index=False, startrow=start_row)
+        ws.freeze_panes(start_row + 1, 0)
 
         hdr_fmt = wb.add_format(
             {"bold": True, "bg_color": "#4F81BD", "font_color": "white", "align": "center"}
@@ -2317,17 +2323,17 @@ def _write_backup_excel(rows, start_m: datetime.date, end_m: datetime.date, path
             ws.write(start_row, col_idx, col, hdr_fmt)
 
         row_tot = start_row + len(df) + 1
-        bold = wb.add_format({"bold": True})
-        ws.write(row_tot, 0, "Total Decorare", bold)
+        total_fmt = wb.add_format({"bold": True, "bg_color": "#D9E1F2"})
+        ws.write(row_tot, 0, "Total Decorare", total_fmt)
         ws.write(row_tot, df.columns.get_loc("Preț Decorare"), total_deco, euro_fmt)
         row_tot += 1
-        ws.write(row_tot, 0, "Total Producție", bold)
+        ws.write(row_tot, 0, "Total Producție", total_fmt)
         ws.write(row_tot, df.columns.get_loc("Preț Producție"), total_prod, euro_fmt)
         row_tot += 1
-        ws.write(row_tot, 0, "Total Chirii", bold)
+        ws.write(row_tot, 0, "Total Chirii", total_fmt)
         ws.write(row_tot, df.columns.get_loc("Chirie NET"), total_rent, euro_fmt)
         row_tot += 1
-        ws.write(row_tot, 0, "Total General", bold)
+        ws.write(row_tot, 0, "Total General", total_fmt)
         ws.write(row_tot, df.columns.get_loc("Chirie NET"), total_rent + total_deco + total_prod, euro_fmt)
 
 
@@ -2369,20 +2375,27 @@ def export_client_backup(month, year, client_id=None, firma_id=None, campaign=No
         messagebox.showinfo("Export", "Nu există închirieri pentru perioada aleasă.")
         return
 
-    f_name = rows[0][3] or ""
-    c_name = rows[0][0] or ""
-    camp = rows[0][6] or c_name
-
     if directory is None:
         directory = filedialog.askdirectory()
         if not directory:
             return
 
-    file_name = _safe_filename(f"BKP {f_name} x {c_name} - {camp} - {start_m:%B}.xlsx")
-    path = os.path.join(directory, file_name)
+    groups = {}
+    for row in rows:
+        f_name = row[3] or "FaraFirma"
+        c_name = row[0] or ""
+        camp = row[6] or c_name
+        key = (f_name, c_name, camp)
+        groups.setdefault(key, []).append(row)
 
-    _write_backup_excel(rows, start_m, end_m, path)
-    messagebox.showinfo("Export", f"Backup salvat:\n{path}")
+    for (f_name, c_name, camp), grp_rows in groups.items():
+        sub = os.path.join(directory, _safe_filename(f_name))
+        os.makedirs(sub, exist_ok=True)
+        fname = _safe_filename(f"BKP {f_name} x {c_name} - {camp} - {start_m:%B}.xlsx")
+        path = os.path.join(sub, fname)
+        _write_backup_excel(grp_rows, start_m, end_m, path)
+
+    messagebox.showinfo("Export", f"Backupurile au fost salvate în:\n{directory}")
 
 
 def export_all_backups(month, year):
