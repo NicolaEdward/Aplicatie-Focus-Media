@@ -87,6 +87,8 @@ def create_tables(cur):
         CREATE TABLE IF NOT EXISTS clienti (
             id INT AUTO_INCREMENT PRIMARY KEY,
             nume VARCHAR(255) UNIQUE NOT NULL,
+            cui VARCHAR(64),
+            adresa TEXT,
             contact TEXT,
             email TEXT,
             phone TEXT,
@@ -97,17 +99,30 @@ def create_tables(cur):
     )
     cur.execute(
         """
+        CREATE TABLE IF NOT EXISTS firme (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            nume VARCHAR(255) UNIQUE NOT NULL,
+            cui VARCHAR(64),
+            adresa TEXT
+        )
+        """
+    )
+    cur.execute(
+        """
         CREATE TABLE IF NOT EXISTS rezervari (
             id INT AUTO_INCREMENT PRIMARY KEY,
             loc_id INT NOT NULL,
             client TEXT NOT NULL,
             client_id INT,
+            firma_id INT,
             data_start TEXT NOT NULL,
             data_end TEXT NOT NULL,
             suma DOUBLE,
             created_by TEXT,
+            campaign TEXT,
             FOREIGN KEY(loc_id) REFERENCES locatii(id),
-            FOREIGN KEY(client_id) REFERENCES clienti(id)
+            FOREIGN KEY(client_id) REFERENCES clienti(id),
+            FOREIGN KEY(firma_id) REFERENCES firme(id)
         )
         """
     )

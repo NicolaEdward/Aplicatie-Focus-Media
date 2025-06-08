@@ -506,9 +506,20 @@ def open_rent_window(root, loc_id, load_cb, user):
     entry_final = ttk.Entry(win, width=30)
     entry_final.grid(row=1, column=1, padx=5, pady=5)
 
-    labels = ["Data start", "Data end", "Sumă finală"]
+    ttk.Label(win, text="Societate:").grid(row=2, column=0, sticky="e", padx=5, pady=5)
+    def firma_list():
+        return [r[0] for r in conn.cursor().execute("SELECT nume FROM firme ORDER BY nume").fetchall()]
+    cb_firma = ttk.Combobox(win, values=firma_list(), width=27)
+    cb_firma.grid(row=2, column=1, padx=5, pady=5)
+    ttk.Button(
+        win,
+        text="+",
+        command=lambda: (open_firme_window(win), cb_firma.configure(values=firma_list()))
+    ).grid(row=2, column=2, padx=2, pady=5)
+
+    labels = ["Data start", "Data end", "Sumă finală", "Campanie"]
     entries = {}
-    for i, lbl in enumerate(labels, start=2):
+    for i, lbl in enumerate(labels, start=3):
         ttk.Label(win, text=lbl + ":").grid(row=i, column=0, sticky="e", padx=5, pady=5)
         if "Data" in lbl:
             e = DatePicker(win)
@@ -517,7 +528,7 @@ def open_rent_window(root, loc_id, load_cb, user):
         e.grid(row=i, column=1, padx=5, pady=5)
         entries[lbl] = e
 
-    row_extra = len(labels) + 2
+    row_extra = len(labels) + 3
     if is_base_mobile:
         ttk.Label(win, text="Adresă montaj:").grid(
             row=row_extra, column=0, sticky="e", padx=5, pady=5
@@ -578,6 +589,21 @@ def open_rent_window(root, loc_id, load_cb, user):
         except ValueError:
             messagebox.showwarning("Sumă invalidă", "Introdu o sumă numerică.")
             return
+
+        firma_name = cb_firma.get().strip()
+        cur = conn.cursor()
+        if firma_name:
+            row_f = cur.execute("SELECT id FROM firme WHERE nume=?", (firma_name,)).fetchone()
+            if row_f:
+                firma_id = row_f[0]
+            else:
+                cur.execute("INSERT INTO firme (nume) VALUES (?)", (firma_name,))
+                conn.commit()
+                firma_id = cur.lastrowid
+        else:
+            firma_id = None
+
+        campaign_val = entries["Campanie"].get().strip()
 
         cur = conn.cursor()
 
@@ -655,44 +681,50 @@ def open_rent_window(root, loc_id, load_cb, user):
             )
             new_loc_id = cur.lastrowid
             cur.execute(
-                "INSERT INTO rezervari (loc_id, client, client_id, data_start, data_end, suma, created_by)"
-                " VALUES (?, ?, ?, ?, ?, ?, ?)",
+                "INSERT INTO rezervari (loc_id, client, client_id, firma_id, data_start, data_end, suma, created_by, campaign)"
+                " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (
                     new_loc_id,
                     client_display,
                     client_id,
+                    firma_id,
                     start.isoformat(),
                     end.isoformat(),
                     fee_val,
                     user["username"],
+                    campaign_val or client_display,
                 ),
             )
             cur.execute(
-                "INSERT INTO rezervari (loc_id, client, client_id, data_start, data_end, suma, created_by)"
-                " VALUES (?, ?, ?, ?, ?, ?, ?)",
+                "INSERT INTO rezervari (loc_id, client, client_id, firma_id, data_start, data_end, suma, created_by, campaign)"
+                " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (
                     loc_id,
                     client_display,
                     client_id,
+                    firma_id,
                     start.isoformat(),
                     end.isoformat(),
                     0.0,
                     user["username"],
+                    campaign_val or client_display,
                 ),
             )
         else:
             # inserăm noua închiriere
             cur.execute(
-                "INSERT INTO rezervari (loc_id, client, client_id, data_start, data_end, suma, created_by)"
-                " VALUES (?, ?, ?, ?, ?, ?, ?)",
+                "INSERT INTO rezervari (loc_id, client, client_id, firma_id, data_start, data_end, suma, created_by, campaign)"
+                " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (
                     loc_id,
                     client_display,
                     client_id,
+                    firma_id,
                     start.isoformat(),
                     end.isoformat(),
                     fee_val,
                     user["username"],
+                    campaign_val or client_display,
                 ),
             )
         conn.commit()
@@ -2006,6 +2038,8 @@ def open_add_client_window(parent, refresh_cb=None):
         "Persoană contact",
         "Email",
         "Telefon",
+        "CUI",
+        "Adresă facturare",
         "Observații",
     ]
     entries = {}
@@ -2029,12 +2063,14 @@ def open_add_client_window(parent, refresh_cb=None):
             return
         cur = conn.cursor()
         cur.execute(
-            "INSERT INTO clienti (nume, contact, email, phone, observatii, tip) VALUES (?,?,?,?,?,?)",
+            "INSERT INTO clienti (nume, contact, email, phone, cui, adresa, observatii, tip) VALUES (?,?,?,?,?,?,?,?)",
             (
                 nume,
                 entries["Persoană contact"].get().strip(),
                 entries["Email"].get().strip(),
                 entries["Telefon"].get().strip(),
+                entries["CUI"].get().strip(),
+                entries["Adresă facturare"].get().strip(),
                 entries["Observații"].get().strip(),
                 cb_tip.get() or "direct",
             ),
@@ -2060,11 +2096,14 @@ def export_client_backup(month, year, client_id=None):
 
     cur = conn.cursor()
     sql = (
-        "SELECT c.nume, l.city, l.address, l.code, l.type, l.sqm, "
-        "r.data_start, r.data_end, r.suma, r.client_id "
+        "SELECT c.nume, c.cui, c.adresa, "
+        "       f.nume, f.cui, f.adresa, r.campaign, "
+        "       l.city, l.address, l.code, l.face, l.type, l.size, l.sqm, "
+        "       r.data_start, r.data_end, r.suma, l.decoration_cost, r.client_id "
         "FROM rezervari r "
         "JOIN locatii l ON r.loc_id = l.id "
         "JOIN clienti c ON r.client_id = c.id "
+        "LEFT JOIN firme f ON r.firma_id = f.id "
         "WHERE r.suma IS NOT NULL AND NOT (r.data_end < ? OR r.data_start > ?)"
     )
     params = [start_m.isoformat(), end_m.isoformat()]
@@ -2078,9 +2117,16 @@ def export_client_backup(month, year, client_id=None):
         return
 
     data = []
-    for nume, city, addr, code, typ, sqm, ds, de, price, cid in rows:
+    header_info = None
+    for (client_name, client_cui, client_addr,
+         firma_name, firma_cui, firma_addr, campaign,
+         city, addr, code, face, typ, size, sqm,
+         ds, de, price, deco_cost, cid) in rows:
         ds_dt = datetime.date.fromisoformat(ds)
         de_dt = datetime.date.fromisoformat(de)
+        if header_info is None:
+            header_info = (firma_name, firma_cui, firma_addr,
+                            client_name, client_cui, client_addr, campaign)
         ov_start = max(ds_dt, start_m)
         ov_end = min(de_dt, end_m)
         days = (ov_end - ov_start).days + 1
@@ -2091,47 +2137,49 @@ def export_client_backup(month, year, client_id=None):
                 city,
                 addr,
                 code,
+                face,
+                1,
                 typ,
-                sqm,
+                size,
                 ds_dt,
                 de_dt,
                 frac,
                 "EUR",
                 price,
                 amount,
-                0.0,
-                0.0,
-                nume,
+                deco_cost or 0.0,
+                round(float(sqm or 0) * 7, 2),
             ]
         )
 
     df = pd.DataFrame(
         data,
         columns=[
-            "City",
-            "Address",
-            "Code",
-            "Type",
-            "SQM",
-            "Data start",
-            "Data end",
-            "Perioada",
-            "Valuta",
+            "Oraș",
+            "Adresă",
+            "Cod",
+            "Cod Față",
+            "Nr. bucăți",
+            "Tip Suport",
+            "Dimensiune",
+            "Data Început",
+            "Data Sfârșit",
+            "Perioadă (luni)",
+            "Valută",
             "Preț chirie/lună",
-            "Chirie net",
-            "Decoration",
-            "Production",
-            "Client",
+            "Chirie NET",
+            "Preț Decorare",
+            "Preț Producție",
         ],
     )
 
-    df["Perioada"] = df["Perioada"].round(2)
+    df["Perioadă (luni)"] = df["Perioadă (luni)"].round(2)
 
     df.insert(0, "Nr. Crt", range(1, len(df) + 1))
 
-    total_rent = df["Chirie net"].sum()
-    total_deco = df["Decoration"].sum()
-    total_prod = df["Production"].sum()
+    total_rent = df["Chirie NET"].sum()
+    total_deco = df["Preț Decorare"].sum()
+    total_prod = df["Preț Producție"].sum()
 
     path = filedialog.asksaveasfilename(
         defaultextension=".xlsx", filetypes=[("Excel", "*.xlsx")]
@@ -2140,9 +2188,26 @@ def export_client_backup(month, year, client_id=None):
         return
 
     with pd.ExcelWriter(path, engine="xlsxwriter") as writer:
-        df.to_excel(writer, sheet_name="Backup", index=False, startrow=0)
+        start_row = 6
+        df.to_excel(writer, sheet_name="Backup", index=False, startrow=start_row)
         wb = writer.book
         ws = writer.sheets["Backup"]
+
+        if header_info:
+            f_name, f_cui, f_addr, c_name, c_cui, c_addr, camp = header_info
+            headers = [
+                ["Societatea care facturează", f_name or ""],
+                ["CUI", f_cui or ""],
+                ["Adresă", f_addr or ""],
+                ["Client", c_name or ""],
+                ["CUI client", c_cui or ""],
+                ["Adresă client", c_addr or ""],
+                ["Perioada campaniei", f"{start_m:%d.%m.%Y} - {end_m:%d.%m.%Y}"],
+                ["Denumire campanie", camp or c_name],
+            ]
+            for i, (k, v) in enumerate(headers):
+                ws.write(i, 0, k)
+                ws.write(i, 1, v)
 
         hdr_fmt = wb.add_format(
             {
@@ -2155,18 +2220,18 @@ def export_client_backup(month, year, client_id=None):
         euro_fmt = wb.add_format({"num_format": "€#,##0.00", "align": "center"})
         center_fmt = wb.add_format({"align": "center"})
 
-        money_cols = {"Preț chirie/lună", "Chirie net", "Decoration", "Production"}
+        money_cols = {"Preț chirie/lună", "Chirie NET", "Preț Decorare", "Preț Producție"}
         for col_idx, col in enumerate(df.columns):
             width = max(len(str(col)), df[col].astype(str).map(len).max()) + 2
             fmt = euro_fmt if col in money_cols else center_fmt
             ws.set_column(col_idx, col_idx, width, fmt)
-            ws.write(0, col_idx, col, hdr_fmt)
+            ws.write(start_row, col_idx, col, hdr_fmt)
 
-        row_tot = len(df) + 1
+        row_tot = start_row + len(df) + 1
         ws.write(row_tot, 0, "Total", wb.add_format({"bold": True}))
-        ws.write(row_tot, df.columns.get_loc("Chirie net"), total_rent, euro_fmt)
-        ws.write(row_tot, df.columns.get_loc("Decoration"), total_deco, euro_fmt)
-        ws.write(row_tot, df.columns.get_loc("Production"), total_prod, euro_fmt)
+        ws.write(row_tot, df.columns.get_loc("Chirie NET"), total_rent, euro_fmt)
+        ws.write(row_tot, df.columns.get_loc("Preț Decorare"), total_deco, euro_fmt)
+        ws.write(row_tot, df.columns.get_loc("Preț Producție"), total_prod, euro_fmt)
 
     messagebox.showinfo("Export", f"Backup salvat:\n{path}")
 
@@ -2176,7 +2241,7 @@ def open_clients_window(root):
     win = tk.Toplevel(root)
     win.title("Clienți")
 
-    cols = ("Nume", "Tip", "Contact", "Email", "Telefon", "Observații")
+    cols = ("Nume", "Tip", "Contact", "Email", "Telefon", "CUI", "Adresă", "Observații")
     tree = ttk.Treeview(win, columns=cols, show="headings")
     for col in cols:
         tree.heading(col, text=col)
@@ -2195,16 +2260,16 @@ def open_clients_window(root):
         rows = (
             conn.cursor()
             .execute(
-                "SELECT id, nume, tip, contact, email, phone, observatii FROM clienti ORDER BY nume"
+                "SELECT id, nume, tip, contact, email, phone, cui, adresa, observatii FROM clienti ORDER BY nume"
             )
             .fetchall()
         )
-        for cid, nume, tip, contact, email, phone, obs in rows:
+        for cid, nume, tip, contact, email, phone, cui, addr, obs in rows:
             tree.insert(
                 "",
                 "end",
                 iid=str(cid),
-                values=(nume, tip or "direct", contact, email, phone, obs or ""),
+                values=(nume, tip or "direct", contact, email, phone, cui or "", addr or "", obs or ""),
             )
 
     def add_client():
@@ -2484,3 +2549,87 @@ def open_users_window(root):
     ttk.Button(win, text="Închide", command=win.destroy).grid(row=1, column=2, pady=5)
 
     refresh()
+
+
+def open_firme_window(root):
+    """Admin window to manage invoice companies."""
+
+    win = tk.Toplevel(root)
+    win.title("Firme")
+
+    tree = ttk.Treeview(win, columns=("Nume", "CUI", "Adresă"), show="headings")
+    for c in ("Nume", "CUI", "Adresă"):
+        tree.heading(c, text=c)
+    tree.grid(row=0, column=0, columnspan=3, sticky="nsew")
+    win.columnconfigure(0, weight=1)
+    win.rowconfigure(0, weight=1)
+
+    def refresh():
+        tree.delete(*tree.get_children())
+        rows = conn.cursor().execute("SELECT id, nume, cui, adresa FROM firme ORDER BY nume").fetchall()
+        for fid, n, c, a in rows:
+            tree.insert("", "end", iid=str(fid), values=(n, c or "", a or ""))
+
+    def add_firma():
+        dlg = tk.Toplevel(win)
+        dlg.title("Adaugă firmă")
+
+        lbls = ["Nume", "CUI", "Adresă"]
+        ents = {}
+        for i, l in enumerate(lbls):
+            ttk.Label(dlg, text=l + ":").grid(row=i, column=0, padx=5, pady=5, sticky="e")
+            e = ttk.Entry(dlg, width=40)
+            e.grid(row=i, column=1, padx=5, pady=5)
+            ents[l] = e
+
+        def on_ok():
+            name = ents["Nume"].get().strip()
+            if not name:
+                messagebox.showwarning("Date lipsă", "Completează numele.", parent=dlg)
+                return
+            conn.cursor().execute(
+                "INSERT INTO firme (nume, cui, adresa) VALUES (?,?,?)",
+                (name, ents["CUI"].get().strip(), ents["Adresă"].get().strip()),
+            )
+            conn.commit()
+            dlg.destroy()
+            refresh()
+
+        ttk.Button(dlg, text="Salvează", command=on_ok).grid(row=len(lbls), column=0, columnspan=2, pady=10)
+        dlg.grab_set()
+        ents["Nume"].focus()
+
+    def del_firma():
+        sel = tree.selection()
+        if not sel:
+            return
+        fid = int(sel[0])
+        if messagebox.askyesno("Confirmă", "Ștergi firma selectată?"):
+            conn.cursor().execute("DELETE FROM firme WHERE id=?", (fid,))
+            conn.commit()
+            refresh()
+
+    ttk.Button(win, text="Adaugă", command=add_firma).grid(row=1, column=0, pady=5)
+    ttk.Button(win, text="Șterge", command=del_firma).grid(row=1, column=1, pady=5)
+    ttk.Button(win, text="Închide", command=win.destroy).grid(row=1, column=2, pady=5)
+
+    refresh()
+
+
+def open_manage_window(root):
+    """Simple panel with admin actions."""
+
+    win = tk.Toplevel(root)
+    win.title("Administrare aplicație")
+
+    ttk.Button(win, text="Utilizatori", command=lambda: open_users_window(win)).pack(
+        fill="x", padx=10, pady=5
+    )
+    ttk.Button(
+        win,
+        text="Firme facturare",
+        command=lambda: open_firme_window(win),
+    ).pack(fill="x", padx=10, pady=5)
+    ttk.Button(win, text="Locații", command=root.lift).pack(fill="x", padx=10, pady=5)
+    ttk.Button(win, text="Închide", command=win.destroy).pack(pady=10)
+
