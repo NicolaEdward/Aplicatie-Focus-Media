@@ -201,6 +201,14 @@ def pandas_conn():
     return conn
 
 
+def read_sql_query(sql: str, params=None, **kwargs):
+    """Return a DataFrame using ``pandas.read_sql_query`` with adapted placeholders."""
+    import pandas as pd
+    if getattr(conn, "mysql", False):
+        sql = sql.replace("?", "%s")
+    return pd.read_sql_query(sql, pandas_conn(), params=params, **kwargs)
+
+
 def ensure_index(table: str, index_name: str, column: str) -> None:
     """Create *index_name* on *table* if it is missing."""
     if getattr(conn, "mysql", False):
