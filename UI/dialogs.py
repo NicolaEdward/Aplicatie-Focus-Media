@@ -2364,7 +2364,20 @@ def _write_backup_excel(rows, start_m: datetime.date, end_m: datetime.date, path
             if cell.value is not None or cell.coordinate in ws.merged_cells:
                 cell.border = border
 
+    # apply a thicker border around the totals section for emphasis
+    thick = Side(border_style="thick")
+    start_col, end_col = 14, 16
+    for r in range(total_start, grand_row + 1):
+        for c in range(start_col, end_col + 1):
+            cell = ws.cell(row=r, column=c)
+            top = thick if r == total_start else thin
+            bottom = thick if r == grand_row else thin
+            left = thick if c == start_col else thin
+            right = thick if c == end_col else thin
+            cell.border = Border(top=top, bottom=bottom, left=left, right=right)
+
     from openpyxl.utils import get_column_letter
+    extra_height_needed = False
     for col_idx in range(1, 17):
         max_len = 0
         start_row = 2 if col_idx == 1 else 1
@@ -2372,15 +2385,20 @@ def _write_backup_excel(rows, start_m: datetime.date, end_m: datetime.date, path
             cell = ws.cell(row=row, column=col_idx)
             if cell.value is not None:
                 max_len = max(max_len, len(str(cell.value)))
-        ws.column_dimensions[get_column_letter(col_idx)].width = min(max_len + 2, 25)
+        width = min(max_len + 2, 25)
+        if width > 20:
+            width = 20
+            extra_height_needed = True
+        ws.column_dimensions[get_column_letter(col_idx)].width = width
 
+    data_height = 35 if extra_height_needed else 30
     for r in range(data_start, last_data_row + 1):
-        ws.row_dimensions[r].height = 30
+        ws.row_dimensions[r].height = data_height
     for r in range(last_data_row + 1, last_total_row + 1):
-        ws.row_dimensions[r].height = 22
+        ws.row_dimensions[r].height = 22 if not extra_height_needed else 26
 
     for r in range(1, header_row + 1):
-        ws.row_dimensions[r].height = 30
+        ws.row_dimensions[r].height = 32 if extra_height_needed else 30
 
     wb.save(path)
 def export_client_backup(month, year, client_id=None, firma_id=None, campaign=None, directory=None):
