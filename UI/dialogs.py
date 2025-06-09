@@ -2341,35 +2341,43 @@ def _write_backup_excel(rows, start_m: datetime.date, end_m: datetime.date, path
     chirie_total.alignment = Alignment(horizontal="right", vertical="center")
 
     grand_row = total_start + 1
-    ws.merge_cells(f"N{grand_row}:P{grand_row}")
+    ws.merge_cells(f"N{grand_row}:O{grand_row}")
     lbl = ws.cell(row=grand_row, column=14, value="Total")
     lbl.font = Font(bold=True)
     lbl.alignment = Alignment(horizontal="center", vertical="center")
     val = ws.cell(
         row=grand_row,
-        column=17,
+        column=16,
         value=f"=SUM(N{data_start}:N{last_data_row})+SUM(O{data_start}:O{last_data_row})+SUM(P{data_start}:P{last_data_row})",
     )
     val.font = Font(bold=True)
     val.number_format = "\u20ac#,##0.00"
     val.alignment = Alignment(horizontal="right", vertical="center")
 
-    thick = Side(border_style="medium")
-    border = Border(top=thick, bottom=thick, left=thick, right=thick)
+    thin = Side(border_style="thin")
+    border = Border(top=thin, bottom=thin, left=thin, right=thin)
 
     last_total_row = grand_row
     for r in range(2, last_total_row + 1):
-        for c in range(1, 18):
-            ws.cell(row=r, column=c).border = border
+        for c in range(1, 17):
+            cell = ws.cell(row=r, column=c)
+            if cell.value is not None:
+                cell.border = border
 
     from openpyxl.utils import get_column_letter
-    for col_idx in range(1, 18):
+    for col_idx in range(1, 17):
         max_len = 0
-        for row in range(1, last_total_row + 1):
+        start_row = 2 if col_idx == 1 else 1
+        for row in range(start_row, last_total_row + 1):
             cell = ws.cell(row=row, column=col_idx)
             if cell.value is not None:
                 max_len = max(max_len, len(str(cell.value)))
-        ws.column_dimensions[get_column_letter(col_idx)].width = max_len + 2
+        ws.column_dimensions[get_column_letter(col_idx)].width = min(max_len + 2, 25)
+
+    for r in range(data_start, last_data_row + 1):
+        ws.row_dimensions[r].height = 30
+    for r in range(last_data_row + 1, last_total_row + 1):
+        ws.row_dimensions[r].height = 22
 
     for r in range(2, header_row):
         ws.row_dimensions[r].height = 20
