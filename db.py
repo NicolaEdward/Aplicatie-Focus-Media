@@ -358,6 +358,7 @@ def init_db():
             """
         )
         init_clienti_table()
+        init_client_contacts_table()
         init_firme_table()
         init_rezervari_table()
         init_users_table()
@@ -396,6 +397,7 @@ def init_db():
         """
         )
         init_clienti_table()
+        init_client_contacts_table()
         init_firme_table()
         init_rezervari_table()
         init_users_table()
@@ -521,6 +523,36 @@ def init_clienti_table():
             if col not in existing:
                 cur.execute(f"ALTER TABLE clienti ADD COLUMN {col} {definition}")
                 conn.commit()
+
+def init_client_contacts_table():
+    if getattr(conn, "mysql", False):
+        cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS client_contacts (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                client_id INT NOT NULL,
+                nume TEXT,
+                rol TEXT,
+                email TEXT,
+                phone TEXT,
+                FOREIGN KEY(client_id) REFERENCES clienti(id)
+            )
+            """
+        )
+    else:
+        cursor.execute(
+            """
+        CREATE TABLE IF NOT EXISTS client_contacts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            client_id INTEGER NOT NULL,
+            nume TEXT,
+            rol TEXT,
+            email TEXT,
+            phone TEXT,
+            FOREIGN KEY(client_id) REFERENCES clienti(id)
+        )
+        """
+        )
 
 def init_firme_table():
     if getattr(conn, "mysql", False):
@@ -850,6 +882,27 @@ def check_login(username: str, password: str):
     if _verify_password(user["password"], password):
         return user
     return None
+
+
+def add_client_contact(client_id: int, nume: str, rol: str, email: str, phone: str) -> None:
+    cur = conn.cursor()
+    cur.execute(
+        "INSERT INTO client_contacts (client_id, nume, rol, email, phone) VALUES (?,?,?,?,?)",
+        (client_id, nume, rol, email, phone),
+    )
+    conn.commit()
+
+
+def get_client_contacts(client_id: int) -> list[dict]:
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT id, nume, rol, email, phone FROM client_contacts WHERE client_id=? ORDER BY id",
+        (client_id,),
+    )
+    return [
+        {"id": r[0], "nume": r[1], "rol": r[2], "email": r[3], "phone": r[4]}
+        for r in cur.fetchall()
+    ]
 
 
 # Initialize DB on import

@@ -143,3 +143,22 @@ def test_init_rezervari_mysql_add_columns():
     assert any("ALTER TABLE rezervari ADD COLUMN firma_id" in sql for sql in executed)
     assert any("ALTER TABLE rezervari ADD COLUMN decor_cost" in sql for sql in executed)
     assert any("ALTER TABLE rezervari ADD COLUMN prod_cost" in sql for sql in executed)
+
+
+def test_client_contacts_basic():
+    old_conn, old_cursor = db.conn, db.cursor
+    test_conn = db._ConnWrapper(sqlite3.connect(":memory:"), False)
+    db.conn = test_conn
+    db.cursor = test_conn.cursor()
+    db.init_clienti_table()
+    db.init_client_contacts_table()
+    cur = db.conn.cursor()
+    cur.execute("INSERT INTO clienti (nume) VALUES (?)", ("Test",))
+    cid = cur.execute("SELECT last_insert_rowid()").fetchone()[0]
+    db.add_client_contact(cid, "Pers", "Role", "e@test", "000")
+    contacts = db.get_client_contacts(cid)
+    assert len(contacts) == 1
+    assert contacts[0]["nume"] == "Pers"
+    db.conn = old_conn
+    db.cursor = old_cursor
+

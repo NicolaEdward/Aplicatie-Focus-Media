@@ -8,7 +8,14 @@ from tkinter import filedialog, messagebox, simpledialog, ttk
 from UI.date_picker import DatePicker
 
 from utils import make_preview
-from db import conn, update_statusuri_din_rezervari, create_user, get_location_by_id
+from db import (
+    conn,
+    update_statusuri_din_rezervari,
+    create_user,
+    get_location_by_id,
+    add_client_contact,
+    get_client_contacts,
+)
 
 
 def _safe_filename(name: str) -> str:
@@ -2160,6 +2167,159 @@ def open_add_client_window(parent, refresh_cb=None):
     )
 
 
+def open_edit_client_window(parent, client_id, refresh_cb=None):
+    cur = conn.cursor()
+    row = cur.execute(
+        "SELECT nume, contact, email, phone, cui, adresa, observatii, tip FROM clienti WHERE id=?",
+        (client_id,),
+    ).fetchone()
+    if not row:
+        return
+
+    win = tk.Toplevel(parent)
+    win.title("Editează client")
+
+    labels = [
+        "Nume companie",
+        "Persoană contact",
+        "Email",
+        "Telefon",
+        "CUI",
+        "Adresă facturare",
+        "Observații",
+    ]
+    entries = {}
+    for i, lbl in enumerate(labels):
+        ttk.Label(win, text=lbl + ":").grid(row=i, column=0, sticky="e", padx=5, pady=2)
+        e = ttk.Entry(win, width=40)
+        e.grid(row=i, column=1, padx=5, pady=2)
+        entries[lbl] = e
+
+    vals = list(row)
+    for lbl, val in zip(labels, vals):
+        entries[lbl].insert(0, val or "")
+
+    ttk.Label(win, text="Tip:").grid(row=len(labels), column=0, sticky="e", padx=5, pady=2)
+    cb_tip = ttk.Combobox(win, values=["direct", "agency"], state="readonly", width=37)
+    cb_tip.grid(row=len(labels), column=1, padx=5, pady=2)
+    cb_tip.set(row[7] or "direct")
+
+    def save():
+        nume = entries["Nume companie"].get().strip()
+        if not nume:
+            messagebox.showwarning("Lipsește numele", "Completează numele companiei.")
+            return
+        cur.execute(
+            """
+            UPDATE clienti SET nume=?, contact=?, email=?, phone=?, cui=?, adresa=?, observatii=?, tip=?
+            WHERE id=?
+            """,
+            (
+                nume,
+                entries["Persoană contact"].get().strip(),
+                entries["Email"].get().strip(),
+                entries["Telefon"].get().strip(),
+                entries["CUI"].get().strip(),
+                entries["Adresă facturare"].get().strip(),
+                entries["Observații"].get().strip(),
+                cb_tip.get() or "direct",
+                client_id,
+            ),
+        )
+        conn.commit()
+        if refresh_cb:
+            refresh_cb()
+        win.destroy()
+
+    ttk.Button(win, text="Salvează", command=save).grid(row=len(labels) + 1, column=0, columnspan=2, pady=10)
+
+
+def open_add_contact_window(parent, client_id, refresh_cb=None):
+    win = tk.Toplevel(parent)
+    win.title("Adaugă persoană de contact")
+
+    labels = ["Nume", "Rol", "Email", "Telefon"]
+    entries = {}
+    for i, lbl in enumerate(labels):
+        ttk.Label(win, text=lbl + ":").grid(row=i, column=0, sticky="e", padx=5, pady=2)
+        e = ttk.Entry(win, width=40)
+        e.grid(row=i, column=1, padx=5, pady=2)
+        entries[lbl] = e
+
+    def save():
+        name = entries["Nume"].get().strip()
+        if not name:
+            messagebox.showwarning("Lipsește numele", "Completează numele.")
+            return
+        add_client_contact(
+            client_id,
+            name,
+            entries["Rol"].get().strip(),
+            entries["Email"].get().strip(),
+            entries["Telefon"].get().strip(),
+        )
+        if refresh_cb:
+            refresh_cb()
+        win.destroy()
+
+    ttk.Button(win, text="Salvează", command=save).grid(row=len(labels), column=0, columnspan=2, pady=10)
+
+
+def open_client_detail(tree, event):
+    rowid = tree.identify_row(event.y)
+    if not rowid:
+        return
+    cid = int(rowid)
+    cur = conn.cursor()
+    row = cur.execute(
+        "SELECT nume, tip, contact, email, phone, cui, adresa, observatii FROM clienti WHERE id=?",
+        (cid,),
+    ).fetchone()
+    if not row:
+        return
+
+    win = tk.Toplevel(tree.master)
+    win.title(f"Client {row[0]}")
+
+    labels = [
+        ("Nume", row[0]),
+        ("Tip", row[1] or "direct"),
+        ("Persoană contact", row[2] or ""),
+        ("Email", row[3] or ""),
+        ("Telefon", row[4] or ""),
+        ("CUI", row[5] or ""),
+        ("Adresă", row[6] or ""),
+        ("Observații", row[7] or ""),
+    ]
+
+    for i, (lbl, val) in enumerate(labels):
+        ttk.Label(win, text=lbl + ":", font=("Segoe UI", 9, "bold")).grid(row=i, column=0, sticky="e", padx=5, pady=2)
+        ttk.Label(win, text=val).grid(row=i, column=1, sticky="w", padx=5, pady=2)
+
+    contacts = get_client_contacts(cid)
+    start_row = len(labels) + 1
+    if contacts:
+        ttk.Label(win, text="Persoane contact:").grid(row=start_row, column=0, sticky="ne", padx=5, pady=5)
+        frm = ttk.Frame(win)
+        frm.grid(row=start_row, column=1, sticky="w")
+        for j, c in enumerate(contacts):
+            lbl = ttk.Label(frm, text=c["nume"], foreground="blue", cursor="hand2")
+            lbl.grid(row=j, column=0, sticky="w")
+            lbl.bind(
+                "<Button-1>",
+                lambda e, c=c: messagebox.showinfo(
+                    c["nume"],
+                    f"Rol: {c['rol']}\nEmail: {c['email']}\nTelefon: {c['phone']}",
+                    parent=win,
+                ),
+            )
+
+    def add_contact():
+        open_add_contact_window(win, cid, lambda: (win.destroy(), open_client_detail(tree, event)))
+
+    ttk.Button(win, text="Adaugă persoană", command=add_contact).grid(row=start_row + len(contacts) + 1, column=0, columnspan=2, pady=10)
+
+
 
 def _write_backup_excel(rows, start_m: datetime.date, end_m: datetime.date, path: str) -> None:
     """Write an Excel backup file using ``openpyxl``."""
@@ -2521,22 +2681,28 @@ def open_clients_window(root):
     win = tk.Toplevel(root)
     win.title("Clienți")
 
+    ttk.Label(win, text="Caută:").grid(row=0, column=0, padx=5, pady=5, sticky="w")
+    search_var = tk.StringVar()
+    entry_search = ttk.Entry(win, textvariable=search_var, width=30)
+    entry_search.grid(row=0, column=1, columnspan=3, sticky="ew", padx=5, pady=5)
+
     cols = ("Nume", "Tip", "Contact", "Email", "Telefon", "CUI", "Adresă", "Observații")
     tree = ttk.Treeview(win, columns=cols, show="headings")
     for col in cols:
         tree.heading(col, text=col)
         tree.column(col, width=120, anchor="w")
-    tree.grid(row=0, column=0, columnspan=4, sticky="nsew")
+    tree.grid(row=1, column=0, columnspan=4, sticky="nsew")
 
     vsb = ttk.Scrollbar(win, orient="vertical", command=tree.yview)
-    vsb.grid(row=0, column=4, sticky="ns")
+    vsb.grid(row=1, column=4, sticky="ns")
     tree.configure(yscroll=vsb.set)
 
-    win.columnconfigure(0, weight=1)
-    win.rowconfigure(0, weight=1)
+    win.columnconfigure(1, weight=1)
+    win.rowconfigure(1, weight=1)
 
     def refresh():
         tree.delete(*tree.get_children())
+        term = search_var.get().strip().lower()
         rows = (
             conn.cursor()
             .execute(
@@ -2545,6 +2711,12 @@ def open_clients_window(root):
             .fetchall()
         )
         for cid, nume, tip, contact, email, phone, cui, addr, obs in rows:
+            if term and not (
+                term in (nume or "").lower()
+                or term in (contact or "").lower()
+                or term in (email or "").lower()
+            ):
+                continue
             tree.insert(
                 "",
                 "end",
@@ -2605,11 +2777,32 @@ def open_clients_window(root):
         export_all_backups(month, year)
 
     btn_add = ttk.Button(win, text="Adaugă", command=add_client)
+    btn_edit = ttk.Button(win, text="Editează", command=lambda: open_edit_client_window(win, int(tree.selection()[0]), refresh))
     btn_del = ttk.Button(win, text="Șterge", command=delete_client)
     btn_export = ttk.Button(win, text="Export Backup", command=export_current)
     btn_export_all = ttk.Button(win, text="Export Toți", command=export_all)
-    for i, b in enumerate((btn_add, btn_del, btn_export, btn_export_all)):
-        b.grid(row=1, column=i, padx=5, pady=5, sticky="w")
+    for i, b in enumerate((btn_add, btn_edit, btn_del, btn_export, btn_export_all)):
+        b.grid(row=2, column=i, padx=5, pady=5, sticky="w")
+
+    def on_sel(event=None):
+        sel = tree.selection()
+        state = "normal" if sel else "disabled"
+        btn_edit.config(state=state)
+        btn_del.config(state=state)
+
+    tree.bind("<<TreeviewSelect>>", on_sel)
+    on_sel()
+
+    tree.bind("<Double-1>", lambda e: open_client_detail(tree, e))
+
+    _search_after = [None]
+
+    def on_search_change(*args):
+        if _search_after[0] is not None:
+            win.after_cancel(_search_after[0])
+        _search_after[0] = win.after(300, refresh)
+
+    search_var.trace_add("write", on_search_change)
 
     refresh()
 
