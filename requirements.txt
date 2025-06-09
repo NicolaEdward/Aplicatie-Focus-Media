@@ -6,3 +6,4 @@ ttkbootstrap
 mysql-connector-python
 python-dotenv
 SQLAlchemy
+openpyxl
