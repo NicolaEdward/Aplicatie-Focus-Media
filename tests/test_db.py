@@ -162,3 +162,24 @@ def test_client_contacts_basic():
     db.conn = old_conn
     db.cursor = old_cursor
 
+
+def test_update_and_delete_contact():
+    old_conn, old_cursor = db.conn, db.cursor
+    test_conn = db._ConnWrapper(sqlite3.connect(":memory:"), False)
+    db.conn = test_conn
+    db.cursor = test_conn.cursor()
+    db.init_clienti_table()
+    db.init_client_contacts_table()
+    cur = db.conn.cursor()
+    cur.execute("INSERT INTO clienti (nume) VALUES (?)", ("Test",))
+    cid = cur.execute("SELECT last_insert_rowid()").fetchone()[0]
+    db.add_client_contact(cid, "Pers", "Role", "e@test", "000")
+    contact = db.get_client_contacts(cid)[0]
+    db.update_client_contact(contact["id"], "Pers2", "R2", "m@test", "111")
+    updated = db.get_client_contacts(cid)[0]
+    assert updated["nume"] == "Pers2"
+    db.delete_client_contact(contact["id"])
+    assert db.get_client_contacts(cid) == []
+    db.conn = old_conn
+    db.cursor = old_cursor
+
