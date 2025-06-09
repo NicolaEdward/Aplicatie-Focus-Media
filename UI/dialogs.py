@@ -83,6 +83,35 @@ def choose_report_year(parent=None):
     return result["year"]
 
 
+def choose_report_type(role: str, parent=None) -> str | None:
+    """Return the report type selected by the user."""
+    options = ["Vânzări", "Decorări"]
+    if role in ("admin", "manager"):
+        options.append("Vânzători")
+
+    win = tk.Toplevel(parent)
+    win.title("Tip raport")
+    ttk.Label(win, text="Raport:").grid(row=0, column=0, padx=5, pady=5)
+    var = tk.StringVar(value=options[0])
+    cb = ttk.Combobox(win, values=options, textvariable=var, state="readonly")
+    cb.grid(row=0, column=1, padx=5, pady=5)
+
+    result = {"value": None}
+
+    def ok():
+        result["value"] = var.get()
+        win.destroy()
+
+    def cancel():
+        win.destroy()
+
+    ttk.Button(win, text="OK", command=ok).grid(row=1, column=0, padx=5, pady=5)
+    ttk.Button(win, text="Renunță", command=cancel).grid(row=1, column=1, padx=5, pady=5)
+    win.grab_set()
+    win.wait_window()
+    return result["value"]
+
+
 def open_detail_window(tree, event):
     """Display extended information about the selected location."""
     rowid = tree.identify_row(event.y)
@@ -967,6 +996,55 @@ def open_release_window(root, loc_id, load_cb, user):
     )
 
 
+def open_decor_window(root, loc_id, user):
+    """Add a decoration entry for a rented location."""
+    loc_data = get_location_by_id(loc_id)
+    win = tk.Toplevel(root)
+    win.title("Adaugă decorare")
+
+    ttk.Label(win, text="Data decorare:").grid(row=0, column=0, sticky="e", padx=5, pady=5)
+    dp_date = DatePicker(win)
+    dp_date.grid(row=0, column=1, padx=5, pady=5)
+
+    ttk.Label(win, text="Cost decorare:").grid(row=1, column=0, sticky="e", padx=5, pady=5)
+    entry_deco = ttk.Entry(win, width=20)
+    if loc_data and loc_data.get("decoration_cost"):
+        entry_deco.insert(0, str(loc_data.get("decoration_cost")))
+    entry_deco.grid(row=1, column=1, padx=5, pady=5)
+
+    var_prod = tk.BooleanVar(value=False)
+    chk_prod = ttk.Checkbutton(
+        win,
+        text="Include cost producție",
+        variable=var_prod,
+        command=lambda: entry_prod.grid() if var_prod.get() else entry_prod.grid_remove(),
+    )
+    chk_prod.grid(row=2, column=0, sticky="e", padx=5, pady=5)
+    entry_prod = ttk.Entry(win, width=20)
+    entry_prod.grid(row=2, column=1, padx=5, pady=5)
+    entry_prod.grid_remove()
+
+    def save():
+        dec_date = dp_date.get_date().isoformat()
+        try:
+            dec_cost = float(entry_deco.get() or 0)
+        except Exception:
+            dec_cost = 0.0
+        try:
+            prod_cost = float(entry_prod.get() or 0) if var_prod.get() else 0.0
+        except Exception:
+            prod_cost = 0.0
+        cur = conn.cursor()
+        cur.execute(
+            "INSERT INTO decorari (loc_id, data, decor_cost, prod_cost, created_by) VALUES (?,?,?,?,?)",
+            (loc_id, dec_date, dec_cost, prod_cost, user.get("username")),
+        )
+        conn.commit()
+        win.destroy()
+
+    ttk.Button(win, text="Salvează", command=save).grid(row=3, column=0, columnspan=2, pady=10)
+
+
 def export_available_excel(
     grup_filter, status_filter, search_term, ignore_dates, start_date, end_date
 ):
@@ -1835,6 +1913,62 @@ def export_sales_report():
     wb.save(path)
 
     messagebox.showinfo("Export Excel", f"Raport salvat:\n{path}")
+
+
+def export_decor_report():
+    """Export a simple Excel report with all decorations for a year."""
+    import pandas as pd
+    from tkinter import filedialog, messagebox
+    from db import read_sql_query
+
+    year = choose_report_year()
+    if year is None:
+        return
+
+    start = f"{year}-01-01"
+    end = f"{year}-12-31"
+    df = read_sql_query(
+        """
+        SELECT d.data, l.city, l.county, l.address, l.code,
+               d.decor_cost, d.prod_cost, d.created_by
+          FROM decorari d
+          JOIN locatii l ON d.loc_id = l.id
+         WHERE d.data BETWEEN ? AND ?
+         ORDER BY d.data
+        """,
+        params=[start, end],
+        parse_dates=["data"],
+    )
+
+    if df.empty:
+        messagebox.showinfo("Raport", "Nu există decorări pentru anul selectat.")
+        return
+
+    path = filedialog.asksaveasfilename(
+        defaultextension=".xlsx",
+        filetypes=[("Excel", "*.xlsx")],
+        title="Salvează raportul",
+    )
+    if not path:
+        return
+
+    df.rename(
+        columns={
+            "data": "Data",
+            "city": "Oraș",
+            "county": "Județ",
+            "address": "Adresă",
+            "code": "Cod",
+            "decor_cost": "Cost Decor",
+            "prod_cost": "Cost Producție",
+            "created_by": "Adăugat de",
+        },
+        inplace=True,
+    )
+    with pd.ExcelWriter(path, engine="xlsxwriter") as writer:
+        df.to_excel(writer, index=False, sheet_name="Decorări")
+
+    messagebox.showinfo("Raport", f"Raport salvat:\n{path}")
 
 
 def open_offer_window(tree):

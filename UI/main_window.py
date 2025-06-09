@@ -84,11 +84,14 @@ from UI.dialogs import (
     open_offer_window,
     export_available_excel,
     export_sales_report,
+    export_decor_report,
     export_vendor_report,
+    choose_report_type,
     open_clients_window,
     open_users_window,
     open_firme_window,
     open_manage_window,
+    open_decor_window,
 )
 
 
@@ -361,6 +364,7 @@ def start_app(user, root=None):
                              command=lambda: open_edit_window(root, selected_id[0], load_locations, refresh_groups))
 
     btn_rent    = ttk.Button(primary_frame, text="Închiriază", state="disabled")
+    btn_decor   = ttk.Button(primary_frame, text="Adaugă decor", state="disabled")
     btn_release = ttk.Button(primary_frame, text="Eliberează", state="disabled")
     btn_extend  = ttk.Button(primary_frame, text="Extinde perioada", state="disabled")
     btn_reserve = ttk.Button(primary_frame, text="Rezervă", state="disabled")
@@ -388,7 +392,7 @@ def start_app(user, root=None):
     if role == "admin":
         btn_firme.pack(side="left", padx=5, pady=5)
     if role != "manager":
-        for w in (btn_rent, btn_release, btn_reserve):
+        for w in (btn_rent, btn_decor, btn_release, btn_reserve):
             w.pack(side="left", padx=5, pady=5)
 
 
@@ -404,8 +408,16 @@ def start_app(user, root=None):
                            ))
     btn_offer = ttk.Button(export_frame, text="Export Ofertă",
                            command=lambda: open_offer_window(tree))
-    btn_report = ttk.Button(export_frame, text="Raport Vânzări",
-                           command=lambda: export_sales_report())
+    def _export_report():
+        rtype = choose_report_type(role)
+        if rtype == "Vânzări":
+            export_sales_report()
+        elif rtype == "Decorări":
+            export_decor_report()
+        elif rtype == "Vânzători":
+            export_vendor_report()
+
+    btn_report = ttk.Button(export_frame, text="Raport", command=_export_report)
     btn_vendor = ttk.Button(export_frame, text="Raport Vânzători",
                            command=lambda: export_vendor_report())
     btn_update = ttk.Button(export_frame, text="Update Database",
@@ -581,6 +593,7 @@ def start_app(user, root=None):
         if not sel:
             btn_edit.config(state='disabled')
             btn_rent.config(state='disabled')
+            btn_decor.config(state='disabled')
             btn_release.config(state='disabled')
             btn_delete.config(state='disabled')
             img_label.config(image="", text="")
@@ -703,8 +716,13 @@ def start_app(user, root=None):
                 state='normal',
                 command=lambda: open_rent_window(root, loc_id, load_locations, user),
             )
+            btn_decor.config(
+                state='normal' if status == "Închiriat" else 'disabled',
+                command=lambda: open_decor_window(root, loc_id, user),
+            )
         else:
             btn_rent.config(state='disabled', command=lambda: None)
+            btn_decor.config(state='disabled', command=lambda: None)
 
         cutoff = (datetime.date.today() - datetime.timedelta(days=3)).isoformat()
         has_rentals = cursor.execute(
