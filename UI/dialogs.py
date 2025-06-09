@@ -1433,7 +1433,9 @@ def export_sales_report():
                 .sum()
             )
 
-            stats_end = len(df_sheet.columns) - 1
+            # shift the monthly totals block one column to the left by
+            # ignoring the final "status" column when computing the end index
+            stats_end = len(df_sheet.columns) - 2
             value_col = max(stats_end - 2, 0)
             merge_end = value_col - 1
             merge_start = max(merge_end - 3, 0)
@@ -1572,9 +1574,7 @@ def export_sales_report():
             {"days": "sum", "months": "sum", "val_real": "sum"}
         )
 
-        parent_ids = (
-            df_rez["parent_id"].combine_first(df_rez["id"]).astype("Int64")
-        )
+        parent_ids = df_rez["parent_id"].fillna(df_rez["id"]).astype("Int64")
         units_sold = df_rez.groupby(parent_ids)["id"].nunique()
 
         # Sheet summarizing the entire year
