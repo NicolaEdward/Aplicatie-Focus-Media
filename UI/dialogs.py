@@ -2285,6 +2285,9 @@ def _write_backup_excel(rows, start_m: datetime.date, end_m: datetime.date, path
         )
         ws.merge_range(0, 0, 0, len(df.columns) - 1, title, title_fmt)
 
+        label_fmt = wb.add_format({"bold": True, "align": "center", "bg_color": "#BDD7EE", "border": 1})
+        value_fmt = wb.add_format({"align": "center", "bg_color": "#BDD7EE", "border": 1})
+
         left_info = [
             ("Societatea care facturează", f_name),
             ("CUI", f_cui),
@@ -2296,8 +2299,6 @@ def _write_backup_excel(rows, start_m: datetime.date, end_m: datetime.date, path
             ("Adresă client", c_addr),
         ]
 
-        label_fmt = wb.add_format({"bold": True, "align": "center", "bg_color": "#BDD7EE", "border": 1})
-        value_fmt = wb.add_format({"align": "center", "bg_color": "#BDD7EE", "border": 1})
         mid = len(df.columns) // 2
         for i, ((lk, lv), (rk, rv)) in enumerate(zip(left_info, right_info), start=1):
             ws.write(i, 0, lk, label_fmt)
@@ -2306,10 +2307,7 @@ def _write_backup_excel(rows, start_m: datetime.date, end_m: datetime.date, path
             ws.merge_range(i, mid + 1, i, len(df.columns) - 1, rv, value_fmt)
 
         row = len(left_info) + 1
-        ws.write(row, 0, "Campanie", label_fmt)
-        ws.merge_range(row, 1, row, len(df.columns) - 1, camp or c_name, value_fmt)
-        row += 1
-        ws.write(row, 0, "Perioadă facturare", label_fmt)
+        ws.write(row, 0, "Perioada campanie", label_fmt)
         ws.merge_range(
             row,
             1,
@@ -2318,6 +2316,9 @@ def _write_backup_excel(rows, start_m: datetime.date, end_m: datetime.date, path
             f"{start_m:%d.%m.%Y} - {end_m:%d.%m.%Y}",
             value_fmt,
         )
+        row += 1
+        ws.write(row, 0, "Denumire campanie", label_fmt)
+        ws.merge_range(row, 1, row, len(df.columns) - 1, camp or c_name, value_fmt)
 
         start_row = row + 2
         df.to_excel(writer, sheet_name="Backup", index=False, startrow=start_row)
@@ -2333,14 +2334,21 @@ def _write_backup_excel(rows, start_m: datetime.date, end_m: datetime.date, path
             }
         )
         euro_fmt = wb.add_format(
-            {"num_format": "€#,##0.00", "align": "center", "border": 1}
+            {"num_format": "€#,##0.00", "align": "right", "border": 1}
         )
-        center_fmt = wb.add_format({"align": "center", "border": 1})
+        num_fmt = wb.add_format({"align": "right", "border": 1})
+        text_fmt = wb.add_format({"align": "left", "border": 1})
 
         money_cols = {"Preț chirie/lună", "Chirie NET", "Preț Decorare", "Preț Producție"}
+        num_cols = {"Nr. Crt", "Nr. bucăți", "Perioadă (luni)"}
         for col_idx, col in enumerate(df.columns):
             width = max(len(str(col)), df[col].astype(str).map(len).max()) + 2
-            fmt = euro_fmt if col in money_cols else center_fmt
+            if col in money_cols:
+                fmt = euro_fmt
+            elif col in num_cols:
+                fmt = num_fmt
+            else:
+                fmt = text_fmt
             ws.set_column(col_idx, col_idx, width, fmt)
             ws.write(start_row, col_idx, col, hdr_fmt)
 
@@ -2351,19 +2359,20 @@ def _write_backup_excel(rows, start_m: datetime.date, end_m: datetime.date, path
         total_value_fmt = wb.add_format(
             {
                 "num_format": "€#,##0.00",
-                "align": "center",
+                "align": "right",
                 "bg_color": "#BDD7EE",
                 "border": 1,
             }
         )
+        label_start = len(df.columns) - 3
         for label, val in [
             ("Total Decorare", total_deco),
             ("Total Producție", total_prod),
             ("Total Chirii", total_rent),
             ("Total General", total_rent + total_deco + total_prod),
         ]:
-            ws.write(row_tot, 0, label, total_label_fmt)
-            ws.merge_range(row_tot, 1, row_tot, len(df.columns) - 1, val, total_value_fmt)
+            ws.merge_range(row_tot, label_start, row_tot, len(df.columns) - 2, label, total_label_fmt)
+            ws.write(row_tot, len(df.columns) - 1, val, total_value_fmt)
             row_tot += 1
 
 
