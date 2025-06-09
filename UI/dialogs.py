@@ -2341,7 +2341,9 @@ def _write_backup_excel(rows, start_m: datetime.date, end_m: datetime.date, path
     chirie_total.alignment = Alignment(horizontal="center", vertical="center")
 
     grand_row = total_start + 1
-    lbl = ws.cell(row=grand_row, column=14, value="Total")
+    # move the total label one column to the right so it sits next to the
+    # computed sum value
+    lbl = ws.cell(row=grand_row, column=15, value="Total")
     # do not merge the label cell so it occupies a single box
     lbl.font = Font(bold=True)
     lbl.alignment = Alignment(horizontal="center", vertical="center")
