@@ -2366,9 +2366,9 @@ def _write_backup_excel(rows, start_m: datetime.date, end_m: datetime.date, path
             if cell.value is not None or cell.coordinate in ws.merged_cells:
                 cell.border = border
 
-    # apply a thicker border around the totals section for emphasis
+    # apply a thicker border only to the "Total" label and final sum cells
     thick = Side(border_style="thick")
-    start_col, end_col = 14, 16
+    start_col, end_col = 15, 16
     for c in range(start_col, end_col + 1):
         cell = ws.cell(row=grand_row, column=c)
         left = thick if c == start_col else thin
