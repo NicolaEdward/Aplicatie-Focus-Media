@@ -2159,12 +2159,9 @@ def open_add_client_window(parent, refresh_cb=None):
             return
         cur = conn.cursor()
         cur.execute(
-            "INSERT INTO clienti (nume, contact, email, phone, cui, adresa, observatii, tip) VALUES (?,?,?,?,?,?,?,?)",
+            "INSERT INTO clienti (nume, cui, adresa, observatii, tip) VALUES (?,?,?,?,?)",
             (
                 nume,
-                "",
-                "",
-                "",
                 entries["CUI"].get().strip(),
                 entries["Adresă facturare"].get().strip(),
                 entries["Observații"].get().strip(),
@@ -2188,7 +2185,7 @@ def open_add_client_window(parent, refresh_cb=None):
 def open_edit_client_window(parent, client_id, refresh_cb=None):
     cur = conn.cursor()
     row = cur.execute(
-        "SELECT nume, contact, email, phone, cui, adresa, observatii, tip FROM clienti WHERE id=?",
+        "SELECT nume, cui, adresa, observatii, tip FROM clienti WHERE id=?",
         (client_id,),
     ).fetchone()
     if not row:
@@ -2199,9 +2196,6 @@ def open_edit_client_window(parent, client_id, refresh_cb=None):
 
     labels = [
         "Nume companie",
-        "Persoană contact",
-        "Email",
-        "Telefon",
         "CUI",
         "Adresă facturare",
         "Observații",
@@ -2220,7 +2214,7 @@ def open_edit_client_window(parent, client_id, refresh_cb=None):
     ttk.Label(win, text="Tip:").grid(row=len(labels), column=0, sticky="e", padx=5, pady=2)
     cb_tip = ttk.Combobox(win, values=["direct", "agency"], state="readonly", width=37)
     cb_tip.grid(row=len(labels), column=1, padx=5, pady=2)
-    cb_tip.set(row[7] or "direct")
+    cb_tip.set(row[4] or "direct")
 
     def save():
         nume = entries["Nume companie"].get().strip()
@@ -2229,14 +2223,11 @@ def open_edit_client_window(parent, client_id, refresh_cb=None):
             return
         cur.execute(
             """
-            UPDATE clienti SET nume=?, contact=?, email=?, phone=?, cui=?, adresa=?, observatii=?, tip=?
+            UPDATE clienti SET nume=?, cui=?, adresa=?, observatii=?, tip=?
             WHERE id=?
             """,
             (
                 nume,
-                entries["Persoană contact"].get().strip(),
-                entries["Email"].get().strip(),
-                entries["Telefon"].get().strip(),
                 entries["CUI"].get().strip(),
                 entries["Adresă facturare"].get().strip(),
                 entries["Observații"].get().strip(),
@@ -2370,7 +2361,7 @@ def open_client_detail(tree, event):
     cid = int(rowid)
     cur = conn.cursor()
     row = cur.execute(
-        "SELECT nume, tip, contact, email, phone, cui, adresa, observatii FROM clienti WHERE id=?",
+        "SELECT nume, tip, cui, adresa, observatii FROM clienti WHERE id=?",
         (cid,),
     ).fetchone()
     if not row:
@@ -2382,12 +2373,9 @@ def open_client_detail(tree, event):
     labels = [
         ("Nume", row[0]),
         ("Tip", row[1] or "direct"),
-        ("Persoană contact", row[2] or ""),
-        ("Email", row[3] or ""),
-        ("Telefon", row[4] or ""),
-        ("CUI", row[5] or ""),
-        ("Adresă", row[6] or ""),
-        ("Observații", row[7] or ""),
+        ("CUI", row[2] or ""),
+        ("Adresă", row[3] or ""),
+        ("Observații", row[4] or ""),
     ]
 
     for i, (lbl, val) in enumerate(labels):
@@ -2401,7 +2389,8 @@ def open_client_detail(tree, event):
         frm = ttk.Frame(win)
         frm.grid(row=start_row, column=1, sticky="w")
         for j, c in enumerate(contacts):
-            lbl = ttk.Label(frm, text=c["nume"], foreground="blue", cursor="hand2")
+            text = c["nume"] if not c.get("rol") else f"{c['nume']} ({c['rol']})"
+            lbl = ttk.Label(frm, text=text, foreground="blue", cursor="hand2")
             lbl.grid(row=j, column=0, sticky="w")
             lbl.bind(
                 "<Button-1>",
@@ -2857,15 +2846,14 @@ def open_clients_window(root, user=None):
             return
         nume_cli = nume_row[0]
 
-        role = user.get("role") if user else "admin"
         rentals = cur.execute(
             "SELECT COUNT(*) FROM rezervari WHERE client_id=? OR client=?",
             (cid, nume_cli),
         ).fetchone()[0]
-        if rentals and role != "admin":
-            messagebox.showwarning(
-                "Refuzat",
-                "Doar adminul poate șterge clienții cu închirieri.",
+        if rentals:
+            messagebox.showerror(
+                "Ștergere interzisă",
+                "Clientul are rezervări înregistrate și nu poate fi șters.",
             )
             return
 
