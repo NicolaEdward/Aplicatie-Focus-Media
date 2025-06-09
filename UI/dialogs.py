@@ -2160,17 +2160,20 @@ def open_add_client_window(parent, refresh_cb=None):
     )
 
 
+
 def _write_backup_excel(rows, start_m: datetime.date, end_m: datetime.date, path: str) -> None:
-    """Write an Excel backup file using *rows* into *path*."""
-    import pandas as pd
+    """Write an Excel backup file using ``openpyxl``."""
+    from openpyxl import Workbook
+    from openpyxl.styles import Alignment, Font, PatternFill, Border, Side
 
     if not rows:
         return
 
     days_in_month = (end_m - start_m).days + 1
 
-    data = []
+    data_rows = []
     header_info = None
+    idx = 1
     for (
         client_name,
         client_cui,
@@ -2217,165 +2220,155 @@ def _write_backup_excel(rows, start_m: datetime.date, end_m: datetime.date, path
         except Exception:
             prod_default = 0.0
         prod = prod_r if prod_r is not None else prod_default
-        data.append(
-            [
-                city,
-                addr,
-                code,
-                1,
-                typ,
-                size,
-                ds_dt,
-                de_dt,
-                frac,
-                "EUR",
-                price,
-                amount,
-                deco,
-                prod,
-            ]
-        )
-
-    df = pd.DataFrame(
-        data,
-        columns=[
-            "Oraș",
-            "Adresă",
-            "Cod",
-            "Nr. bucăți",
-            "Tip Suport",
-            "Dimensiune",
-            "Data Început",
-            "Data Sfârșit",
-            "Perioadă (luni)",
-            "Valută",
-            "Preț chirie/lună",
-            "Chirie NET",
-            "Preț Decorare",
-            "Preț Producție",
-        ],
-    )
-
-    df["Perioadă (luni)"] = df["Perioadă (luni)"].round(2)
-    df.insert(0, "Nr. Crt", range(1, len(df) + 1))
-
-    total_rent = df["Chirie NET"].sum()
-    total_deco = df["Preț Decorare"].sum()
-    total_prod = df["Preț Producție"].sum()
-
-    with pd.ExcelWriter(path, engine="xlsxwriter") as writer:
-        wb = writer.book
-        ws = writer.book.add_worksheet("Backup")
-        writer.sheets["Backup"] = ws
-
-        if header_info:
-            f_name, f_cui, f_addr, c_name, c_cui, c_addr, camp = header_info
-        else:
-            f_name = f_cui = f_addr = c_name = c_cui = c_addr = camp = ""
-
-        title = f"BKP {f_name} x {c_name} - {camp or c_name} - {start_m:%B}"
-        title_fmt = wb.add_format(
-            {
-                "bold": True,
-                "font_size": 14,
-                "align": "center",
-                "bg_color": "#305496",
-                "font_color": "white",
-            }
-        )
-        ws.merge_range(0, 0, 0, len(df.columns) - 1, title, title_fmt)
-
-        label_fmt = wb.add_format({"bold": True, "align": "center", "bg_color": "#BDD7EE", "border": 1})
-        value_fmt = wb.add_format({"align": "center", "bg_color": "#BDD7EE", "border": 1})
-
-        left_info = [
-            ("Societatea care facturează", f_name),
-            ("CUI", f_cui),
-            ("Adresă", f_addr),
-        ]
-        right_info = [
-            ("Client", c_name),
-            ("CUI client", c_cui),
-            ("Adresă client", c_addr),
-        ]
-
-        mid = len(df.columns) // 2
-        for i, ((lk, lv), (rk, rv)) in enumerate(zip(left_info, right_info), start=1):
-            ws.write(i, 0, lk, label_fmt)
-            ws.merge_range(i, 1, i, mid - 1, lv, value_fmt)
-            ws.write(i, mid, rk, label_fmt)
-            ws.merge_range(i, mid + 1, i, len(df.columns) - 1, rv, value_fmt)
-
-        row = len(left_info) + 1
-        ws.write(row, 0, "Perioada campanie", label_fmt)
-        ws.merge_range(
-            row,
+        data_rows.append([
+            idx,
+            city,
+            addr,
+            code,
+            face,
             1,
-            row,
-            len(df.columns) - 1,
-            f"{start_m:%d.%m.%Y} - {end_m:%d.%m.%Y}",
-            value_fmt,
-        )
-        row += 1
-        ws.write(row, 0, "Denumire campanie", label_fmt)
-        ws.merge_range(row, 1, row, len(df.columns) - 1, camp or c_name, value_fmt)
+            typ,
+            size,
+            ds_dt,
+            de_dt,
+            round(frac, 2),
+            "EUR",
+            price,
+            amount,
+            deco,
+            prod,
+        ])
+        idx += 1
 
-        start_row = row + 2
-        df.to_excel(writer, sheet_name="Backup", index=False, startrow=start_row)
-        ws.freeze_panes(start_row + 1, 0)
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Backup"
 
-        hdr_fmt = wb.add_format(
-            {
-                "bold": True,
-                "bg_color": "#305496",
-                "font_color": "white",
-                "align": "center",
-                "border": 1,
-            }
-        )
-        euro_fmt = wb.add_format(
-            {"num_format": "€#,##0.00", "align": "right", "border": 1}
-        )
-        num_fmt = wb.add_format({"align": "right", "border": 1})
-        text_fmt = wb.add_format({"align": "left", "border": 1})
+    dark_blue = PatternFill(fill_type="solid", fgColor="305496")
+    light_blue = PatternFill(fill_type="solid", fgColor="D9E1F2")
+    white_bold = Font(color="FFFFFF", bold=True)
 
-        money_cols = {"Preț chirie/lună", "Chirie NET", "Preț Decorare", "Preț Producție"}
-        num_cols = {"Nr. Crt", "Nr. bucăți", "Perioadă (luni)"}
-        for col_idx, col in enumerate(df.columns):
-            width = max(len(str(col)), df[col].astype(str).map(len).max()) + 2
-            if col in money_cols:
-                fmt = euro_fmt
-            elif col in num_cols:
-                fmt = num_fmt
+    if header_info:
+        f_name, f_cui, f_addr, c_name, c_cui, c_addr, camp = header_info
+    else:
+        f_name = f_cui = f_addr = c_name = c_cui = c_addr = camp = ""
+
+    ws.merge_cells("B1:Q1")
+    title_cell = ws["B1"]
+    title_cell.value = f"BKP {f_name} x {c_name} - {camp or c_name} - {start_m:%B}"
+    title_cell.fill = dark_blue
+    title_cell.font = Font(color="FFFFFF", bold=True, size=14)
+    title_cell.alignment = Alignment(horizontal="center", vertical="center")
+
+    for r in range(2, 7):
+        for c in range(2, 17):
+            cell = ws.cell(row=r, column=c)
+            cell.fill = light_blue
+            cell.alignment = Alignment(horizontal="left", vertical="center", wrap_text=True)
+
+    ws.merge_cells("B2:C2"); ws["B2"].value = f"Societatea care facturează: {f_name}"
+    ws.merge_cells("B3:C3"); ws["B3"].value = f"CUI: {f_cui}"
+    ws.merge_cells("B4:C4"); ws["B4"].value = f"Adresă: {f_addr}"
+    ws.merge_cells("B5:C5"); ws["B5"].value = f"Perioada campanie: {start_m:%d.%m.%Y} - {end_m:%d.%m.%Y}"
+    ws.merge_cells("B6:C6"); ws["B6"].value = f"Denumire campanie: {camp or c_name}"
+    ws.merge_cells("F2:G2"); ws["F2"].value = f"Client: {c_name}"
+    ws.merge_cells("F3:G3"); ws["F3"].value = f"CUI client: {c_cui}"
+    ws.merge_cells("F4:G4"); ws["F4"].value = f"Adresă client: {c_addr}"
+
+    headers = [
+        "Nr. Crt",
+        "Oraș",
+        "Adresă",
+        "Cod",
+        "Cod Față",
+        "Număr bucăți",
+        "Tip Suport",
+        "Dimensiune",
+        "Data Început",
+        "Data Sfârșit",
+        "Perioada (luni)",
+        "Valută",
+        "Preț chirie/lună",
+        "Chirie NET",
+        "Preț Decorare",
+        "Preț Producție",
+    ]
+
+    for idx_col, header in enumerate(headers, start=2):
+        cell = ws.cell(row=7, column=idx_col, value=header)
+        cell.fill = PatternFill(fill_type="solid", fgColor="1F4E79")
+        cell.font = white_bold
+        cell.alignment = Alignment(horizontal="center", vertical="center")
+
+    data_start = 8
+    for r_off, row_vals in enumerate(data_rows):
+        r = data_start + r_off
+        for c_off, val in enumerate(row_vals, start=2):
+            cell = ws.cell(row=r, column=c_off, value=val)
+            if isinstance(val, datetime.date):
+                cell.number_format = "DD.MM.YYYY"
+                cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+            elif isinstance(val, (int, float)):
+                cell.number_format = "#,##0.00"
+                cell.alignment = Alignment(horizontal="right", vertical="center", wrap_text=True)
             else:
-                fmt = text_fmt
-            ws.set_column(col_idx, col_idx, width, fmt)
-            ws.write(start_row, col_idx, col, hdr_fmt)
+                cell.alignment = Alignment(horizontal="left", vertical="center", wrap_text=True)
 
-        row_tot = start_row + len(df) + 1
-        total_label_fmt = wb.add_format(
-            {"bold": True, "bg_color": "#BDD7EE", "align": "center", "border": 1}
-        )
-        total_value_fmt = wb.add_format(
-            {
-                "num_format": "€#,##0.00",
-                "align": "right",
-                "bg_color": "#BDD7EE",
-                "border": 1,
-            }
-        )
-        label_start = len(df.columns) - 3
-        for label, val in [
-            ("Total Decorare", total_deco),
-            ("Total Producție", total_prod),
-            ("Total Chirii", total_rent),
-            ("Total General", total_rent + total_deco + total_prod),
-        ]:
-            ws.merge_range(row_tot, label_start, row_tot, len(df.columns) - 2, label, total_label_fmt)
-            ws.write(row_tot, len(df.columns) - 1, val, total_value_fmt)
-            row_tot += 1
+    last_data_row = data_start + len(data_rows) - 1
+    total_start = last_data_row + 2
 
+    totals = [
+        ("Total Decorare", f"=SUM(P{data_start}:P{last_data_row})"),
+        ("Total Producție", f"=SUM(Q{data_start}:Q{last_data_row})"),
+        ("Total Chirii", f"=SUM(O{data_start}:O{last_data_row})"),
+        ("Total General", f"=SUM(P{data_start}:P{last_data_row})+SUM(Q{data_start}:Q{last_data_row})+SUM(O{data_start}:O{last_data_row})"),
+    ]
 
+    for i, (label, formula) in enumerate(totals):
+        row = total_start + i
+        lbl = ws.cell(row=row, column=16, value=label)
+        lbl.fill = light_blue
+        lbl.font = Font(bold=True)
+        lbl.alignment = Alignment(horizontal="right", vertical="center")
+        val = ws.cell(row=row, column=17, value=formula)
+        val.font = Font(bold=True)
+        val.alignment = Alignment(horizontal="right", vertical="center")
+        val.fill = PatternFill(fill_type="solid", fgColor="FFFFFF")
+
+    thin = Side(border_style="thin")
+    border = Border(top=thin, bottom=thin, left=thin, right=thin)
+
+    last_total_row = total_start + len(totals) - 1
+    for r in range(7, last_total_row + 1):
+        for c in range(2, 18):
+            ws.cell(row=r, column=c).border = border
+
+    widths = {
+        "B": 6,
+        "C": 30,
+        "D": 12,
+        "E": 12,
+        "F": 14,
+        "G": 12,
+        "H": 12,
+        "I": 14,
+        "J": 12,
+        "K": 12,
+        "L": 12,
+        "M": 8,
+        "N": 15,
+        "O": 15,
+        "P": 20,
+        "Q": 15,
+    }
+    for col, width in widths.items():
+        ws.column_dimensions[col].width = width
+
+    for r in range(2, 6):
+        ws.row_dimensions[r].height = 18
+    ws.row_dimensions[7].height = 20
+
+    wb.save(path)
 def export_client_backup(month, year, client_id=None, firma_id=None, campaign=None, directory=None):
     """Exportă un backup de facturare pentru luna dată, formatat în Excel."""
     import calendar
