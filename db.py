@@ -905,6 +905,25 @@ def get_client_contacts(client_id: int) -> list[dict]:
     ]
 
 
+def update_client_contact(
+    contact_id: int, nume: str, rol: str, email: str, phone: str
+) -> None:
+    """Update the given contact record."""
+    cur = conn.cursor()
+    cur.execute(
+        "UPDATE client_contacts SET nume=?, rol=?, email=?, phone=? WHERE id=?",
+        (nume, rol, email, phone, contact_id),
+    )
+    conn.commit()
+
+
+def delete_client_contact(contact_id: int) -> None:
+    """Delete a contact record."""
+    cur = conn.cursor()
+    cur.execute("DELETE FROM client_contacts WHERE id=?", (contact_id,))
+    conn.commit()
+
+
 # Initialize DB on import
 init_db()
 refresh_location_cache()

@@ -3,6 +3,7 @@ import datetime
 import re
 import webbrowser
 import tkinter as tk
+import tkinter.font as tkfont
 from tkinter import filedialog, messagebox, simpledialog, ttk
 
 from UI.date_picker import DatePicker
@@ -15,6 +16,8 @@ from db import (
     get_location_by_id,
     add_client_contact,
     get_client_contacts,
+    update_client_contact,
+    delete_client_contact,
 )
 
 
@@ -2157,10 +2160,14 @@ def open_add_client_window(parent, refresh_cb=None):
                 cb_tip.get() or "direct",
             ),
         )
+        cid = cur.lastrowid
+        if cid is None:
+            cid = cur.execute("SELECT last_insert_rowid()").fetchone()[0]
         conn.commit()
         if refresh_cb:
             refresh_cb()
         win.destroy()
+        parent.after(0, lambda: open_add_contact_window(parent, cid, refresh_cb))
 
     ttk.Button(win, text="Salvează", command=save).grid(
         row=len(labels) + 1, column=0, columnspan=2, pady=10
@@ -2265,6 +2272,86 @@ def open_add_contact_window(parent, client_id, refresh_cb=None):
     ttk.Button(win, text="Salvează", command=save).grid(row=len(labels), column=0, columnspan=2, pady=10)
 
 
+def open_edit_contact_window(parent, contact: dict, refresh_cb=None):
+    """Edit an existing contact."""
+    win = tk.Toplevel(parent)
+    win.title("Editează persoană de contact")
+
+    labels = ["Nume", "Rol", "Email", "Telefon"]
+    entries = {}
+    values = [contact.get("nume", ""), contact.get("rol", ""), contact.get("email", ""), contact.get("phone", "")]
+    for i, (lbl, val) in enumerate(zip(labels, values)):
+        ttk.Label(win, text=lbl + ":").grid(row=i, column=0, sticky="e", padx=5, pady=2)
+        e = ttk.Entry(win, width=40)
+        e.grid(row=i, column=1, padx=5, pady=2)
+        e.insert(0, val)
+        entries[lbl] = e
+
+    def save():
+        name = entries["Nume"].get().strip()
+        if not name:
+            messagebox.showwarning("Lipsește numele", "Completează numele.")
+            return
+        update_client_contact(
+            contact["id"],
+            name,
+            entries["Rol"].get().strip(),
+            entries["Email"].get().strip(),
+            entries["Telefon"].get().strip(),
+        )
+        if refresh_cb:
+            refresh_cb()
+        win.destroy()
+
+    ttk.Button(win, text="Salvează", command=save).grid(row=len(labels), column=0, columnspan=2, pady=10)
+
+
+def open_contact_window(parent, contact: dict, refresh_cb=None) -> None:
+    """Display contact details in a dedicated window."""
+    win = tk.Toplevel(parent)
+    win.title(contact.get("nume", "Contact"))
+    default_font = tkfont.nametofont("TkDefaultFont")
+    big_font = default_font.copy()
+    big_font.configure(size=14)
+
+    fields = [
+        ("Nume", contact.get("nume", "")),
+        ("Rol", contact.get("rol", "")),
+        ("Email", contact.get("email", "")),
+        ("Telefon", contact.get("phone", "")),
+    ]
+
+    for i, (lbl, val) in enumerate(fields):
+        ttk.Label(win, text=lbl + ":", font=(default_font.cget("family"), 12, "bold")).grid(
+            row=i, column=0, sticky="e", padx=5, pady=5
+        )
+        ttk.Label(win, text=val, font=big_font).grid(row=i, column=1, sticky="w", padx=5, pady=5)
+        if lbl in ("Email", "Telefon") and val:
+            def _copy(text=val):
+                win.clipboard_clear()
+                win.clipboard_append(text)
+
+            ttk.Button(win, text="Copiază", command=_copy).grid(row=i, column=2, padx=5, pady=5)
+
+    btn_frame = ttk.Frame(win)
+    btn_frame.grid(row=len(fields), column=0, columnspan=3, pady=10)
+
+    def edit_contact():
+        win.destroy()
+        open_edit_contact_window(parent, contact, refresh_cb)
+
+    def delete_contact():
+        if messagebox.askyesno("Confirmă", "Ștergi acest contact?"):
+            delete_client_contact(contact["id"])
+            if refresh_cb:
+                refresh_cb()
+            win.destroy()
+
+    ttk.Button(btn_frame, text="Editează", command=edit_contact).grid(row=0, column=0, padx=5)
+    ttk.Button(btn_frame, text="Șterge", command=delete_contact).grid(row=0, column=1, padx=5)
+
+
+
 def open_client_detail(tree, event):
     rowid = tree.identify_row(event.y)
     if not rowid:
@@ -2307,10 +2394,8 @@ def open_client_detail(tree, event):
             lbl.grid(row=j, column=0, sticky="w")
             lbl.bind(
                 "<Button-1>",
-                lambda e, c=c: messagebox.showinfo(
-                    c["nume"],
-                    f"Rol: {c['rol']}\nEmail: {c['email']}\nTelefon: {c['phone']}",
-                    parent=win,
+                lambda e, c=c: open_contact_window(
+                    win, c, lambda: (win.destroy(), open_client_detail(tree, event))
                 ),
             )
 
@@ -2683,7 +2768,7 @@ def open_clients_window(root):
 
     ttk.Label(win, text="Caută:").grid(row=0, column=0, padx=5, pady=5, sticky="w")
     search_var = tk.StringVar()
-    entry_search = ttk.Entry(win, textvariable=search_var, width=30)
+    entry_search = ttk.Entry(win, textvariable=search_var, width=20)
     entry_search.grid(row=0, column=1, columnspan=3, sticky="ew", padx=5, pady=5)
 
     cols = ("Nume", "Tip", "Contact", "Email", "Telefon", "CUI", "Adresă", "Observații")
@@ -2706,7 +2791,21 @@ def open_clients_window(root):
         rows = (
             conn.cursor()
             .execute(
-                "SELECT id, nume, tip, contact, email, phone, cui, adresa, observatii FROM clienti ORDER BY nume"
+                """
+                SELECT c.id, c.nume, c.tip,
+                       COALESCE(cc.nume, c.contact) AS contact,
+                       COALESCE(cc.email, c.email) AS email,
+                       COALESCE(cc.phone, c.phone) AS phone,
+                       c.cui, c.adresa, c.observatii
+                  FROM clienti c
+             LEFT JOIN client_contacts cc
+                    ON cc.client_id = c.id AND cc.id = (
+                        SELECT id FROM client_contacts c2
+                         WHERE c2.client_id = c.id
+                         ORDER BY c2.id LIMIT 1
+                    )
+              ORDER BY c.nume
+                """
             )
             .fetchall()
         )
