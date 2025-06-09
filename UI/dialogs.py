@@ -882,11 +882,21 @@ def open_edit_rent_window(root, rid, load_cb, parent=None):
 
 
 def open_release_window(root, loc_id, load_cb, user):
-    """Selectează și anulează o închiriere."""
+    """Selectează și anulează o închiriere.
+
+    Sunt listate doar închirierile active sau cele terminate în ultimele
+    trei zile pentru a nu aglomera dialogul cu închirieri vechi.
+    """
     cur = conn.cursor()
+    cutoff = (datetime.date.today() - datetime.timedelta(days=3)).isoformat()
     rows = cur.execute(
-        "SELECT id, client, data_start, data_end FROM rezervari WHERE loc_id=? AND suma IS NOT NULL ORDER BY data_start",
-        (loc_id,),
+        """
+        SELECT id, client, data_start, data_end
+          FROM rezervari
+         WHERE loc_id=? AND suma IS NOT NULL AND data_end>=?
+         ORDER BY data_start
+        """,
+        (loc_id, cutoff),
     ).fetchall()
 
     if not rows:
@@ -910,12 +920,12 @@ def open_release_window(root, loc_id, load_cb, user):
             return
         rid, _client, ds, de, *_ = rows[sel[0]]
 
-        start = datetime.date.fromisoformat(ds)
         end = datetime.date.fromisoformat(de)
-        duration = (end - start).days + 1
-        if user.get("role") != "admin" and end < datetime.date.today() and duration > 3:
+        days_past = (datetime.date.today() - end).days
+        if user.get("role") != "admin" and days_past > 3:
             messagebox.showwarning(
-                "Refuzat", "Doar adminul poate șterge închirierile finalizate."
+                "Refuzat",
+                "Doar adminul poate șterge închirierile încheiate de mai mult de 3 zile.",
             )
             return
 
@@ -2118,11 +2128,12 @@ def open_add_client_window(parent, refresh_cb=None):
     win = tk.Toplevel(parent)
     win.title("Adaugă client")
 
+    # Nu mai solicităm detalii despre persoana de contact aici deoarece
+    # imediat după crearea clientului este deschis automat dialogul pentru
+    # adăugarea unei persoane de contact. Astfel evităm completarea
+    # repetată a aceloraşi informaţii.
     labels = [
         "Nume companie",
-        "Persoană contact",
-        "Email",
-        "Telefon",
         "CUI",
         "Adresă facturare",
         "Observații",
@@ -2151,9 +2162,9 @@ def open_add_client_window(parent, refresh_cb=None):
             "INSERT INTO clienti (nume, contact, email, phone, cui, adresa, observatii, tip) VALUES (?,?,?,?,?,?,?,?)",
             (
                 nume,
-                entries["Persoană contact"].get().strip(),
-                entries["Email"].get().strip(),
-                entries["Telefon"].get().strip(),
+                "",
+                "",
+                "",
                 entries["CUI"].get().strip(),
                 entries["Adresă facturare"].get().strip(),
                 entries["Observații"].get().strip(),
@@ -2761,8 +2772,12 @@ def export_all_backups(month, year):
     messagebox.showinfo("Export", f"Backupurile au fost salvate în:\n{month_dir}")
 
 
-def open_clients_window(root):
-    """Fereastră pentru administrarea clienților."""
+def open_clients_window(root, user=None):
+    """Fereastră pentru administrarea clienților.
+
+    ``user`` is optional and defaults to an admin-like role for backwards
+    compatibility.
+    """
     win = tk.Toplevel(root)
     win.title("Clienți")
 
@@ -2832,8 +2847,30 @@ def open_clients_window(root):
             return
         if not messagebox.askyesno("Confirmă", "Ștergi clientul selectat?"):
             return
+        cid = int(sel[0])
         cur = conn.cursor()
-        cur.execute("DELETE FROM clienti WHERE id=?", (int(sel[0]),))
+        nume_row = cur.execute(
+            "SELECT nume FROM clienti WHERE id=?",
+            (cid,),
+        ).fetchone()
+        if not nume_row:
+            return
+        nume_cli = nume_row[0]
+
+        role = user.get("role") if user else "admin"
+        rentals = cur.execute(
+            "SELECT COUNT(*) FROM rezervari WHERE client_id=? OR client=?",
+            (cid, nume_cli),
+        ).fetchone()[0]
+        if rentals and role != "admin":
+            messagebox.showwarning(
+                "Refuzat",
+                "Doar adminul poate șterge clienții cu închirieri.",
+            )
+            return
+
+        cur.execute("DELETE FROM client_contacts WHERE client_id=?", (cid,))
+        cur.execute("DELETE FROM clienti WHERE id=?", (cid,))
         conn.commit()
         refresh()
 
