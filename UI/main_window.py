@@ -339,6 +339,8 @@ def start_app(user, root=None):
     lbl_pret_inch_value    = ttk.Label(details, text="-")
     lbl_pret_flot_label    = ttk.Label(details, text="Preț flotant:")
     lbl_pret_flot_value    = ttk.Label(details, text="-")
+    lbl_rent_by_label      = ttk.Label(details, text="Închiriat de:")
+    lbl_rent_by_value      = ttk.Label(details, text="-")
     lbl_res_by_label       = ttk.Label(details, text="Rezervată de:")
     lbl_res_by_value       = ttk.Label(details, text="-")
     lbl_next_rent_label    = ttk.Label(details, text="Următoarea închiriere:")
@@ -568,6 +570,7 @@ def start_app(user, root=None):
             lbl_pret_vanz_label, lbl_pret_vanz_value,
             lbl_pret_inch_label, lbl_pret_inch_value,
             lbl_pret_flot_label, lbl_pret_flot_value,
+            lbl_rent_by_label, lbl_rent_by_value,
             lbl_res_by_label, lbl_res_by_value,
             lbl_next_rent_label, lbl_next_rent_value,
 
@@ -627,12 +630,21 @@ def start_app(user, root=None):
 
         status = tree.item(sel[0])['values'][5]
         reserved_info = None
+        rented_info = None
         if status == "Rezervat":
             today = datetime.date.today().isoformat()
             reserved_info = cursor.execute(
                 "SELECT created_by, data_end FROM rezervari "
                 "WHERE loc_id=? AND ? BETWEEN data_start AND data_end "
                 "AND suma IS NULL ORDER BY data_start DESC LIMIT 1",
+                (loc_id, today),
+            ).fetchone()
+        if status == "Închiriat":
+            today = datetime.date.today().isoformat()
+            rented_info = cursor.execute(
+                "SELECT created_by FROM rezervari "
+                "WHERE loc_id=? AND ? BETWEEN data_start AND data_end "
+                "AND suma IS NOT NULL ORDER BY data_start DESC LIMIT 1",
                 (loc_id, today),
             ).fetchone()
 
@@ -646,6 +658,10 @@ def start_app(user, root=None):
             lbl_pret_inch_value.pack(anchor="center", pady=2)
             lbl_pret_vanz_label.pack(anchor="center", pady=2)
             lbl_pret_vanz_value.pack(anchor="center", pady=2)
+            if rented_info and rented_info[0]:
+                lbl_rent_by_value.config(text=str(rented_info[0]))
+                lbl_rent_by_label.pack(anchor="center", pady=2)
+                lbl_rent_by_value.pack(anchor="center", pady=2)
         else:
             lbl_ratecard_label.pack(anchor="center", pady=2)
             lbl_ratecard_value.pack(anchor="center", pady=2)
