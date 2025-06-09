@@ -1222,6 +1222,7 @@ def export_sales_report():
 
     with pd.ExcelWriter(path, engine="xlsxwriter") as writer:
         wb = writer.book
+        stats_ranges = {}
         hdr_fmt = wb.add_format(
             {
                 "bold": True,
@@ -1475,6 +1476,7 @@ def export_sales_report():
                 f"€{sale_free:,.2f} ({pct_sale_free:.2%})",
                 stat_money_neg_fmt,
             )
+            stats_ranges[name] = (start, start + 4, 0, value_col)
             # The "Raport sume vândute/nevândute" statistic is no longer shown
             # in the monthly sheets as it was not considered relevant.
 
@@ -1699,6 +1701,7 @@ def export_sales_report():
                 f"€{sale_free:,.2f} ({pct_sale_free:.2%})",
                 stat_money_neg_fmt,
             )
+            stats_ranges["Total"] = (start, start + 4, 0, value_col)
 
         write_total_sheet(df_total)
 
@@ -1760,7 +1763,28 @@ def export_sales_report():
             name = start_m.strftime("%B")
             write_sheet(name, df_month)
 
-        messagebox.showinfo("Export Excel", f"Raport salvat:\n{path}")
+    from openpyxl import load_workbook
+    from openpyxl.styles import Border, Side
+
+    wb = load_workbook(path)
+    thin = Side(style="thin")
+    thick = Side(style="thick")
+    for sheet_name, (r1, r2, c1, c2) in stats_ranges.items():
+        ws = wb[sheet_name]
+        start_row, end_row = r1 + 1, r2 + 1
+        start_col, end_col = c1 + 1, c2 + 1
+        for r in range(start_row, end_row + 1):
+            for c in range(start_col, end_col + 1):
+                cell = ws.cell(row=r, column=c)
+                border = cell.border
+                left = thick if c == start_col else border.left
+                right = thick if c == end_col else border.right
+                top = thick if r == start_row else border.top
+                bottom = thick if r == end_row else border.bottom
+                cell.border = Border(left=left, right=right, top=top, bottom=bottom)
+    wb.save(path)
+
+    messagebox.showinfo("Export Excel", f"Raport salvat:\n{path}")
 
 
 def open_offer_window(tree):
