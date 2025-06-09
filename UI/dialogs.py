@@ -2322,27 +2322,27 @@ def _write_backup_excel(rows, start_m: datetime.date, end_m: datetime.date, path
                 cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
 
     last_data_row = data_start + len(data_rows) - 1
-    total_start = last_data_row + 2
+    total_start = last_data_row + 1
 
     # total lines for each cost column
     deco_total = ws.cell(row=total_start, column=15, value=f"=SUM(O{data_start}:O{last_data_row})")
     deco_total.font = Font(bold=True)
     deco_total.number_format = "\u20ac#,##0.00"
-    deco_total.alignment = Alignment(horizontal="right", vertical="center")
+    deco_total.alignment = Alignment(horizontal="center", vertical="center")
 
     prod_total = ws.cell(row=total_start, column=16, value=f"=SUM(P{data_start}:P{last_data_row})")
     prod_total.font = Font(bold=True)
     prod_total.number_format = "\u20ac#,##0.00"
-    prod_total.alignment = Alignment(horizontal="right", vertical="center")
+    prod_total.alignment = Alignment(horizontal="center", vertical="center")
 
     chirie_total = ws.cell(row=total_start, column=14, value=f"=SUM(N{data_start}:N{last_data_row})")
     chirie_total.font = Font(bold=True)
     chirie_total.number_format = "\u20ac#,##0.00"
-    chirie_total.alignment = Alignment(horizontal="right", vertical="center")
+    chirie_total.alignment = Alignment(horizontal="center", vertical="center")
 
     grand_row = total_start + 1
     ws.merge_cells(f"N{grand_row}:O{grand_row}")
-    lbl = ws.cell(row=grand_row, column=14, value="Total")
+    lbl = ws.cell(row=grand_row, column=14, value="Total =")
     lbl.font = Font(bold=True)
     lbl.alignment = Alignment(horizontal="center", vertical="center")
     val = ws.cell(
@@ -2352,7 +2352,7 @@ def _write_backup_excel(rows, start_m: datetime.date, end_m: datetime.date, path
     )
     val.font = Font(bold=True)
     val.number_format = "\u20ac#,##0.00"
-    val.alignment = Alignment(horizontal="right", vertical="center")
+    val.alignment = Alignment(horizontal="center", vertical="center")
 
     thin = Side(border_style="thin")
     border = Border(top=thin, bottom=thin, left=thin, right=thin)
@@ -2367,14 +2367,11 @@ def _write_backup_excel(rows, start_m: datetime.date, end_m: datetime.date, path
     # apply a thicker border around the totals section for emphasis
     thick = Side(border_style="thick")
     start_col, end_col = 14, 16
-    for r in range(total_start, grand_row + 1):
-        for c in range(start_col, end_col + 1):
-            cell = ws.cell(row=r, column=c)
-            top = thick if r == total_start else thin
-            bottom = thick if r == grand_row else thin
-            left = thick if c == start_col else thin
-            right = thick if c == end_col else thin
-            cell.border = Border(top=top, bottom=bottom, left=left, right=right)
+    for c in range(start_col, end_col + 1):
+        cell = ws.cell(row=grand_row, column=c)
+        left = thick if c == start_col else thin
+        right = thick if c == end_col else thin
+        cell.border = Border(top=thick, bottom=thick, left=left, right=right)
 
     from openpyxl.utils import get_column_letter
     extra_height_needed = False
