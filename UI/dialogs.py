@@ -2245,7 +2245,6 @@ def _write_backup_excel(rows, start_m: datetime.date, end_m: datetime.date, path
     ws.title = "Backup"
 
     dark_blue = PatternFill(fill_type="solid", fgColor="305496")
-    light_blue = PatternFill(fill_type="solid", fgColor="D9E1F2")
     white_bold = Font(color="FFFFFF", bold=True)
 
     if header_info:
@@ -2263,17 +2262,16 @@ def _write_backup_excel(rows, start_m: datetime.date, end_m: datetime.date, path
     for r in range(2, 7):
         for c in range(2, 17):
             cell = ws.cell(row=r, column=c)
-            cell.fill = light_blue
-            cell.alignment = Alignment(horizontal="left", vertical="center", wrap_text=True)
+            cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
 
     ws.merge_cells("B2:C2"); ws["B2"].value = f"Societatea care facturează: {f_name}"
     ws.merge_cells("B3:C3"); ws["B3"].value = f"CUI: {f_cui}"
     ws.merge_cells("B4:C4"); ws["B4"].value = f"Adresă: {f_addr}"
-    ws.merge_cells("B5:C5"); ws["B5"].value = f"Perioada campanie: {start_m:%d.%m.%Y} - {end_m:%d.%m.%Y}"
-    ws.merge_cells("B6:C6"); ws["B6"].value = f"Denumire campanie: {camp or c_name}"
     ws.merge_cells("F2:G2"); ws["F2"].value = f"Client: {c_name}"
     ws.merge_cells("F3:G3"); ws["F3"].value = f"CUI client: {c_cui}"
     ws.merge_cells("F4:G4"); ws["F4"].value = f"Adresă client: {c_addr}"
+    ws.merge_cells("J2:K2"); ws["J2"].value = f"Perioada campanie: {start_m:%d.%m.%Y} - {end_m:%d.%m.%Y}"
+    ws.merge_cells("J3:K3"); ws["J3"].value = f"Denumire campanie: {camp or c_name}"
 
     headers = [
         "Nr. Crt",
@@ -2317,28 +2315,39 @@ def _write_backup_excel(rows, start_m: datetime.date, end_m: datetime.date, path
     last_data_row = data_start + len(data_rows) - 1
     total_start = last_data_row + 2
 
-    totals = [
-        ("Total Decorare", f"=SUM(P{data_start}:P{last_data_row})"),
-        ("Total Producție", f"=SUM(Q{data_start}:Q{last_data_row})"),
-        ("Total Chirii", f"=SUM(O{data_start}:O{last_data_row})"),
-        ("Total General", f"=SUM(P{data_start}:P{last_data_row})+SUM(Q{data_start}:Q{last_data_row})+SUM(O{data_start}:O{last_data_row})"),
-    ]
+    # total lines for each cost column
+    deco_total = ws.cell(row=total_start, column=16, value=f"=SUM(P{data_start}:P{last_data_row})")
+    deco_total.font = Font(bold=True)
+    deco_total.number_format = "#,##0.00"
+    deco_total.alignment = Alignment(horizontal="right", vertical="center")
 
-    for i, (label, formula) in enumerate(totals):
-        row = total_start + i
-        lbl = ws.cell(row=row, column=16, value=label)
-        lbl.fill = light_blue
-        lbl.font = Font(bold=True)
-        lbl.alignment = Alignment(horizontal="right", vertical="center")
-        val = ws.cell(row=row, column=17, value=formula)
-        val.font = Font(bold=True)
-        val.alignment = Alignment(horizontal="right", vertical="center")
-        val.fill = PatternFill(fill_type="solid", fgColor="FFFFFF")
+    prod_total = ws.cell(row=total_start, column=17, value=f"=SUM(Q{data_start}:Q{last_data_row})")
+    prod_total.font = Font(bold=True)
+    prod_total.number_format = "#,##0.00"
+    prod_total.alignment = Alignment(horizontal="right", vertical="center")
+
+    chirie_total = ws.cell(row=total_start, column=15, value=f"=SUM(O{data_start}:O{last_data_row})")
+    chirie_total.font = Font(bold=True)
+    chirie_total.number_format = "#,##0.00"
+    chirie_total.alignment = Alignment(horizontal="right", vertical="center")
+
+    grand_row = total_start + 1
+    lbl = ws.cell(row=grand_row, column=16, value="Total")
+    lbl.font = Font(bold=True)
+    lbl.alignment = Alignment(horizontal="right", vertical="center")
+    val = ws.cell(
+        row=grand_row,
+        column=17,
+        value=f"=SUM(O{data_start}:O{last_data_row})+SUM(P{data_start}:P{last_data_row})+SUM(Q{data_start}:Q{last_data_row})",
+    )
+    val.font = Font(bold=True)
+    val.number_format = "#,##0.00"
+    val.alignment = Alignment(horizontal="right", vertical="center")
 
     thin = Side(border_style="thin")
     border = Border(top=thin, bottom=thin, left=thin, right=thin)
 
-    last_total_row = total_start + len(totals) - 1
+    last_total_row = grand_row
     for r in range(7, last_total_row + 1):
         for c in range(2, 18):
             ws.cell(row=r, column=c).border = border
