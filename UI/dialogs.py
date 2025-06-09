@@ -1261,7 +1261,7 @@ def export_sales_report():
         stat_lbl_fmt = wb.add_format(
             {
                 "bold": True,
-                "bg_color": "#FFF2CC",
+                "bg_color": "white",
                 "font_size": 14,
                 "align": "center",
                 "valign": "vcenter",
@@ -1272,7 +1272,7 @@ def export_sales_report():
             {
                 "num_format": "€#,##0.00",
                 "bold": True,
-                "bg_color": "#FFF2CC",
+                "bg_color": "white",
                 "font_size": 14,
                 "align": "center",
                 "valign": "vcenter",
@@ -1283,7 +1283,7 @@ def export_sales_report():
             {
                 "num_format": "€#,##0.00",
                 "bold": True,
-                "bg_color": "#FFF2CC",
+                "bg_color": "white",
                 "font_size": 14,
                 "font_color": "green",
                 "align": "center",
@@ -1295,7 +1295,7 @@ def export_sales_report():
             {
                 "num_format": "€#,##0.00",
                 "bold": True,
-                "bg_color": "#FFF2CC",
+                "bg_color": "white",
                 "font_size": 14,
                 "font_color": "red",
                 "align": "center",
@@ -1307,7 +1307,7 @@ def export_sales_report():
             {
                 "num_format": "0.00%",
                 "bold": True,
-                "bg_color": "#FFF2CC",
+                "bg_color": "white",
                 "font_size": 14,
                 "align": "center",
                 "valign": "vcenter",
@@ -1317,7 +1317,7 @@ def export_sales_report():
         stat_int_fmt = wb.add_format(
             {
                 "bold": True,
-                "bg_color": "#FFF2CC",
+                "bg_color": "white",
                 "font_size": 14,
                 "align": "center",
                 "valign": "vcenter",
@@ -1331,9 +1331,6 @@ def export_sales_report():
             "PRET DE INCHIRIERE",
             "SUMĂ AN",
         }
-        # Number of columns to span when merging statistic labels. A small value
-        # keeps the merged cells narrow so the report prints nicely on A3 paper.
-        STAT_MERGE_END = 3  # deprecated, retained for backward compatibility
 
         def write_sheet(name, df_sheet):
             df_sheet = df_sheet.copy()
@@ -1436,11 +1433,12 @@ def export_sales_report():
                 .sum()
             )
 
-            merge_end = min(STAT_MERGE_END, len(df_sheet.columns) - 2)
-            value_col = merge_end + 1
             stats_end = len(df_sheet.columns) - 1
+            value_col = max(stats_end - 2, 0)
+            merge_end = value_col - 1
+            merge_start = max(merge_end - 3, 0)
             start = len(df_sheet) + 2
-            ws.merge_range(start, 0, start, merge_end, "Locații vândute", stat_lbl_fmt)
+            ws.merge_range(start, merge_start, start, merge_end, "Locații vândute", stat_lbl_fmt)
             ws.merge_range(
                 start,
                 value_col,
@@ -1450,7 +1448,7 @@ def export_sales_report():
                 stat_int_fmt,
             )
             ws.merge_range(
-                start + 1, 0, start + 1, merge_end, "Locații nevândute", stat_lbl_fmt
+                start + 1, merge_start, start + 1, merge_end, "Locații nevândute", stat_lbl_fmt
             )
             ws.merge_range(
                 start + 1,
@@ -1461,7 +1459,7 @@ def export_sales_report():
                 stat_int_fmt,
             )
             ws.merge_range(
-                start + 2, 0, start + 2, merge_end, "Preț vânzare total", stat_lbl_fmt
+                start + 2, merge_start, start + 2, merge_end, "Preț vânzare total", stat_lbl_fmt
             )
             ws.merge_range(
                 start + 2,
@@ -1474,7 +1472,7 @@ def export_sales_report():
             pct_sale_sold = sold_income / sale_total if sale_total else 0
             pct_sale_free = sale_free / sale_total if sale_total else 0
             ws.merge_range(
-                start + 3, 0, start + 3, merge_end, "Sumă locații vândute", stat_lbl_fmt
+                start + 3, merge_start, start + 3, merge_end, "Sumă locații vândute", stat_lbl_fmt
             )
             ws.merge_range(
                 start + 3,
@@ -1486,7 +1484,7 @@ def export_sales_report():
             )
             ws.merge_range(
                 start + 4,
-                0,
+                merge_start,
                 start + 4,
                 merge_end,
                 "Sumă locații nevândute",
@@ -1500,7 +1498,7 @@ def export_sales_report():
                 f"€{sale_free:,.2f} ({pct_sale_free:.2%})",
                 stat_money_neg_fmt,
             )
-            stats_ranges[name] = (start, start + 4, 0, stats_end)
+            stats_ranges[name] = (start, start + 4, merge_start, stats_end)
             # The "Raport sume vândute/nevândute" statistic is no longer shown
             # in the monthly sheets as it was not considered relevant.
 
@@ -1688,13 +1686,14 @@ def export_sales_report():
             pct_sale_sold = sold_income / sale_total if sale_total else 0
             pct_sale_free = sale_free / sale_total if sale_total else 0
 
-            merge_end = min(STAT_MERGE_END, len(df_sheet.columns) - 2)
-            value_col = merge_end + 1
             stats_end = len(df_sheet.columns) - 1
+            value_col = max(stats_end - 2, 0)
+            merge_end = value_col - 1
+            merge_start = max(merge_end - 3, 0)
             start = len(df_sheet) + 2
             ws.merge_range(
                 start,
-                0,
+                merge_start,
                 start,
                 merge_end,
                 f"Locații vândute în anul {year}",
@@ -1709,7 +1708,7 @@ def export_sales_report():
                 stat_percent_fmt,
             )
             ws.merge_range(
-                start + 1, 0, start + 1, merge_end, "Locații nevândute", stat_lbl_fmt
+                start + 1, merge_start, start + 1, merge_end, "Locații nevândute", stat_lbl_fmt
             )
             ws.merge_range(
                 start + 1,
@@ -1720,7 +1719,7 @@ def export_sales_report():
                 stat_percent_fmt,
             )
             ws.merge_range(
-                start + 2, 0, start + 2, merge_end, "Preț vânzare total", stat_lbl_fmt
+                start + 2, merge_start, start + 2, merge_end, "Preț vânzare total", stat_lbl_fmt
             )
             ws.merge_range(
                 start + 2,
@@ -1731,7 +1730,7 @@ def export_sales_report():
                 stat_money_fmt,
             )
             ws.merge_range(
-                start + 3, 0, start + 3, merge_end, "Sumă locații vândute", stat_lbl_fmt
+                start + 3, merge_start, start + 3, merge_end, "Sumă locații vândute", stat_lbl_fmt
             )
             ws.merge_range(
                 start + 3,
@@ -1742,7 +1741,7 @@ def export_sales_report():
                 stat_money_pos_fmt,
             )
             ws.merge_range(
-                start + 4, 0, start + 4, merge_end, "Sumă locații nevândute", stat_lbl_fmt
+                start + 4, merge_start, start + 4, merge_end, "Sumă locații nevândute", stat_lbl_fmt
             )
             ws.merge_range(
                 start + 4,
@@ -1752,7 +1751,7 @@ def export_sales_report():
                 f"€{sale_free:,.2f} ({pct_sale_free:.2%})",
                 stat_money_neg_fmt,
             )
-            stats_ranges["Total"] = (start, start + 4, 0, stats_end)
+            stats_ranges["Total"] = (start, start + 4, merge_start, stats_end)
 
         write_total_sheet(df_total)
 
