@@ -364,8 +364,11 @@ def start_app(user, root=None):
     btn_reserve = ttk.Button(primary_frame, text="Rezervă", state="disabled")
     btn_delete  = ttk.Button(primary_frame, text="Șterge", state="disabled",
                              command=lambda: delete_location())
-    btn_clients = ttk.Button(primary_frame, text="Clienți",
-                             command=lambda: open_clients_window(root))
+    btn_clients = ttk.Button(
+        primary_frame,
+        text="Clienți",
+        command=lambda: open_clients_window(root, user),
+    )
     btn_firme = ttk.Button(primary_frame, text="Firme",
                             command=lambda: open_firme_window(root))
     btn_users = ttk.Button(primary_frame, text="Utilizatori",
@@ -687,9 +690,14 @@ def start_app(user, root=None):
         else:
             btn_rent.config(state='disabled', command=lambda: None)
 
+        cutoff = (datetime.date.today() - datetime.timedelta(days=3)).isoformat()
         has_rentals = cursor.execute(
-            "SELECT 1 FROM rezervari WHERE loc_id=? AND suma IS NOT NULL LIMIT 1",
-            (loc_id,),
+            """
+            SELECT 1 FROM rezervari
+             WHERE loc_id=? AND suma IS NOT NULL AND data_end>=?
+             LIMIT 1
+            """,
+            (loc_id, cutoff),
         ).fetchone()
         if role != "manager":
             if has_rentals:
