@@ -319,7 +319,9 @@ def ensure_index(table: str, index_name: str, column: str) -> None:
                 ctype = str(field[1]).lower()
                 if "text" in ctype or "blob" in ctype:
                     length = "(255)"
-            cur.execute(f"CREATE INDEX {index_name} ON {table}({column}{length})")
+                cur.execute(
+                    f"CREATE INDEX {index_name} ON {table}({column}{length})"
+                )
     else:
         cursor.execute(f"CREATE INDEX IF NOT EXISTS {index_name} ON {table}({column})")
 
