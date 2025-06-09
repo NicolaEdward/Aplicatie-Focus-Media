@@ -2358,10 +2358,10 @@ def _write_backup_excel(rows, start_m: datetime.date, end_m: datetime.date, path
     border = Border(top=thin, bottom=thin, left=thin, right=thin)
 
     last_total_row = grand_row
-    for r in range(2, last_total_row + 1):
+    for r in range(1, last_total_row + 1):
         for c in range(1, 17):
             cell = ws.cell(row=r, column=c)
-            if cell.value is not None:
+            if cell.value is not None or cell.coordinate in ws.merged_cells:
                 cell.border = border
 
     from openpyxl.utils import get_column_letter
@@ -2379,9 +2379,8 @@ def _write_backup_excel(rows, start_m: datetime.date, end_m: datetime.date, path
     for r in range(last_data_row + 1, last_total_row + 1):
         ws.row_dimensions[r].height = 22
 
-    for r in range(2, header_row):
-        ws.row_dimensions[r].height = 20
-    ws.row_dimensions[header_row].height = 22
+    for r in range(1, header_row + 1):
+        ws.row_dimensions[r].height = 30
 
     wb.save(path)
 def export_client_backup(month, year, client_id=None, firma_id=None, campaign=None, directory=None):
