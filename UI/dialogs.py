@@ -1438,27 +1438,49 @@ def export_sales_report():
 
             merge_end = min(STAT_MERGE_END, len(df_sheet.columns) - 2)
             value_col = merge_end + 1
+            stats_end = len(df_sheet.columns) - 1
             start = len(df_sheet) + 2
             ws.merge_range(start, 0, start, merge_end, "Locații vândute", stat_lbl_fmt)
-            ws.write(start, value_col, f"{count_sold} ({pct_sold:.2%})", stat_int_fmt)
+            ws.merge_range(
+                start,
+                value_col,
+                start,
+                stats_end,
+                f"{count_sold} ({pct_sold:.2%})",
+                stat_int_fmt,
+            )
             ws.merge_range(
                 start + 1, 0, start + 1, merge_end, "Locații nevândute", stat_lbl_fmt
             )
-            ws.write(
-                start + 1, value_col, f"{count_free} ({pct_free:.2%})", stat_int_fmt
+            ws.merge_range(
+                start + 1,
+                value_col,
+                start + 1,
+                stats_end,
+                f"{count_free} ({pct_free:.2%})",
+                stat_int_fmt,
             )
             ws.merge_range(
                 start + 2, 0, start + 2, merge_end, "Preț vânzare total", stat_lbl_fmt
             )
-            ws.write(start + 2, value_col, sale_total, stat_money_fmt)
+            ws.merge_range(
+                start + 2,
+                value_col,
+                start + 2,
+                stats_end,
+                sale_total,
+                stat_money_fmt,
+            )
             pct_sale_sold = sold_income / sale_total if sale_total else 0
             pct_sale_free = sale_free / sale_total if sale_total else 0
             ws.merge_range(
                 start + 3, 0, start + 3, merge_end, "Sumă locații vândute", stat_lbl_fmt
             )
-            ws.write(
+            ws.merge_range(
                 start + 3,
                 value_col,
+                start + 3,
+                stats_end,
                 f"€{sold_income:,.2f} ({pct_sale_sold:.2%})",
                 stat_money_pos_fmt,
             )
@@ -1470,13 +1492,15 @@ def export_sales_report():
                 "Sumă locații nevândute",
                 stat_lbl_fmt,
             )
-            ws.write(
+            ws.merge_range(
                 start + 4,
                 value_col,
+                start + 4,
+                stats_end,
                 f"€{sale_free:,.2f} ({pct_sale_free:.2%})",
                 stat_money_neg_fmt,
             )
-            stats_ranges[name] = (start, start + 4, 0, value_col)
+            stats_ranges[name] = (start, start + 4, 0, stats_end)
             # The "Raport sume vândute/nevândute" statistic is no longer shown
             # in the monthly sheets as it was not considered relevant.
 
@@ -1550,9 +1574,10 @@ def export_sales_report():
             {"days": "sum", "months": "sum", "val_real": "sum"}
         )
 
-        units_sold = df_rez.groupby(df_rez["parent_id"].fillna(df_rez["id"]))[
-            "id"
-        ].nunique()
+        parent_ids = (
+            df_rez["parent_id"].combine_first(df_rez["id"]).astype("Int64")
+        )
+        units_sold = df_rez.groupby(parent_ids)["id"].nunique()
 
         # Sheet summarizing the entire year
         df_total = df_base.copy()
@@ -1665,6 +1690,7 @@ def export_sales_report():
 
             merge_end = min(STAT_MERGE_END, len(df_sheet.columns) - 2)
             value_col = merge_end + 1
+            stats_end = len(df_sheet.columns) - 1
             start = len(df_sheet) + 2
             ws.merge_range(
                 start,
@@ -1674,34 +1700,59 @@ def export_sales_report():
                 f"Locații vândute în anul {year}",
                 stat_lbl_fmt,
             )
-            ws.write(start, value_col, pct_months_sold, stat_percent_fmt)
+            ws.merge_range(
+                start,
+                value_col,
+                start,
+                stats_end,
+                pct_months_sold,
+                stat_percent_fmt,
+            )
             ws.merge_range(
                 start + 1, 0, start + 1, merge_end, "Locații nevândute", stat_lbl_fmt
             )
-            ws.write(start + 1, value_col, pct_months_free, stat_percent_fmt)
+            ws.merge_range(
+                start + 1,
+                value_col,
+                start + 1,
+                stats_end,
+                pct_months_free,
+                stat_percent_fmt,
+            )
             ws.merge_range(
                 start + 2, 0, start + 2, merge_end, "Preț vânzare total", stat_lbl_fmt
             )
-            ws.write(start + 2, value_col, sale_total, stat_money_fmt)
+            ws.merge_range(
+                start + 2,
+                value_col,
+                start + 2,
+                stats_end,
+                sale_total,
+                stat_money_fmt,
+            )
             ws.merge_range(
                 start + 3, 0, start + 3, merge_end, "Sumă locații vândute", stat_lbl_fmt
             )
-            ws.write(
+            ws.merge_range(
                 start + 3,
                 value_col,
+                start + 3,
+                stats_end,
                 f"€{sold_income:,.2f} ({pct_sale_sold:.2%})",
                 stat_money_pos_fmt,
             )
             ws.merge_range(
                 start + 4, 0, start + 4, merge_end, "Sumă locații nevândute", stat_lbl_fmt
             )
-            ws.write(
+            ws.merge_range(
                 start + 4,
                 value_col,
+                start + 4,
+                stats_end,
                 f"€{sale_free:,.2f} ({pct_sale_free:.2%})",
                 stat_money_neg_fmt,
             )
-            stats_ranges["Total"] = (start, start + 4, 0, value_col)
+            stats_ranges["Total"] = (start, start + 4, 0, stats_end)
 
         write_total_sheet(df_total)
 
