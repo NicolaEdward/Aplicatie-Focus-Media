@@ -2260,18 +2260,20 @@ def _write_backup_excel(rows, start_m: datetime.date, end_m: datetime.date, path
     title_cell.alignment = Alignment(horizontal="center", vertical="center")
 
     for r in range(2, 7):
-        for c in range(2, 17):
+        for c in range(2, 18):
             cell = ws.cell(row=r, column=c)
             cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
 
-    ws.merge_cells("B2:C2"); ws["B2"].value = f"Societatea care facturează: {f_name}"
-    ws.merge_cells("B3:C3"); ws["B3"].value = f"CUI: {f_cui}"
-    ws.merge_cells("B4:C4"); ws["B4"].value = f"Adresă: {f_addr}"
-    ws.merge_cells("F2:G2"); ws["F2"].value = f"Client: {c_name}"
-    ws.merge_cells("F3:G3"); ws["F3"].value = f"CUI client: {c_cui}"
-    ws.merge_cells("F4:G4"); ws["F4"].value = f"Adresă client: {c_addr}"
-    ws.merge_cells("J2:K2"); ws["J2"].value = f"Perioada campanie: {start_m:%d.%m.%Y} - {end_m:%d.%m.%Y}"
-    ws.merge_cells("J3:K3"); ws["J3"].value = f"Denumire campanie: {camp or c_name}"
+    ws.merge_cells("B2:F2"); ws["B2"].value = f"Societatea care facturează: {f_name}"
+    ws.merge_cells("B3:F3"); ws["B3"].value = f"CUI: {f_cui}"
+    ws.merge_cells("B4:F4"); ws["B4"].value = f"Adresă: {f_addr}"
+
+    ws.merge_cells("G2:K2"); ws["G2"].value = f"Client: {c_name}"
+    ws.merge_cells("G3:K3"); ws["G3"].value = f"CUI client: {c_cui}"
+    ws.merge_cells("G4:K4"); ws["G4"].value = f"Adresă client: {c_addr}"
+
+    ws.merge_cells("L2:Q2"); ws["L2"].value = f"Perioada campanie: {start_m:%d.%m.%Y} - {end_m:%d.%m.%Y}"
+    ws.merge_cells("L3:Q3"); ws["L3"].value = f"Denumire campanie: {camp or c_name}"
 
     headers = [
         "Nr. Crt",
@@ -2299,6 +2301,7 @@ def _write_backup_excel(rows, start_m: datetime.date, end_m: datetime.date, path
         cell.alignment = Alignment(horizontal="center", vertical="center")
 
     data_start = 8
+    currency_cols = {14, 15, 16, 17}
     for r_off, row_vals in enumerate(data_rows):
         r = data_start + r_off
         for c_off, val in enumerate(row_vals, start=2):
@@ -2307,7 +2310,10 @@ def _write_backup_excel(rows, start_m: datetime.date, end_m: datetime.date, path
                 cell.number_format = "DD.MM.YYYY"
                 cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
             elif isinstance(val, (int, float)):
-                cell.number_format = "#,##0.00"
+                if c_off in currency_cols:
+                    cell.number_format = "\u20ac#,##0.00"
+                else:
+                    cell.number_format = "#,##0.00"
                 cell.alignment = Alignment(horizontal="right", vertical="center", wrap_text=True)
             else:
                 cell.alignment = Alignment(horizontal="left", vertical="center", wrap_text=True)
@@ -2318,17 +2324,17 @@ def _write_backup_excel(rows, start_m: datetime.date, end_m: datetime.date, path
     # total lines for each cost column
     deco_total = ws.cell(row=total_start, column=16, value=f"=SUM(P{data_start}:P{last_data_row})")
     deco_total.font = Font(bold=True)
-    deco_total.number_format = "#,##0.00"
+    deco_total.number_format = "\u20ac#,##0.00"
     deco_total.alignment = Alignment(horizontal="right", vertical="center")
 
     prod_total = ws.cell(row=total_start, column=17, value=f"=SUM(Q{data_start}:Q{last_data_row})")
     prod_total.font = Font(bold=True)
-    prod_total.number_format = "#,##0.00"
+    prod_total.number_format = "\u20ac#,##0.00"
     prod_total.alignment = Alignment(horizontal="right", vertical="center")
 
     chirie_total = ws.cell(row=total_start, column=15, value=f"=SUM(O{data_start}:O{last_data_row})")
     chirie_total.font = Font(bold=True)
-    chirie_total.number_format = "#,##0.00"
+    chirie_total.number_format = "\u20ac#,##0.00"
     chirie_total.alignment = Alignment(horizontal="right", vertical="center")
 
     grand_row = total_start + 1
@@ -2341,7 +2347,7 @@ def _write_backup_excel(rows, start_m: datetime.date, end_m: datetime.date, path
         value=f"=SUM(O{data_start}:O{last_data_row})+SUM(P{data_start}:P{last_data_row})+SUM(Q{data_start}:Q{last_data_row})",
     )
     val.font = Font(bold=True)
-    val.number_format = "#,##0.00"
+    val.number_format = "\u20ac#,##0.00"
     val.alignment = Alignment(horizontal="right", vertical="center")
 
     thin = Side(border_style="thin")
@@ -2353,29 +2359,29 @@ def _write_backup_excel(rows, start_m: datetime.date, end_m: datetime.date, path
             ws.cell(row=r, column=c).border = border
 
     widths = {
-        "B": 6,
-        "C": 30,
-        "D": 12,
-        "E": 12,
-        "F": 14,
+        "B": 8,
+        "C": 25,
+        "D": 45,
+        "E": 15,
+        "F": 15,
         "G": 12,
-        "H": 12,
-        "I": 14,
-        "J": 12,
-        "K": 12,
+        "H": 15,
+        "I": 15,
+        "J": 14,
+        "K": 14,
         "L": 12,
-        "M": 8,
-        "N": 15,
-        "O": 15,
-        "P": 20,
-        "Q": 15,
+        "M": 10,
+        "N": 18,
+        "O": 18,
+        "P": 18,
+        "Q": 18,
     }
     for col, width in widths.items():
         ws.column_dimensions[col].width = width
 
     for r in range(2, 6):
-        ws.row_dimensions[r].height = 18
-    ws.row_dimensions[7].height = 20
+        ws.row_dimensions[r].height = 20
+    ws.row_dimensions[7].height = 22
 
     wb.save(path)
 def export_client_backup(month, year, client_id=None, firma_id=None, campaign=None, directory=None):
