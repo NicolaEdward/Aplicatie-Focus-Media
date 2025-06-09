@@ -361,6 +361,7 @@ def init_db():
         init_client_contacts_table()
         init_firme_table()
         init_rezervari_table()
+        init_decorari_table()
         init_users_table()
         conn.commit()
     else:
@@ -400,6 +401,7 @@ def init_db():
         init_client_contacts_table()
         init_firme_table()
         init_rezervari_table()
+        init_decorari_table()
         init_users_table()
         conn.commit()
 
@@ -407,6 +409,7 @@ def init_db():
     ensure_index("locatii", "idx_locatii_grup", "grup")
     ensure_index("locatii", "idx_locatii_status", "status")
     ensure_index("rezervari", "idx_rezervari_loc", "loc_id")
+    ensure_index("decorari", "idx_decorari_loc", "loc_id")
     conn.commit()
 
     if not getattr(conn, "mysql", False):
@@ -664,6 +667,51 @@ def init_rezervari_table():
         if "prod_cost" not in cols:
             cursor.execute("ALTER TABLE rezervari ADD COLUMN prod_cost REAL")
             conn.commit()
+        conn.commit()
+
+
+def init_decorari_table():
+    """Create the table used for decoration records."""
+    if getattr(conn, "mysql", False):
+        cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS decorari (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                loc_id INT NOT NULL,
+                data TEXT NOT NULL,
+                decor_cost DOUBLE,
+                prod_cost DOUBLE,
+                created_by TEXT,
+                FOREIGN KEY(loc_id) REFERENCES locatii(id)
+            )
+            """
+        )
+        cur = conn.cursor()
+        cur.execute("SHOW COLUMNS FROM decorari")
+        existing = {row[0] for row in cur.fetchall()}
+        to_add = {
+            "decor_cost": "DOUBLE",
+            "prod_cost": "DOUBLE",
+            "created_by": "TEXT",
+        }
+        for col, definition in to_add.items():
+            if col not in existing:
+                cur.execute(f"ALTER TABLE decorari ADD COLUMN {col} {definition}")
+                conn.commit()
+    else:
+        cursor.execute(
+            """
+        CREATE TABLE IF NOT EXISTS decorari (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            loc_id INTEGER NOT NULL,
+            data TEXT NOT NULL,
+            decor_cost REAL,
+            prod_cost REAL,
+            created_by TEXT,
+            FOREIGN KEY(loc_id) REFERENCES locatii(id)
+        )
+        """
+        )
         conn.commit()
 
 

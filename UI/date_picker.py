@@ -23,7 +23,13 @@ class DatePicker(ttk.Frame):
             return
         self._top = tk.Toplevel(self)
         self._top.transient(self)
-        cal = Calendar(self._top, selectmode="day", date_pattern="yyyy-mm-dd")
+        # Use a larger font for better visibility
+        cal = Calendar(
+            self._top,
+            selectmode="day",
+            date_pattern="yyyy-mm-dd",
+            font=("Segoe UI", 14),
+        )
         cal.pack(fill="both", expand=True)
 
         def _select(*_):
