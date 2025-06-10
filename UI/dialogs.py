@@ -2998,7 +2998,7 @@ def export_client_backup(month, year, client_id=None, firma_id=None, campaign=No
         "       f.nume, f.cui, f.adresa, r.campaign, "
         "       l.city, l.address, l.code, l.face, l.type, l.size, l.sqm, "
         "       r.data_start, r.data_end, r.suma, l.decoration_cost, r.client_id, "
-        "       r.decor_cost, r.prod_cost "
+        "       r.decor_cost, r.prod_cost, r.id, r.loc_id "
         "FROM rezervari r "
         "JOIN locatii l ON r.loc_id = l.id "
         "JOIN clienti c ON r.client_id = c.id "
@@ -3021,6 +3021,92 @@ def export_client_backup(month, year, client_id=None, firma_id=None, campaign=No
         messagebox.showinfo("Export", "Nu există închirieri pentru perioada aleasă.")
         return
 
+    processed = []
+    for row in rows:
+        (
+            client_name,
+            client_cui,
+            client_addr,
+            firma_name,
+            firma_cui,
+            firma_addr,
+            campaign,
+            city,
+            addr,
+            code,
+            face,
+            typ,
+            size,
+            sqm,
+            ds,
+            de,
+            price,
+            deco_cost_loc,
+            cid,
+            deco_r,
+            prod_r,
+            rez_id,
+            loc_id,
+        ) = row
+
+        ds_dt = datetime.date.fromisoformat(ds)
+        de_dt = datetime.date.fromisoformat(de)
+        deco = prod = 0.0
+        if start_m <= ds_dt <= end_m:
+            deco = deco_r if deco_r is not None else (deco_cost_loc or 0.0)
+            try:
+                prod_default = round(float(sqm or 0) * 7, 2)
+            except Exception:
+                prod_default = 0.0
+            prod = prod_r if prod_r is not None else prod_default
+
+        cur.execute(
+            """
+            SELECT COALESCE(SUM(decor_cost),0), COALESCE(SUM(prod_cost),0)
+              FROM decorari
+             WHERE loc_id=? AND data BETWEEN ? AND ?
+               AND data BETWEEN ? AND ?
+               AND (rez_id=? OR rez_id IS NULL)
+            """,
+            (
+                loc_id,
+                start_m.isoformat(),
+                end_m.isoformat(),
+                ds,
+                de,
+                rez_id,
+            ),
+        )
+        extra_deco, extra_prod = cur.fetchone() or (0.0, 0.0)
+        deco += extra_deco or 0.0
+        prod += extra_prod or 0.0
+
+        processed.append(
+            (
+                client_name,
+                client_cui,
+                client_addr,
+                firma_name,
+                firma_cui,
+                firma_addr,
+                campaign,
+                city,
+                addr,
+                code,
+                face,
+                typ,
+                size,
+                sqm,
+                ds,
+                de,
+                price,
+                deco_cost_loc,
+                cid,
+                deco,
+                prod,
+            )
+        )
+
     if directory is None:
         directory = filedialog.askdirectory()
         if not directory:
@@ -3030,7 +3116,7 @@ def export_client_backup(month, year, client_id=None, firma_id=None, campaign=No
     os.makedirs(month_dir, exist_ok=True)
 
     groups = {}
-    for row in rows:
+    for row in processed:
         f_name = row[3] or "FaraFirma"
         c_name = row[0] or ""
         camp = row[6] or c_name
@@ -3062,7 +3148,7 @@ def export_all_backups(month, year):
         "       f.nume, f.cui, f.adresa, r.campaign, "
         "       l.city, l.address, l.code, l.face, l.type, l.size, l.sqm, "
         "       r.data_start, r.data_end, r.suma, l.decoration_cost, r.client_id, "
-        "       r.decor_cost, r.prod_cost "
+        "       r.decor_cost, r.prod_cost, r.id, r.loc_id "
         "FROM rezervari r "
         "JOIN locatii l ON r.loc_id = l.id "
         "JOIN clienti c ON r.client_id = c.id "
@@ -3074,6 +3160,92 @@ def export_all_backups(month, year):
         messagebox.showinfo("Export", "Nu există închirieri pentru perioada aleasă.")
         return
 
+    processed = []
+    for row in rows:
+        (
+            client_name,
+            client_cui,
+            client_addr,
+            firma_name,
+            firma_cui,
+            firma_addr,
+            campaign,
+            city,
+            addr,
+            code,
+            face,
+            typ,
+            size,
+            sqm,
+            ds,
+            de,
+            price,
+            deco_cost_loc,
+            cid,
+            deco_r,
+            prod_r,
+            rez_id,
+            loc_id,
+        ) = row
+
+        ds_dt = datetime.date.fromisoformat(ds)
+        de_dt = datetime.date.fromisoformat(de)
+        deco = prod = 0.0
+        if start_m <= ds_dt <= end_m:
+            deco = deco_r if deco_r is not None else (deco_cost_loc or 0.0)
+            try:
+                prod_default = round(float(sqm or 0) * 7, 2)
+            except Exception:
+                prod_default = 0.0
+            prod = prod_r if prod_r is not None else prod_default
+
+        cur.execute(
+            """
+            SELECT COALESCE(SUM(decor_cost),0), COALESCE(SUM(prod_cost),0)
+              FROM decorari
+             WHERE loc_id=? AND data BETWEEN ? AND ?
+               AND data BETWEEN ? AND ?
+               AND (rez_id=? OR rez_id IS NULL)
+            """,
+            (
+                loc_id,
+                start_m.isoformat(),
+                end_m.isoformat(),
+                ds,
+                de,
+                rez_id,
+            ),
+        )
+        extra_deco, extra_prod = cur.fetchone() or (0.0, 0.0)
+        deco += extra_deco or 0.0
+        prod += extra_prod or 0.0
+
+        processed.append(
+            (
+                client_name,
+                client_cui,
+                client_addr,
+                firma_name,
+                firma_cui,
+                firma_addr,
+                campaign,
+                city,
+                addr,
+                code,
+                face,
+                typ,
+                size,
+                sqm,
+                ds,
+                de,
+                price,
+                deco_cost_loc,
+                cid,
+                deco,
+                prod,
+            )
+        )
+
     base_dir = filedialog.askdirectory()
     if not base_dir:
         return
@@ -3082,7 +3254,7 @@ def export_all_backups(month, year):
     os.makedirs(month_dir, exist_ok=True)
 
     groups = {}
-    for row in rows:
+    for row in processed:
         f_name = row[3] or "FaraFirma"
         c_name = row[0] or ""
         camp = row[6] or c_name

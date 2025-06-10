@@ -82,14 +82,23 @@ def test_export_client_backup(monkeypatch, tmp_path):
         1,
         None,
         None,
+        1,
+        1,
     )
 
     class DummyCursor:
+        def __init__(self):
+            self.call = 0
+
         def execute(self, sql, params=()):
+            self.call += 1
             return self
 
         def fetchall(self):
             return [row]
+
+        def fetchone(self):
+            return (0.0, 0.0)
 
     class DummyConn:
         def cursor(self):
@@ -133,6 +142,8 @@ def test_export_all_backups(monkeypatch, tmp_path):
             1,
             None,
             None,
+            1,
+            1,
         ),
         (
             "Cli",
@@ -156,15 +167,24 @@ def test_export_all_backups(monkeypatch, tmp_path):
             1,
             None,
             None,
+            2,
+            1,
         ),
     ]
 
     class DummyCursor:
+        def __init__(self):
+            self.call = 0
+
         def execute(self, sql, params=()):
+            self.call += 1
             return self
 
         def fetchall(self):
             return rows
+
+        def fetchone(self):
+            return (0.0, 0.0)
 
     class DummyConn:
         def cursor(self):
