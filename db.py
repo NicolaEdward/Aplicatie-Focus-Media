@@ -239,6 +239,16 @@ def get_location_by_id(loc_id: int) -> dict | None:
     return None
 
 
+def table_has_column(table: str, column: str) -> bool:
+    """Return ``True`` if *table* has the given *column*."""
+    cur = conn.cursor()
+    if getattr(conn, "mysql", False):
+        cur.execute(f"SHOW COLUMNS FROM {table} WHERE Field=?", (column,))
+        return cur.fetchone() is not None
+    cur.execute(f"PRAGMA table_info({table})")
+    return any(row[1] == column for row in cur.fetchall())
+
+
 def pandas_conn():
     """Return a connection/engine suitable for ``pandas.read_sql_query``."""
     if getattr(conn, "mysql", False):
@@ -692,11 +702,13 @@ def init_decorari_table():
             CREATE TABLE IF NOT EXISTS decorari (
                 id INT AUTO_INCREMENT PRIMARY KEY,
                 loc_id INT NOT NULL,
+                rez_id INT,
                 data TEXT NOT NULL,
                 decor_cost DOUBLE,
                 prod_cost DOUBLE,
                 created_by TEXT,
                 FOREIGN KEY(loc_id) REFERENCES locatii(id)
+                , FOREIGN KEY(rez_id) REFERENCES rezervari(id)
             )
             """
         )
@@ -706,6 +718,9 @@ def init_decorari_table():
 
         if "loc_id" not in existing:
             cur.execute("ALTER TABLE decorari ADD COLUMN loc_id INT")
+            conn.commit()
+        if "rez_id" not in existing:
+            cur.execute("ALTER TABLE decorari ADD COLUMN rez_id INT")
             conn.commit()
 
         to_add = {
@@ -723,6 +738,7 @@ def init_decorari_table():
         CREATE TABLE IF NOT EXISTS decorari (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             loc_id INTEGER NOT NULL,
+            rez_id INTEGER,
             data TEXT NOT NULL,
             decor_cost REAL,
             prod_cost REAL,
@@ -735,6 +751,9 @@ def init_decorari_table():
 
         if "loc_id" not in cols:
             cursor.execute("ALTER TABLE decorari ADD COLUMN loc_id INTEGER")
+            conn.commit()
+        if "rez_id" not in cols:
+            cursor.execute("ALTER TABLE decorari ADD COLUMN rez_id INTEGER")
             conn.commit()
 
         conn.commit()

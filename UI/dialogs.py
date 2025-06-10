@@ -18,6 +18,7 @@ from db import (
     get_client_contacts,
     update_client_contact,
     delete_client_contact,
+    table_has_column,
 )
 
 
@@ -1035,10 +1036,21 @@ def open_decor_window(root, loc_id, user):
         except Exception:
             prod_cost = 0.0
         cur = conn.cursor()
-        cur.execute(
-            "INSERT INTO decorari (loc_id, data, decor_cost, prod_cost, created_by) VALUES (?,?,?,?,?)",
-            (loc_id, dec_date, dec_cost, prod_cost, user.get("username")),
-        )
+        if table_has_column("decorari", "rez_id"):
+            rez = cur.execute(
+                "SELECT id FROM rezervari WHERE loc_id=? AND data_start<=? AND data_end>=? ORDER BY id DESC LIMIT 1",
+                (loc_id, dec_date, dec_date),
+            ).fetchone()
+            rez_id = rez[0] if rez else None
+            cur.execute(
+                "INSERT INTO decorari (loc_id, rez_id, data, decor_cost, prod_cost, created_by) VALUES (?,?,?,?,?,?)",
+                (loc_id, rez_id, dec_date, dec_cost, prod_cost, user.get("username")),
+            )
+        else:
+            cur.execute(
+                "INSERT INTO decorari (loc_id, data, decor_cost, prod_cost, created_by) VALUES (?,?,?,?,?)",
+                (loc_id, dec_date, dec_cost, prod_cost, user.get("username")),
+            )
         conn.commit()
         win.destroy()
 
