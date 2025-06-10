@@ -3,7 +3,7 @@ import shutil
 import datetime
 import tkinter as tk
 import tkinter.font as tkfont
-from tkinter import ttk, messagebox, filedialog
+from tkinter import ttk, messagebox, filedialog, simpledialog
 
 try:
     from ttkbootstrap import Style
@@ -424,6 +424,21 @@ def start_app(user, root=None):
         export_frame, text="Export Ofertă", command=lambda: open_offer_window(tree)
     )
 
+    def _ask_month_year():
+        today = datetime.date.today()
+        year = simpledialog.askinteger(
+            "An", "Anul", initialvalue=today.year, parent=root
+        )
+        if year is None:
+            return None, None
+        month = simpledialog.askinteger(
+            "Luna", "Luna (1-12)", minvalue=1, maxvalue=12,
+            initialvalue=today.month, parent=root
+        )
+        if month is None:
+            return None, None
+        return month, year
+
     def _export_report():
         rtype = choose_report_type(role)
         if rtype == "Vânzări":
@@ -431,11 +446,20 @@ def start_app(user, root=None):
         elif rtype == "Decorări":
             export_decor_report()
         elif rtype == "Vânzători":
-            export_vendor_report()
+            m, y = _ask_month_year()
+            if m and y:
+                export_vendor_report(month=m, year=y)
+
+    def _export_vendor():
+        m, y = _ask_month_year()
+        if m and y:
+            export_vendor_report(month=m, year=y)
 
     btn_report = ttk.Button(export_frame, text="Raport", command=_export_report)
     btn_vendor = ttk.Button(
-        export_frame, text="Raport Vânzători", command=lambda: export_vendor_report()
+        export_frame,
+        text="Raport Vânzători",
+        command=_export_vendor,
     )
     btn_update = ttk.Button(export_frame, text="Update Database", command=lambda: manual_refresh())
     btn_xlsx.pack(side="left", padx=5, pady=5)
