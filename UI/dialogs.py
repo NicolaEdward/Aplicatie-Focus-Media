@@ -1045,6 +1045,77 @@ def open_decor_window(root, loc_id, user):
     ttk.Button(win, text="Salvează", command=save).grid(row=3, column=0, columnspan=2, pady=10)
 
 
+def open_edit_decor_window(root, decor_id, load_cb=None):
+    """Edit the date of a decoration entry."""
+    cur = conn.cursor()
+    row = cur.execute("SELECT data FROM decorari WHERE id=?", (decor_id,)).fetchone()
+    if not row:
+        return
+
+    win = tk.Toplevel(root)
+    win.title(f"Modifică decorarea #{decor_id}")
+
+    ttk.Label(win, text="Data decorare:").grid(row=0, column=0, sticky="e", padx=5, pady=5)
+    dp_date = DatePicker(win)
+    dp_date.set_date(datetime.date.fromisoformat(row[0]))
+    dp_date.grid(row=0, column=1, padx=5, pady=5)
+
+    def save():
+        cur.execute("UPDATE decorari SET data=? WHERE id=?", (dp_date.get_date().isoformat(), decor_id))
+        conn.commit()
+        if load_cb:
+            load_cb()
+        win.destroy()
+
+    ttk.Button(win, text="Salvează", command=save).grid(row=1, column=0, columnspan=2, pady=10)
+
+
+def open_manage_decor_window(root, loc_id, load_cb):
+    """Manage decoration entries for a location."""
+    cur = conn.cursor()
+    cutoff = (datetime.date.today() - datetime.timedelta(days=5)).isoformat()
+    rows = cur.execute(
+        "SELECT id, data FROM decorari WHERE loc_id=? AND data>=? ORDER BY data",
+        (loc_id, cutoff),
+    ).fetchall()
+
+    if not rows:
+        messagebox.showinfo("Decorări", "Nu există decorări de modificat.")
+        return
+
+    win = tk.Toplevel(root)
+    win.title(f"Decorări locație #{loc_id}")
+
+    lst = tk.Listbox(win, width=40, height=10)
+    for did, data in rows:
+        lst.insert("end", f"{data}")
+    lst.grid(row=0, column=0, columnspan=3, padx=5, pady=5)
+
+    def delete_selected():
+        sel = lst.curselection()
+        if not sel:
+            messagebox.showwarning("Selectează", "Alege o decorare.")
+            return
+        did, data = rows[sel[0]]
+        if messagebox.askyesno("Șterge", "Ștergi decorarea selectată?"):
+            cur.execute("DELETE FROM decorari WHERE id=?", (did,))
+            conn.commit()
+            win.destroy()
+            load_cb()
+
+    def edit_selected():
+        sel = lst.curselection()
+        if not sel:
+            messagebox.showwarning("Selectează", "Alege o decorare.")
+            return
+        did, _ = rows[sel[0]]
+        open_edit_decor_window(win, did, load_cb)
+
+    ttk.Button(win, text="Editează", command=edit_selected).grid(row=1, column=0, padx=5, pady=5)
+    ttk.Button(win, text="Șterge", command=delete_selected).grid(row=1, column=1, padx=5, pady=5)
+    ttk.Button(win, text="Închide", command=win.destroy).grid(row=1, column=2, padx=5, pady=5)
+
+
 def export_available_excel(
     grup_filter, status_filter, search_term, ignore_dates, start_date, end_date
 ):
