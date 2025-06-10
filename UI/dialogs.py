@@ -3065,7 +3065,8 @@ def export_client_backup(month, year, client_id=None, firma_id=None, campaign=No
         "JOIN locatii l ON r.loc_id = l.id "
         "JOIN clienti c ON r.client_id = c.id "
         "LEFT JOIN firme f ON r.firma_id = f.id "
-        "WHERE r.suma IS NOT NULL AND NOT (r.data_end < ? OR r.data_start > ?)"
+        "WHERE r.suma IS NOT NULL AND r.suma > 0"
+        " AND NOT (r.data_end < ? OR r.data_start > ?)"
     )
     params = [start_m.isoformat(), end_m.isoformat()]
     if client_id:
@@ -3215,7 +3216,8 @@ def export_all_backups(month, year):
         "JOIN locatii l ON r.loc_id = l.id "
         "JOIN clienti c ON r.client_id = c.id "
         "LEFT JOIN firme f ON r.firma_id = f.id "
-        "WHERE r.suma IS NOT NULL AND NOT (r.data_end < ? OR r.data_start > ?)"
+        "WHERE r.suma IS NOT NULL AND r.suma > 0"
+        " AND NOT (r.data_end < ? OR r.data_start > ?)"
     )
     rows = cur.execute(sql, (start_m.isoformat(), end_m.isoformat())).fetchall()
     if not rows:
