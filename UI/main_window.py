@@ -725,22 +725,12 @@ def start_app(user, root=None):
                 state='normal' if status == "Închiriat" else 'disabled',
                 command=lambda: open_decor_window(root, loc_id, user),
             )
-            cutoff_decor = (datetime.date.today() - datetime.timedelta(days=5)).isoformat()
-            has_decor = cursor.execute(
-                "SELECT 1 FROM decorari WHERE loc_id=? AND data>=? LIMIT 1",
-                (loc_id, cutoff_decor),
-            ).fetchone()
-            if has_decor:
-                if not btn_manage_decor.winfo_ismapped():
-                    btn_manage_decor.pack(side="left", padx=5, pady=5)
-                btn_manage_decor.config(
-                    state='normal',
-                    command=lambda: open_manage_decor_window(root, loc_id, load_locations),
-                )
-            else:
-                if btn_manage_decor.winfo_ismapped():
-                    btn_manage_decor.pack_forget()
-                btn_manage_decor.config(state='disabled', command=lambda: None)
+            if not btn_manage_decor.winfo_ismapped():
+                btn_manage_decor.pack(side="left", padx=5, pady=5)
+            btn_manage_decor.config(
+                state='normal',
+                command=lambda: open_manage_decor_window(root, loc_id, load_locations),
+            )
         else:
             btn_rent.config(state='disabled', command=lambda: None)
             btn_decor.config(state='disabled', command=lambda: None)
