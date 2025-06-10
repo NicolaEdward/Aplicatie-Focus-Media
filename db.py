@@ -108,6 +108,7 @@ class _ConnWrapper:
             else:
                 raise
         try:
+            update_statusuri_din_rezervari(ttl=0)
             refresh_location_cache()
         except Exception as exc:  # pragma: no cover - best effort
             logging.warning("Failed to refresh location cache: %s", exc)
@@ -204,6 +205,8 @@ cursor = conn.cursor()
 # --- simple in-memory cache for the locatii table ---
 _location_cache: list[dict] | None = None
 _cache_timestamp: float = 0.0
+# Timestamp of the last status refresh from ``update_statusuri_din_rezervari``.
+_status_timestamp: float = 0.0
 
 
 def refresh_location_cache() -> None:
@@ -423,7 +426,6 @@ def init_db():
     ensure_index("rezervari", "idx_rezervari_loc", "loc_id")
     ensure_index("decorari", "idx_decorari_loc", "loc_id")
     conn.commit()
-
     if not getattr(conn, "mysql", False):
         existing = {
             col[1] for col in cursor.execute("PRAGMA table_info(locatii)").fetchall()
@@ -794,7 +796,21 @@ def init_users_table():
     conn.commit()
 
 
-def update_statusuri_din_rezervari():
+def update_statusuri_din_rezervari(ttl: int = 300) -> None:
+    """Refresh location statuses based on current reservations.
+
+    If ``ttl`` is greater than zero the refresh is skipped when the
+    function was executed less than ``ttl`` seconds ago.  This avoids
+    running expensive UPDATE queries repeatedly when ``load_locations``
+    is triggered often (for example while typing in the search field).
+    Pass ``ttl=0`` to force an update.
+    """
+
+    global _status_timestamp
+
+    if ttl > 0 and time.time() - _status_timestamp < ttl:
+        return
+
     today = datetime.date.today().isoformat()
     cur = conn.cursor()
 
@@ -920,6 +936,7 @@ def update_statusuri_din_rezervari():
     )
 
     conn.commit()
+    _status_timestamp = time.time()
 
 
 def _hash_password(pw: str, *, _salt: bytes | None = None) -> str:
