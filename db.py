@@ -616,6 +616,12 @@ def init_rezervari_table():
         cur = conn.cursor()
         cur.execute("SHOW COLUMNS FROM rezervari")
         existing = {row[0] for row in cur.fetchall()}
+
+        # ``loc_id`` should always exist but older databases might miss it.
+        if "loc_id" not in existing:
+            cur.execute("ALTER TABLE rezervari ADD COLUMN loc_id INT")
+            conn.commit()
+
         to_add = {
             "client_id": "INT",
             "firma_id": "INT",
@@ -651,6 +657,12 @@ def init_rezervari_table():
     """
         )
         cols = {c[1] for c in cursor.execute("PRAGMA table_info(rezervari)").fetchall()}
+
+        # Earlier versions may lack the ``loc_id`` column entirely.
+        if "loc_id" not in cols:
+            cursor.execute("ALTER TABLE rezervari ADD COLUMN loc_id INTEGER")
+            conn.commit()
+
         if "client_id" not in cols:
             cursor.execute("ALTER TABLE rezervari ADD COLUMN client_id INTEGER")
             conn.commit()
@@ -691,6 +703,11 @@ def init_decorari_table():
         cur = conn.cursor()
         cur.execute("SHOW COLUMNS FROM decorari")
         existing = {row[0] for row in cur.fetchall()}
+
+        if "loc_id" not in existing:
+            cur.execute("ALTER TABLE decorari ADD COLUMN loc_id INT")
+            conn.commit()
+
         to_add = {
             "decor_cost": "DOUBLE",
             "prod_cost": "DOUBLE",
@@ -714,6 +731,12 @@ def init_decorari_table():
         )
         """
         )
+        cols = {c[1] for c in cursor.execute("PRAGMA table_info(decorari)").fetchall()}
+
+        if "loc_id" not in cols:
+            cursor.execute("ALTER TABLE decorari ADD COLUMN loc_id INTEGER")
+            conn.commit()
+
         conn.commit()
 
 
