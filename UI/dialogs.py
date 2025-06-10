@@ -2808,6 +2808,8 @@ def _write_backup_excel(rows, start_m: datetime.date, end_m: datetime.date, path
 
     data_rows = []
     header_info = None
+    header_start = None
+    header_end = None
     idx = 1
     for (
         client_name,
@@ -2834,6 +2836,10 @@ def _write_backup_excel(rows, start_m: datetime.date, end_m: datetime.date, path
     ) in rows:
         ds_dt = datetime.date.fromisoformat(ds)
         de_dt = datetime.date.fromisoformat(de)
+        if header_start is None or ds_dt < header_start:
+            header_start = ds_dt
+        if header_end is None or de_dt > header_end:
+            header_end = de_dt
         if header_info is None:
             header_info = (
                 firma_name,
@@ -2864,8 +2870,8 @@ def _write_backup_excel(rows, start_m: datetime.date, end_m: datetime.date, path
             1,
             typ,
             size,
-            ds_dt,
-            de_dt,
+            ov_start,
+            ov_end,
             round(frac, 2),
             "EUR",
             price,
@@ -2907,7 +2913,11 @@ def _write_backup_excel(rows, start_m: datetime.date, end_m: datetime.date, path
     ws.merge_cells("F3:J3"); ws["F3"].value = f"CUI client: {c_cui}"
     ws.merge_cells("F4:J4"); ws["F4"].value = f"Adresă client: {c_addr}"
 
-    ws.merge_cells("K2:P2"); ws["K2"].value = f"Perioada campanie: {start_m:%d.%m.%Y} - {end_m:%d.%m.%Y}"
+    if header_start is None:
+        header_start = start_m
+    if header_end is None:
+        header_end = end_m
+    ws.merge_cells("K2:P2"); ws["K2"].value = f"Perioada campanie: {header_start:%d.%m.%Y} - {header_end:%d.%m.%Y}"
     ws.merge_cells("K3:P3"); ws["K3"].value = f"Denumire campanie: {camp or c_name}"
 
     headers = [
