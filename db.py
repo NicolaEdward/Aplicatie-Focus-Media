@@ -616,6 +616,7 @@ def init_rezervari_table():
                 data_end TEXT NOT NULL,
                 suma DOUBLE,
                 created_by TEXT,
+                created_on TEXT,
                 campaign TEXT,
                 decor_cost DOUBLE,
                 prod_cost DOUBLE,
@@ -638,6 +639,7 @@ def init_rezervari_table():
             "client_id": "INT",
             "firma_id": "INT",
             "created_by": "TEXT",
+            "created_on": "TEXT",
             "campaign": "TEXT",
             "decor_cost": "DOUBLE",
             "prod_cost": "DOUBLE",
@@ -659,6 +661,7 @@ def init_rezervari_table():
         data_end TEXT NOT NULL,
         suma REAL,
         created_by TEXT,
+        created_on TEXT,
         campaign TEXT,
         decor_cost REAL,
         prod_cost REAL,
@@ -680,6 +683,9 @@ def init_rezervari_table():
             conn.commit()
         if "created_by" not in cols:
             cursor.execute("ALTER TABLE rezervari ADD COLUMN created_by TEXT")
+            conn.commit()
+        if "created_on" not in cols:
+            cursor.execute("ALTER TABLE rezervari ADD COLUMN created_on TEXT")
             conn.commit()
         if "firma_id" not in cols:
             cursor.execute("ALTER TABLE rezervari ADD COLUMN firma_id INTEGER")

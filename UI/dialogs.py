@@ -504,9 +504,17 @@ def open_reserve_window(root, loc_id, load_cb, user):
         start = datetime.date.today()
         end = start + datetime.timedelta(days=4)
         cur = conn.cursor()
+        created_on = datetime.date.today().isoformat()
         cur.execute(
-            "INSERT INTO rezervari (loc_id, client, data_start, data_end, created_by) VALUES (?, ?, ?, ?, ?)",
-            (loc_id, name, start.isoformat(), end.isoformat(), user["username"]),
+            "INSERT INTO rezervari (loc_id, client, data_start, data_end, created_by, created_on) VALUES (?, ?, ?, ?, ?, ?)",
+            (
+                loc_id,
+                name,
+                start.isoformat(),
+                end.isoformat(),
+                user["username"],
+                created_on,
+            ),
         )
         conn.commit()
         update_statusuri_din_rezervari()
@@ -789,9 +797,10 @@ def open_rent_window(root, loc_id, load_cb, user):
                 ],
             )
             new_loc_id = cur.lastrowid
+            created_on = datetime.date.today().isoformat()
             cur.execute(
-                "INSERT INTO rezervari (loc_id, client, client_id, firma_id, data_start, data_end, suma, created_by, campaign, decor_cost, prod_cost)"
-                " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "INSERT INTO rezervari (loc_id, client, client_id, firma_id, data_start, data_end, suma, created_by, created_on, campaign, decor_cost, prod_cost)"
+                " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (
                     new_loc_id,
                     client_display,
@@ -801,6 +810,7 @@ def open_rent_window(root, loc_id, load_cb, user):
                     end.isoformat(),
                     fee_val,
                     user["username"],
+                    created_on,
                     campaign_val or client_display,
                     deco_val,
                     prod_val,
@@ -808,8 +818,8 @@ def open_rent_window(root, loc_id, load_cb, user):
             )
             rez_id = cur.lastrowid
             cur.execute(
-                "INSERT INTO rezervari (loc_id, client, client_id, firma_id, data_start, data_end, suma, created_by, campaign, decor_cost, prod_cost)"
-                " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "INSERT INTO rezervari (loc_id, client, client_id, firma_id, data_start, data_end, suma, created_by, created_on, campaign, decor_cost, prod_cost)"
+                " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (
                     loc_id,
                     client_display,
@@ -819,6 +829,7 @@ def open_rent_window(root, loc_id, load_cb, user):
                     end.isoformat(),
                     0.0,
                     user["username"],
+                    created_on,
                     campaign_val or client_display,
                     0.0,
                     0.0,
@@ -826,9 +837,10 @@ def open_rent_window(root, loc_id, load_cb, user):
             )
         else:
             # inserăm noua închiriere
+            created_on = datetime.date.today().isoformat()
             cur.execute(
-                "INSERT INTO rezervari (loc_id, client, client_id, firma_id, data_start, data_end, suma, created_by, campaign, decor_cost, prod_cost)"
-                " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "INSERT INTO rezervari (loc_id, client, client_id, firma_id, data_start, data_end, suma, created_by, created_on, campaign, decor_cost, prod_cost)"
+                " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (
                     loc_id,
                     client_display,
@@ -838,6 +850,7 @@ def open_rent_window(root, loc_id, load_cb, user):
                     end.isoformat(),
                     fee_val,
                     user["username"],
+                    created_on,
                     campaign_val or client_display,
                     deco_val,
                     prod_val,
@@ -3519,11 +3532,25 @@ def open_clients_window(root, user=None):
     refresh()
 
 
-def export_vendor_report():
-    """Exporta un raport detaliat pentru fiecare vânzător."""
+def export_vendor_report(month=None, year=None):
+    """Exportă un raport detaliat pentru fiecare vânzător.
+
+    Parametrii ``month`` și ``year`` indică luna pentru care se generează
+    raportul. Dacă nu sunt precizați, se folosește luna și anul curent.
+    """
     import pandas as pd
     from tkinter import filedialog, messagebox
     from db import read_sql_query
+
+    today = datetime.date.today()
+    if year is None:
+        year = today.year
+    if month is None:
+        month = today.month
+
+    report_date = datetime.date(year, month, 1)
+    current_month = report_date.strftime("%B")
+    special_june = (month == 6 and year == 2025)
 
     users = read_sql_query(
         "SELECT username, comune FROM users WHERE role='seller'",
@@ -3534,13 +3561,13 @@ def export_vendor_report():
 
     df = read_sql_query(
         """
-        SELECT r.created_by, r.suma, r.data_start, r.data_end,
+        SELECT r.created_by, r.created_on, r.suma, r.data_start, r.data_end,
                l.city, l.county, l.address
           FROM rezervari r
           JOIN locatii l ON r.loc_id = l.id
          WHERE r.suma IS NOT NULL AND r.suma > 0
         """,
-        parse_dates=["data_start", "data_end"],
+        parse_dates=["created_on", "data_start", "data_end"],
     )
 
     if df.empty:
@@ -3644,14 +3671,16 @@ def export_vendor_report():
 
             month_records = []
             for r in sub.itertuples(index=False):
-                # ``r.suma`` represents the monthly fee.  Distribute this value
-                # proportionally based on how many days of each month are
-                # covered by the contract.
                 price_per_month = r.suma
-                for mname, val in split_by_month(
-                    r.data_start.date(), r.data_end.date(), price_per_month
-                ):
-                    month_records.append((mname, val))
+                ds = r.data_start.date()
+                de = r.data_end.date()
+                co = r.created_on.date() if hasattr(r, "created_on") and pd.notna(r.created_on) else ds
+                months = contract_months(ds, de)
+                if special_june and (co < report_date or ds < report_date):
+                    for mname, val in split_by_month(ds, de, price_per_month):
+                        month_records.append((mname, val))
+                elif co.year == year and co.month == month:
+                    month_records.append((current_month, price_per_month * months))
             stats = (
                 pd.DataFrame(month_records, columns=["Luna", "Total"])
                 .groupby("Luna", as_index=False)
