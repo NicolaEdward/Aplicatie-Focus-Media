@@ -1058,28 +1058,56 @@ def open_decor_window(root, loc_id, user):
 
 
 def open_edit_decor_window(root, decor_id, load_cb=None):
-    """Edit the date of a decoration entry."""
+    """Edit the date and costs of a decoration entry."""
     cur = conn.cursor()
-    row = cur.execute("SELECT data FROM decorari WHERE id=?", (decor_id,)).fetchone()
+    row = cur.execute(
+        "SELECT data, decor_cost, prod_cost FROM decorari WHERE id=?",
+        (decor_id,),
+    ).fetchone()
     if not row:
         return
+
+    data_val, decor_val, prod_val = row
 
     win = tk.Toplevel(root)
     win.title(f"Modifică decorarea #{decor_id}")
 
     ttk.Label(win, text="Data decorare:").grid(row=0, column=0, sticky="e", padx=5, pady=5)
     dp_date = DatePicker(win)
-    dp_date.set_date(datetime.date.fromisoformat(row[0]))
+    dp_date.set_date(datetime.date.fromisoformat(data_val))
     dp_date.grid(row=0, column=1, padx=5, pady=5)
 
+    ttk.Label(win, text="Cost decorare:").grid(row=1, column=0, sticky="e", padx=5, pady=5)
+    entry_deco = ttk.Entry(win, width=20)
+    if decor_val is not None:
+        entry_deco.insert(0, str(decor_val))
+    entry_deco.grid(row=1, column=1, padx=5, pady=5)
+
+    ttk.Label(win, text="Cost producție:").grid(row=2, column=0, sticky="e", padx=5, pady=5)
+    entry_prod = ttk.Entry(win, width=20)
+    if prod_val is not None:
+        entry_prod.insert(0, str(prod_val))
+    entry_prod.grid(row=2, column=1, padx=5, pady=5)
+
     def save():
-        cur.execute("UPDATE decorari SET data=? WHERE id=?", (dp_date.get_date().isoformat(), decor_id))
+        try:
+            dec_cost = float(entry_deco.get() or 0)
+        except Exception:
+            dec_cost = 0.0
+        try:
+            prod_cost = float(entry_prod.get() or 0)
+        except Exception:
+            prod_cost = 0.0
+        cur.execute(
+            "UPDATE decorari SET data=?, decor_cost=?, prod_cost=? WHERE id=?",
+            (dp_date.get_date().isoformat(), dec_cost, prod_cost, decor_id),
+        )
         conn.commit()
         if load_cb:
             load_cb()
         win.destroy()
 
-    ttk.Button(win, text="Salvează", command=save).grid(row=1, column=0, columnspan=2, pady=10)
+    ttk.Button(win, text="Salvează", command=save).grid(row=3, column=0, columnspan=2, pady=10)
 
 
 def open_manage_decor_window(root, loc_id, load_cb):
@@ -1087,7 +1115,8 @@ def open_manage_decor_window(root, loc_id, load_cb):
     cur = conn.cursor()
     cutoff = (datetime.date.today() - datetime.timedelta(days=5)).isoformat()
     rows = cur.execute(
-        "SELECT id, data FROM decorari WHERE loc_id=? AND data>=? ORDER BY data",
+        "SELECT id, data, decor_cost, prod_cost FROM decorari "
+        "WHERE loc_id=? AND data>=? ORDER BY data",
         (loc_id, cutoff),
     ).fetchall()
 
@@ -1096,12 +1125,29 @@ def open_manage_decor_window(root, loc_id, load_cb):
         return
 
     win = tk.Toplevel(root)
-    win.title(f"Decorări locație #{loc_id}")
+    loc = get_location_by_id(loc_id)
+    if loc:
+        win.title(f"Decorări: {loc.get('city')}, {loc.get('address')}")
+        ttk.Label(
+            win,
+            text=f"{loc.get('city')}, {loc.get('address')}",
+            font=("Segoe UI", 9, "bold"),
+        ).grid(row=0, column=0, columnspan=3, padx=5, pady=(5, 0))
+        row_start = 1
+    else:
+        win.title(f"Decorări locație #{loc_id}")
+        row_start = 0
 
-    lst = tk.Listbox(win, width=40, height=10)
-    for did, data in rows:
-        lst.insert("end", f"{data}")
-    lst.grid(row=0, column=0, columnspan=3, padx=5, pady=5)
+    lst = tk.Listbox(win, width=50, height=10)
+    for did, data, dcost, pcost in rows:
+        costs = []
+        if dcost is not None:
+            costs.append(str(dcost))
+        if pcost is not None and pcost != 0:
+            costs.append(f"prod {pcost}")
+        cost_str = f" ({' + '.join(costs)})" if costs else ""
+        lst.insert("end", f"{data}{cost_str}")
+    lst.grid(row=row_start, column=0, columnspan=3, padx=5, pady=5)
 
     def delete_selected():
         sel = lst.curselection()
@@ -1123,9 +1169,10 @@ def open_manage_decor_window(root, loc_id, load_cb):
         did, _ = rows[sel[0]]
         open_edit_decor_window(win, did, load_cb)
 
-    ttk.Button(win, text="Editează", command=edit_selected).grid(row=1, column=0, padx=5, pady=5)
-    ttk.Button(win, text="Șterge", command=delete_selected).grid(row=1, column=1, padx=5, pady=5)
-    ttk.Button(win, text="Închide", command=win.destroy).grid(row=1, column=2, padx=5, pady=5)
+    btn_row = row_start + 1
+    ttk.Button(win, text="Editează", command=edit_selected).grid(row=btn_row, column=0, padx=5, pady=5)
+    ttk.Button(win, text="Șterge", command=delete_selected).grid(row=btn_row, column=1, padx=5, pady=5)
+    ttk.Button(win, text="Închide", command=win.destroy).grid(row=btn_row, column=2, padx=5, pady=5)
 
 
 def export_available_excel(
