@@ -80,6 +80,7 @@ class _ConnWrapper:
     def __init__(self, conn, mysql_mode: bool):
         self._conn = conn
         self._mysql = mysql_mode
+        self._in_commit = False
 
     def cursor(self):
         try:
@@ -97,6 +98,10 @@ class _ConnWrapper:
         return self._mysql
 
     def commit(self):
+        if self._in_commit:
+            self._conn.commit()
+            return
+        self._in_commit = True
         try:
             self._conn.commit()
         except Exception as exc:
@@ -106,12 +111,15 @@ class _ConnWrapper:
                 self._mysql = conn._mysql
                 self._conn.commit()
             else:
+                self._in_commit = False
                 raise
         try:
             update_statusuri_din_rezervari(ttl=0)
             refresh_location_cache()
         except Exception as exc:  # pragma: no cover - best effort
             logging.warning("Failed to refresh location cache: %s", exc)
+        finally:
+            self._in_commit = False
 
     def __getattr__(self, name):
         return getattr(self._conn, name)
