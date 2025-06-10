@@ -886,21 +886,21 @@ def open_rent_window(root, loc_id, load_cb, user):
 
 
 def open_edit_rent_window(root, rid, load_cb, parent=None):
-    """Allow editing the rental period for reservation ``rid``.
+    """Allow editing the rental period and price for reservation ``rid``.
 
     If *parent* is provided as ``(parent_id, old_start, old_end)``, the matching
     reservation for the parent location will be updated as well.
     """
     cur = conn.cursor()
     row = cur.execute(
-        "SELECT data_start, data_end FROM rezervari WHERE id=?", (rid,)
+        "SELECT data_start, data_end, suma FROM rezervari WHERE id=?", (rid,)
     ).fetchone()
     if not row:
         return
 
-    ds, de = row
+    ds, de, suma = row
     win = tk.Toplevel(root)
-    win.title(f"Modifică perioada #{rid}")
+    win.title(f"Modifică închirierea #{rid}")
 
     ttk.Label(win, text="Data start:").grid(row=0, column=0, sticky="e", padx=5, pady=5)
     dp_start = DatePicker(win)
@@ -912,6 +912,12 @@ def open_edit_rent_window(root, rid, load_cb, parent=None):
     dp_end.set_date(datetime.date.fromisoformat(de))
     dp_end.grid(row=1, column=1, padx=5, pady=5)
 
+    ttk.Label(win, text="Sumă:").grid(row=2, column=0, sticky="e", padx=5, pady=5)
+    entry_fee = ttk.Entry(win, width=30)
+    if suma is not None:
+        entry_fee.insert(0, str(suma))
+    entry_fee.grid(row=2, column=1, padx=5, pady=5)
+
     def save_edit():
         start = dp_start.get_date()
         end = dp_end.get_date()
@@ -921,9 +927,17 @@ def open_edit_rent_window(root, rid, load_cb, parent=None):
                 "«Data start» trebuie înainte de «Data end».",
             )
             return
+
+        fee_txt = entry_fee.get().strip()
+        try:
+            fee_val = float(fee_txt)
+        except ValueError:
+            messagebox.showwarning("Sumă invalidă", "Introdu o sumă numerică.")
+            return
+
         cur.execute(
-            "UPDATE rezervari SET data_start=?, data_end=? WHERE id=?",
-            (start.isoformat(), end.isoformat(), rid),
+            "UPDATE rezervari SET data_start=?, data_end=?, suma=? WHERE id=?",
+            (start.isoformat(), end.isoformat(), fee_val, rid),
         )
         if parent:
             pid, ods, ode = parent
@@ -937,7 +951,7 @@ def open_edit_rent_window(root, rid, load_cb, parent=None):
         win.destroy()
 
     ttk.Button(win, text="Salvează", command=save_edit).grid(
-        row=2, column=0, columnspan=2, pady=10
+        row=3, column=0, columnspan=2, pady=10
     )
 
 
