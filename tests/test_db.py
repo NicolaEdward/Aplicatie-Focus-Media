@@ -103,6 +103,13 @@ def test_reconnect_on_lost_connection(monkeypatch):
     assert ok_cursor.sql == "SELECT 1"
 
 
+def test_needs_reconnect_additional_codes():
+    codes = [2002, 2003, 2055]
+    for code in codes:
+        exc = db.mysql.connector.errors.OperationalError(msg="Lost", errno=code)
+        assert db._needs_reconnect(exc)
+
+
 def test_init_rezervari_mysql_add_columns():
     executed = []
 
