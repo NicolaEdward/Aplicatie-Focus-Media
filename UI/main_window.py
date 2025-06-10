@@ -394,7 +394,7 @@ def start_app(user, root=None):
     if role == "admin":
         btn_firme.pack(side="left", padx=5, pady=5)
     if role != "manager":
-        for w in (btn_rent, btn_decor, btn_manage_decor, btn_release, btn_reserve):
+        for w in (btn_rent, btn_decor, btn_release, btn_reserve):
             w.pack(side="left", padx=5, pady=5)
 
 
@@ -596,7 +596,9 @@ def start_app(user, root=None):
             btn_edit.config(state='disabled')
             btn_rent.config(state='disabled')
             btn_decor.config(state='disabled')
-            btn_manage_decor.config(state='disabled')
+            if btn_manage_decor.winfo_ismapped():
+                btn_manage_decor.pack_forget()
+            btn_manage_decor.config(state='disabled', command=lambda: None)
             btn_release.config(state='disabled')
             btn_delete.config(state='disabled')
             img_label.config(image="", text="")
@@ -728,13 +730,22 @@ def start_app(user, root=None):
                 "SELECT 1 FROM decorari WHERE loc_id=? AND data>=? LIMIT 1",
                 (loc_id, cutoff_decor),
             ).fetchone()
-            btn_manage_decor.config(
-                state='normal' if has_decor else 'disabled',
-                command=lambda: open_manage_decor_window(root, loc_id, load_locations),
-            )
+            if has_decor:
+                if not btn_manage_decor.winfo_ismapped():
+                    btn_manage_decor.pack(side="left", padx=5, pady=5)
+                btn_manage_decor.config(
+                    state='normal',
+                    command=lambda: open_manage_decor_window(root, loc_id, load_locations),
+                )
+            else:
+                if btn_manage_decor.winfo_ismapped():
+                    btn_manage_decor.pack_forget()
+                btn_manage_decor.config(state='disabled', command=lambda: None)
         else:
             btn_rent.config(state='disabled', command=lambda: None)
             btn_decor.config(state='disabled', command=lambda: None)
+            if btn_manage_decor.winfo_ismapped():
+                btn_manage_decor.pack_forget()
             btn_manage_decor.config(state='disabled', command=lambda: None)
 
         cutoff = (datetime.date.today() - datetime.timedelta(days=3)).isoformat()
