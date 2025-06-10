@@ -806,6 +806,7 @@ def open_rent_window(root, loc_id, load_cb, user):
                     prod_val,
                 ),
             )
+            rez_id = cur.lastrowid
             cur.execute(
                 "INSERT INTO rezervari (loc_id, client, client_id, firma_id, data_start, data_end, suma, created_by, campaign, decor_cost, prod_cost)"
                 " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
@@ -842,7 +843,36 @@ def open_rent_window(root, loc_id, load_cb, user):
                     prod_val,
                 ),
             )
+            rez_id = cur.lastrowid
         conn.commit()
+
+        if deco_val or prod_val:
+            dec_date = start.isoformat()
+            target_loc = new_loc_id if is_base_mobile else loc_id
+            if table_has_column("decorari", "rez_id"):
+                cur.execute(
+                    "INSERT INTO decorari (loc_id, rez_id, data, decor_cost, prod_cost, created_by) VALUES (?,?,?,?,?,?)",
+                    (
+                        target_loc,
+                        rez_id,
+                        dec_date,
+                        deco_val,
+                        prod_val,
+                        user.get("username"),
+                    ),
+                )
+            else:
+                cur.execute(
+                    "INSERT INTO decorari (loc_id, data, decor_cost, prod_cost, created_by) VALUES (?,?,?,?,?)",
+                    (
+                        target_loc,
+                        dec_date,
+                        deco_val,
+                        prod_val,
+                        user.get("username"),
+                    ),
+                )
+            conn.commit()
 
         # actualizăm statusurile pe baza tuturor rezervărilor
         update_statusuri_din_rezervari()
