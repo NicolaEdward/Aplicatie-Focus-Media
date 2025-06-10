@@ -471,6 +471,14 @@ def cancel_reservation(root, loc_id, load_cb):
         (loc_id,),
     )
 
+    # Ștergem decorările legate de rezervările acestei locații
+    rez_ids = [r[0] for r in cur.execute(
+        "SELECT id FROM rezervari WHERE loc_id=?",
+        (loc_id,),
+    ).fetchall()]
+    for rid in rez_ids:
+        cur.execute("DELETE FROM decorari WHERE rez_id=?", (rid,))
+
     # Ștergem și intrările din tabelul rezervari
     cur.execute("DELETE FROM rezervari WHERE loc_id=?", (loc_id,))
 
@@ -1020,6 +1028,7 @@ def open_release_window(root, loc_id, load_cb, user):
             "Eliberează",
             "Ștergi complet perioada de închiriere?\nAlege 'Nu' pentru a modifica perioada.",
         ):
+            cur.execute("DELETE FROM decorari WHERE rez_id=?", (rid,))
             cur.execute("DELETE FROM rezervari WHERE id=?", (rid,))
             parent_id = cur.execute(
                 "SELECT parent_id FROM locatii WHERE id=?", (loc_id,)
