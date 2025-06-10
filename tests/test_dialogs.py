@@ -204,51 +204,7 @@ def test_export_all_backups(monkeypatch, tmp_path):
     assert saved.get("info")
 
 
-def test_vendor_report_future_contracts_general(monkeypatch, tmp_path):
-    import datetime
-    from openpyxl import load_workbook
-
-    month = 6
-    year = 2024
-
-    users_df = pd.DataFrame({"username": ["s1"], "comune": [""]})
-    rezerv_df = pd.DataFrame(
-        {
-            "created_by": ["s1"],
-            "created_on": [datetime.datetime(2024, 6, 10)],
-            "suma": [2000.0],
-            "data_start": [datetime.datetime(2024, 8, 1)],
-            "data_end": [datetime.datetime(2024, 9, 30)],
-            "city": ["C"],
-            "county": ["Co"],
-            "address": ["Addr"],
-        }
-    )
-
-    def dummy_read_sql_query(sql, params=None, **kwargs):
-        if "FROM users" in sql:
-            return users_df
-        return rezerv_df
-
-    monkeypatch.setattr(db, "read_sql_query", dummy_read_sql_query)
-    monkeypatch.setattr(dialogs.filedialog, "asksaveasfilename", lambda **k: str(tmp_path / "out.xlsx"))
-    saved = {}
-    monkeypatch.setattr(dialogs.messagebox, "showinfo", lambda *a, **k: saved.setdefault("info", a))
-
-    dialogs.export_vendor_report(month=month, year=year)
-    assert saved.get("info")
-
-    wb = load_workbook(tmp_path / "out.xlsx")
-    ws = wb["s1"]
-    found = False
-    for row in ws.iter_rows(values_only=True):
-        if row and row[0] == "June":
-            found = row[1] == 4000
-            break
-    assert found
-
-
-def test_vendor_report_special_june(monkeypatch, tmp_path):
+def test_vendor_report_created_in_month(monkeypatch, tmp_path):
     import datetime
     from openpyxl import load_workbook
 
@@ -258,23 +214,27 @@ def test_vendor_report_special_june(monkeypatch, tmp_path):
     users_df = pd.DataFrame({"username": ["s1"], "comune": [""]})
     rezerv_df = pd.DataFrame(
         {
-            "created_by": ["s1", "s1"],
+            "created_by": ["s1", "s1", "s1"],
             "created_on": [
-                datetime.datetime(2025, 3, 15),
-                datetime.datetime(2025, 6, 20),
+                datetime.datetime(2025, 5, 1),
+                datetime.datetime(2025, 6, 5),
+                datetime.datetime(2025, 6, 10),
             ],
-            "suma": [1000.0, 2000.0],
+            "client": ["CL1", "CL2", "CL3"],
+            "suma": [1000.0, 2000.0, 1500.0],
             "data_start": [
-                datetime.datetime(2025, 4, 1),
-                datetime.datetime(2025, 8, 1),
+                datetime.datetime(2025, 5, 1),
+                datetime.datetime(2025, 5, 20),
+                datetime.datetime(2025, 6, 20),
             ],
             "data_end": [
                 datetime.datetime(2025, 5, 31),
-                datetime.datetime(2025, 9, 30),
+                datetime.datetime(2025, 8, 1),
+                datetime.datetime(2025, 7, 10),
             ],
-            "city": ["C", "C"],
-            "county": ["Co", "Co"],
-            "address": ["A1", "A2"],
+            "city": ["C1", "C2", "C3"],
+            "county": ["Co", "Co", "Co"],
+            "address": ["A1", "A2", "A3"],
         }
     )
 
@@ -293,11 +253,13 @@ def test_vendor_report_special_june(monkeypatch, tmp_path):
 
     wb = load_workbook(tmp_path / "out.xlsx")
     ws = wb["s1"]
-    totals = {}
-    for row in ws.iter_rows(values_only=True):
-        if row and isinstance(row[1], (int, float)):
-            totals[row[0]] = row[1]
-    assert totals.get("April") == 1000
-    assert totals.get("May") == 1000
-    assert totals.get("June") == 4000
+    rows = list(ws.iter_rows(values_only=True))
+    assert len(rows) == 3  # header, 1 entry, total
+    assert rows[1][0] == 1
+    assert rows[2][4] == "Total"
+
+    saved.clear()
+    monkeypatch.setattr(dialogs.filedialog, "asksaveasfilename", lambda **k: str(tmp_path / "out2.xlsx"))
+    dialogs.export_vendor_report(month=7, year=year)
+    assert "Nu există" in saved.get("info")[1]
 

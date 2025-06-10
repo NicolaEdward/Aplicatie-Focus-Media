@@ -3561,7 +3561,7 @@ def export_vendor_report(month=None, year=None):
 
     df = read_sql_query(
         """
-        SELECT r.created_by, r.created_on, r.suma, r.data_start, r.data_end,
+        SELECT r.created_by, r.created_on, r.client, r.suma, r.data_start, r.data_end,
                l.city, l.county, l.address
           FROM rezervari r
           JOIN locatii l ON r.loc_id = l.id
@@ -3572,6 +3572,19 @@ def export_vendor_report(month=None, year=None):
 
     if df.empty:
         messagebox.showinfo("Raport", "Nu există închirieri.")
+        return
+
+    import calendar
+    month_end = datetime.date(year, month, calendar.monthrange(year, month)[1])
+    df = df[
+        (df["created_on"].dt.date >= report_date)
+        & (df["created_on"].dt.date <= month_end)
+        & (df["data_start"] >= df["created_on"])
+    ]
+
+    if df.empty:
+        messagebox.showinfo(
+            "Raport", "Nu există închirieri active în perioada aleasă.")
         return
 
     path = filedialog.asksaveasfilename(
@@ -3595,7 +3608,8 @@ def export_vendor_report(month=None, year=None):
         money_fmt = wb.add_format({"num_format": "€#,##0.00", "align": "center"})
         center_fmt = wb.add_format({"align": "center"})
 
-        import calendar
+        if special_june:
+            month_end_date = datetime.date(year, month, calendar.monthrange(year, month)[1])
 
         def contract_months(ds: datetime.date, de: datetime.date) -> float:
             cur = ds
@@ -3634,18 +3648,22 @@ def export_vendor_report(month=None, year=None):
                 lambda r: contract_months(r["data_start"].date(), r["data_end"].date()),
                 axis=1,
             )
-            # ``r.suma`` stores the monthly rent.  Calculate the total value
-            # over the contract period proportional to the number of months.
             sub["Chirie/lună"] = sub["suma"]
             sub["Valoare"] = sub["suma"] * sub["Luni"]
+            sub["Perioadă"] = sub.apply(
+                lambda r: f"{r['data_start'].date()} → {r['data_end'].date()}",
+                axis=1,
+            )
 
             df_det = sub[
                 [
                     "city",
                     "county",
                     "address",
-                    "Chirie/lună",
+                    "client",
+                    "Perioadă",
                     "Luni",
+                    "Chirie/lună",
                     "Valoare",
                 ]
             ].copy()
@@ -3653,8 +3671,10 @@ def export_vendor_report(month=None, year=None):
                 "Oraș",
                 "Județ",
                 "Adresă",
-                "Chirie/lună",
+                "Client",
+                "Perioadă",
                 "Luni",
+                "Chirie/lună",
                 "Valoare",
             ]
             df_det.insert(0, "Nr.crt", range(1, len(df_det) + 1))
@@ -3669,32 +3689,14 @@ def export_vendor_report(month=None, year=None):
                 ws.set_column(col_idx, col_idx, width, fmt)
                 ws.write(0, col_idx, col, hdr_fmt)
 
-            month_records = []
-            for r in sub.itertuples(index=False):
-                price_per_month = r.suma
-                ds = r.data_start.date()
-                de = r.data_end.date()
-                co = r.created_on.date() if hasattr(r, "created_on") and pd.notna(r.created_on) else ds
-                months = contract_months(ds, de)
-                if special_june and (co < report_date or ds < report_date):
-                    for mname, val in split_by_month(ds, de, price_per_month):
-                        month_records.append((mname, val))
-                elif co.year == year and co.month == month:
-                    month_records.append((current_month, price_per_month * months))
-            stats = (
-                pd.DataFrame(month_records, columns=["Luna", "Total"])
-                .groupby("Luna", as_index=False)
-                .sum()
+            total_row = len(df_det) + 1
+            ws.write(total_row, df_det.columns.get_loc("Client"), "Total", hdr_fmt)
+            ws.write(
+                total_row,
+                df_det.columns.get_loc("Valoare"),
+                df_det["Valoare"].sum(),
+                money_fmt,
             )
-            stats.columns = ["Luna", "Total"]
-
-            start = len(df_det) + 3
-            ws.write(start - 1, 0, "Statistici lunare", hdr_fmt)
-            ws.write_row(start, 0, stats.columns, hdr_fmt)
-            for i, r in stats.iterrows():
-                ws.write(start + 1 + i, 0, r["Luna"], center_fmt)
-                ws.write(start + 1 + i, 1, r["Total"], money_fmt)
-            ws.set_column(0, 1, 15)
 
     messagebox.showinfo("Raport", f"Raport salvat:\n{path}")
 
