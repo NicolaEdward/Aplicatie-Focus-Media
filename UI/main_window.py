@@ -1,5 +1,3 @@
-
-
 import os
 import shutil
 import datetime
@@ -23,12 +21,14 @@ from UI.date_picker import DatePicker
 # until the calendar component is available.
 from tkinter import ttk
 
+
 def _safe_dateentry_config(self, cnf=None, **kw):
     if not hasattr(self, "_calendar"):
         return ttk.Entry.configure(self, cnf, **kw)
     if cnf is None:
         cnf = {}
     return _orig_dateentry_config(self, cnf, **kw)
+
 
 _orig_dateentry_config = _DateEntry.configure
 _DateEntry.configure = _safe_dateentry_config
@@ -39,12 +39,14 @@ _DateEntry.config = _safe_dateentry_config
 # protective wrapper used for ``DateEntry``.
 _orig_calendar_config = _Calendar.configure
 
+
 def _safe_calendar_config(self, cnf=None, **kw):
     if not hasattr(self, "_properties"):
         return ttk.Frame.configure(self, cnf, **kw)
     if cnf is None:
         cnf = {}
     return _orig_calendar_config(self, cnf, **kw)
+
 
 _Calendar.configure = _safe_calendar_config
 _Calendar.config = _safe_calendar_config
@@ -94,7 +96,6 @@ from UI.dialogs import (
     open_decor_window,
     open_manage_decor_window,
 )
-
 
 
 def start_app(user, root=None):
@@ -173,24 +174,24 @@ def start_app(user, root=None):
 
     _set_geometry()
     try:
-        root.state('zoomed')
+        root.state("zoomed")
     except tk.TclError:
-        root.attributes('-zoomed', True)
+        root.attributes("-zoomed", True)
 
     def _maximize():
         """Maximize the application window."""
         try:
-            root.state('zoomed')
+            root.state("zoomed")
         except tk.TclError:
-            root.attributes('-zoomed', True)
+            root.attributes("-zoomed", True)
 
     def _normalize():
         """Restore window to the default size."""
         try:
-            root.state('normal')
+            root.state("normal")
         except tk.TclError:
             try:
-                root.attributes('-zoomed', False)
+                root.attributes("-zoomed", False)
             except tk.TclError:
                 pass
         _set_geometry()
@@ -198,9 +199,9 @@ def start_app(user, root=None):
     def _is_zoomed():
         """Return ``True`` if the window is maximized."""
         try:
-            return root.state() == 'zoomed' or bool(root.attributes('-zoomed'))
+            return root.state() == "zoomed" or bool(root.attributes("-zoomed"))
         except tk.TclError:
-            return root.state() == 'zoomed'
+            return root.state() == "zoomed"
 
     def toggle_fullscreen(event=None):
         """Toggle maximized mode."""
@@ -209,11 +210,10 @@ def start_app(user, root=None):
         else:
             _normalize()
 
-    root.bind('<F11>', toggle_fullscreen)
-    root.bind('<Escape>', lambda e: _normalize())
+    root.bind("<F11>", toggle_fullscreen)
+    root.bind("<Escape>", lambda e: _normalize())
 
-
-    root.eval('tk::PlaceWindow . center')
+    root.eval("tk::PlaceWindow . center")
 
     # --- Top: filtre Grup, Status, Căutare, Interval ---
     frm_top = ttk.Frame(root, padding=10)
@@ -223,34 +223,28 @@ def start_app(user, root=None):
     combo_group = ttk.Combobox(frm_top, values=[], state="readonly", width=20)
     combo_group.pack(side="left", padx=5)
 
-    ttk.Label(frm_top, text="Status:").pack(side="left", padx=(20,5))
+    ttk.Label(frm_top, text="Status:").pack(side="left", padx=(20, 5))
     combo_status = ttk.Combobox(
-        frm_top,
-        values=["Toate", "Disponibil", "Rezervat", "Închiriat"],
-        state="readonly",
-        width=12
+        frm_top, values=["Toate", "Disponibil", "Rezervat", "Închiriat"], state="readonly", width=12
     )
     combo_status.current(0)
     combo_status.pack(side="left", padx=5)
 
-    ttk.Label(frm_top, text="Caută:").pack(side="left", padx=(20,5))
+    ttk.Label(frm_top, text="Caută:").pack(side="left", padx=(20, 5))
     search_var = tk.StringVar()
     ttk.Entry(frm_top, textvariable=search_var, width=20).pack(side="left", padx=5)
 
-    ttk.Label(frm_top, text="Din:").pack(side="left", padx=(20,5))
+    ttk.Label(frm_top, text="Din:").pack(side="left", padx=(20, 5))
     filter_start = DatePicker(frm_top, width=12)
     filter_start.pack(side="left", padx=5)
-    ttk.Label(frm_top, text="Până:").pack(side="left", padx=(10,5))
+    ttk.Label(frm_top, text="Până:").pack(side="left", padx=(10, 5))
     filter_end = DatePicker(frm_top, width=12)
     filter_end.pack(side="left", padx=5)
 
     var_ignore = tk.BooleanVar(value=True)
     ttk.Checkbutton(
-        frm_top,
-        text="Toate datele",
-        variable=var_ignore,
-        command=lambda: load_locations()
-    ).pack(side="left", padx=(20,0))
+        frm_top, text="Toate datele", variable=var_ignore, command=lambda: load_locations()
+    ).pack(side="left", padx=(20, 0))
 
     # --- Middle: TreeView + Detalii ---
     frm_mid = ttk.Frame(root, padding=10)
@@ -258,13 +252,18 @@ def start_app(user, root=None):
 
     cols = ("NR.", "City", "County", "Address", "Type", "Status", "RateCard")
     tree = ttk.Treeview(frm_mid, columns=cols, show="headings", selectmode="extended")
-    tree.heading("NR.", text="NR.");        tree.column("NR.", width=50, anchor="w")
-    tree.heading("City", text="City");      tree.column("City", width=120, anchor="w")
-    tree.heading("County", text="County");  tree.column("County", width=100, anchor="w")
+    tree.heading("NR.", text="NR.")
+    tree.column("NR.", width=50, anchor="w")
+    tree.heading("City", text="City")
+    tree.column("City", width=120, anchor="w")
+    tree.heading("County", text="County")
+    tree.column("County", width=100, anchor="w")
     tree.heading("Address", text="Address")
     tree.column("Address", width=300, anchor="w", stretch=True)
-    tree.heading("Type", text="Type");      tree.column("Type", width=100, anchor="w")
-    tree.heading("Status", text="Status");  tree.column("Status", width=120, anchor="center")
+    tree.heading("Type", text="Type")
+    tree.column("Type", width=100, anchor="w")
+    tree.heading("Status", text="Status")
+    tree.column("Status", width=120, anchor="center")
     tree.heading("RateCard", text="RateCard", anchor="e")
     tree.column("RateCard", width=100, anchor="e")
     tree.pack(fill="both", expand=True, side="left")
@@ -272,7 +271,6 @@ def start_app(user, root=None):
     vsb = ttk.Scrollbar(frm_mid, orient="vertical", command=tree.yview)
     vsb.pack(side="left", fill="y")
     tree.configure(yscroll=vsb.set)
-
 
     tree.tag_configure("evenrow", background="#f7f7f7", foreground="black")
     tree.tag_configure("oddrow", background="#ffffff", foreground="black")
@@ -320,7 +318,7 @@ def start_app(user, root=None):
     details.pack_propagate(False)
 
     img_label = ttk.Label(details)
-    img_label.pack(pady=(0,10))
+    img_label.pack(pady=(0, 10))
 
     btn_download = ttk.Button(
         details,
@@ -331,25 +329,24 @@ def start_app(user, root=None):
     btn_download.pack(pady=(0, 15))
 
     # etichete declarate fără pack()
-    lbl_client_label       = ttk.Label(details, text="Client:")
-    lbl_client_value       = ttk.Label(details, text="-")
-    lbl_period_label       = ttk.Label(details, text="Perioadă:")
-    lbl_period_value       = ttk.Label(details, text="-")
-    lbl_ratecard_label     = ttk.Label(details, text="Rate Card:")
-    lbl_ratecard_value     = ttk.Label(details, text="-")
-    lbl_pret_vanz_label    = ttk.Label(details, text="Preț de vânzare aprobat:")
-    lbl_pret_vanz_value    = ttk.Label(details, text="-")
-    lbl_pret_inch_label    = ttk.Label(details, text="Preț de închiriere:")
-    lbl_pret_inch_value    = ttk.Label(details, text="-")
-    lbl_pret_flot_label    = ttk.Label(details, text="Preț flotant:")
-    lbl_pret_flot_value    = ttk.Label(details, text="-")
-    lbl_rent_by_label      = ttk.Label(details, text="Închiriat de:")
-    lbl_rent_by_value      = ttk.Label(details, text="-")
-    lbl_res_by_label       = ttk.Label(details, text="Rezervată de:")
-    lbl_res_by_value       = ttk.Label(details, text="-")
-    lbl_next_rent_label    = ttk.Label(details, text="Următoarea închiriere:")
-    lbl_next_rent_value    = ttk.Label(details, text="-")
-
+    lbl_client_label = ttk.Label(details, text="Client:")
+    lbl_client_value = ttk.Label(details, text="-")
+    lbl_period_label = ttk.Label(details, text="Perioadă:")
+    lbl_period_value = ttk.Label(details, text="-")
+    lbl_ratecard_label = ttk.Label(details, text="Rate Card:")
+    lbl_ratecard_value = ttk.Label(details, text="-")
+    lbl_pret_vanz_label = ttk.Label(details, text="Preț de vânzare aprobat:")
+    lbl_pret_vanz_value = ttk.Label(details, text="-")
+    lbl_pret_inch_label = ttk.Label(details, text="Preț de închiriere:")
+    lbl_pret_inch_value = ttk.Label(details, text="-")
+    lbl_pret_flot_label = ttk.Label(details, text="Preț flotant:")
+    lbl_pret_flot_value = ttk.Label(details, text="-")
+    lbl_rent_by_label = ttk.Label(details, text="Închiriat de:")
+    lbl_rent_by_value = ttk.Label(details, text="-")
+    lbl_res_by_label = ttk.Label(details, text="Rezervată de:")
+    lbl_res_by_value = ttk.Label(details, text="-")
+    lbl_next_rent_label = ttk.Label(details, text="Următoarea închiriere:")
+    lbl_next_rent_value = ttk.Label(details, text="-")
 
     # --- Bottom: butoane principale (stânga) și export (dreapta) ---
     frm_bot = ttk.Frame(root, padding=10)
@@ -359,13 +356,18 @@ def start_app(user, root=None):
 
     primary_frame = ttk.Frame(frm_bot)
     primary_frame.grid(row=0, column=0, sticky="w")
-    btn_add     = ttk.Button(primary_frame, text="Adaugă",
-                             command=lambda: open_add_window(root, load_locations))
-    btn_edit    = ttk.Button(primary_frame, text="Editează", state="disabled",
-                             command=lambda: open_edit_window(root, selected_id[0], load_locations, refresh_groups))
+    btn_add = ttk.Button(
+        primary_frame, text="Adaugă", command=lambda: open_add_window(root, load_locations)
+    )
+    btn_edit = ttk.Button(
+        primary_frame,
+        text="Editează",
+        state="disabled",
+        command=lambda: open_edit_window(root, selected_id[0], load_locations, refresh_groups),
+    )
 
-    btn_rent    = ttk.Button(primary_frame, text="Închiriază", state="disabled")
-    btn_decor   = ttk.Button(primary_frame, text="Decorează", state="disabled")
+    btn_rent = ttk.Button(primary_frame, text="Închiriază", state="disabled")
+    btn_decor = ttk.Button(primary_frame, text="Decorează", state="disabled")
     btn_manage_decor = ttk.Button(
         primary_frame,
         text="Gestionează decorări",
@@ -373,21 +375,23 @@ def start_app(user, root=None):
         command=lambda: open_manage_decor_window(root, selected_id[0], load_locations),
     )
     btn_release = ttk.Button(primary_frame, text="Eliberează", state="disabled")
-    btn_extend  = ttk.Button(primary_frame, text="Extinde perioada", state="disabled")
+    btn_extend = ttk.Button(primary_frame, text="Extinde perioada", state="disabled")
     btn_reserve = ttk.Button(primary_frame, text="Rezervă", state="disabled")
-    btn_delete  = ttk.Button(primary_frame, text="Șterge", state="disabled",
-                             command=lambda: delete_location())
+    btn_delete = ttk.Button(
+        primary_frame, text="Șterge", state="disabled", command=lambda: delete_location()
+    )
     btn_clients = ttk.Button(
         primary_frame,
         text="Clienți",
         command=lambda: open_clients_window(root, user),
     )
-    btn_firme = ttk.Button(primary_frame, text="Firme",
-                            command=lambda: open_firme_window(root))
-    btn_users = ttk.Button(primary_frame, text="Utilizatori",
-                           command=lambda: open_users_window(root))
-    btn_manage = ttk.Button(primary_frame, text="Administrează",
-                            command=lambda: open_manage_window(root))
+    btn_firme = ttk.Button(primary_frame, text="Firme", command=lambda: open_firme_window(root))
+    btn_users = ttk.Button(
+        primary_frame, text="Utilizatori", command=lambda: open_users_window(root)
+    )
+    btn_manage = ttk.Button(
+        primary_frame, text="Administrează", command=lambda: open_manage_window(root)
+    )
     role = user.get("role")
     if role in ("admin", "manager"):
         for w in (btn_add, btn_edit, btn_delete):
@@ -402,19 +406,24 @@ def start_app(user, root=None):
         for w in (btn_rent, btn_decor, btn_manage_decor, btn_release, btn_reserve):
             w.pack(side="left", padx=5, pady=5)
 
-
     export_frame = ttk.Frame(frm_bot)
     export_frame.grid(row=0, column=1, sticky="e")
-    btn_xlsx  = ttk.Button(export_frame, text="Export Disponibil",
-                           command=lambda: export_available_excel(
-                               combo_group.get(), combo_status.get(),
-                               search_var.get().strip(),
-                               var_ignore.get(),
-                               filter_start.get_date(),
-                               filter_end.get_date()
-                           ))
-    btn_offer = ttk.Button(export_frame, text="Export Ofertă",
-                           command=lambda: open_offer_window(tree))
+    btn_xlsx = ttk.Button(
+        export_frame,
+        text="Export Disponibil",
+        command=lambda: export_available_excel(
+            combo_group.get(),
+            combo_status.get(),
+            search_var.get().strip(),
+            var_ignore.get(),
+            filter_start.get_date(),
+            filter_end.get_date(),
+        ),
+    )
+    btn_offer = ttk.Button(
+        export_frame, text="Export Ofertă", command=lambda: open_offer_window(tree)
+    )
+
     def _export_report():
         rtype = choose_report_type(role)
         if rtype == "Vânzări":
@@ -425,10 +434,10 @@ def start_app(user, root=None):
             export_vendor_report()
 
     btn_report = ttk.Button(export_frame, text="Raport", command=_export_report)
-    btn_vendor = ttk.Button(export_frame, text="Raport Vânzători",
-                           command=lambda: export_vendor_report())
-    btn_update = ttk.Button(export_frame, text="Update Database",
-                           command=lambda: manual_refresh())
+    btn_vendor = ttk.Button(
+        export_frame, text="Raport Vânzători", command=lambda: export_vendor_report()
+    )
+    btn_update = ttk.Button(export_frame, text="Update Database", command=lambda: manual_refresh())
     btn_xlsx.pack(side="left", padx=5, pady=5)
     btn_offer.pack(side="left", padx=5, pady=5)
     btn_report.pack(side="left", padx=5, pady=5)
@@ -436,23 +445,20 @@ def start_app(user, root=None):
         btn_vendor.pack(side="left", padx=5, pady=5)
     btn_update.pack(side="left", padx=5, pady=5)
 
-
-
     selected_id = [None]
 
     # --- Funcții auxiliare ---
     def refresh_groups():
-        vals = ["Toate"] + [g[0] for g in cursor.execute(
-            "SELECT DISTINCT grup FROM locatii").fetchall()]
-        combo_group['values'] = vals
+        vals = ["Toate"] + [
+            g[0] for g in cursor.execute("SELECT DISTINCT grup FROM locatii").fetchall()
+        ]
+        combo_group["values"] = vals
         if combo_group.get() not in vals:
             combo_group.current(0)
 
     def load_locations():
         # 1) Actualizează statusurile locațiilor pe baza rezervărilor
         update_statusuri_din_rezervari()
-
-
 
         # 2) Golește TreeView
         items = tree.get_children()
@@ -463,18 +469,20 @@ def start_app(user, root=None):
         params, cond = [], []
         g = combo_group.get()
         if g and g != "Toate":
-            cond.append("grup = ?");    params.append(g)
+            cond.append("grup = ?")
+            params.append(g)
         s = combo_status.get()
         if s and s != "Toate":
-            cond.append("status = ?");  params.append(s)
+            cond.append("status = ?")
+            params.append(s)
         term = search_var.get().strip()
         if term:
             cond.append("(city LIKE ? OR county LIKE ? OR address LIKE ?)")
-            params += [f"%{term}%"]*3
+            params += [f"%{term}%"] * 3
 
         # 4) Citește intervalul Din–Până și normalizează-l
         start_dt = filter_start.get_date()
-        end_dt   = filter_end.get_date()
+        end_dt = filter_end.get_date()
         if end_dt < start_dt:
             end_dt = start_dt
         # îl folosim doar în availability()
@@ -483,6 +491,7 @@ def start_app(user, root=None):
         rows = get_location_cache()
 
         if cond:
+
             def match(row: dict) -> bool:
                 for c, p in zip(cond, params):
                     if c == "grup = ?" and row.get("grup") != p:
@@ -491,27 +500,32 @@ def start_app(user, root=None):
                         return False
                     if c.startswith("(city LIKE"):
                         term_lower = p.strip("%").lower()
-                        if not (term_lower in (row.get("city") or "").lower() or
-                                term_lower in (row.get("county") or "").lower() or
-                                term_lower in (row.get("address") or "").lower()):
+                        if not (
+                            term_lower in (row.get("city") or "").lower()
+                            or term_lower in (row.get("county") or "").lower()
+                            or term_lower in (row.get("address") or "").lower()
+                        ):
                             return False
                 return True
+
             rows = [r for r in rows if match(r)]
 
-        rows.sort(key=lambda r: (
-            {
-                'Bucuresti Sectorul 1': 1,
-                'Bucuresti Sectorul 2': 2,
-                'Bucuresti Sectorul 3': 3,
-                'Bucuresti Sectorul 4': 4,
-                'Bucuresti Sectorul 5': 5,
-                'Bucuresti Sectorul 6': 6,
-                'Ilfov': 7,
-                'Prahova': 8,
-            }.get(r.get('county'), 9),
-            r.get('county'),
-            r.get('city'),
-        ))
+        rows.sort(
+            key=lambda r: (
+                {
+                    "Bucuresti Sectorul 1": 1,
+                    "Bucuresti Sectorul 2": 2,
+                    "Bucuresti Sectorul 3": 3,
+                    "Bucuresti Sectorul 4": 4,
+                    "Bucuresti Sectorul 5": 5,
+                    "Bucuresti Sectorul 6": 6,
+                    "Ilfov": 7,
+                    "Prahova": 8,
+                }.get(r.get("county"), 9),
+                r.get("county"),
+                r.get("city"),
+            )
+        )
 
         # 6) Preîncărcăm rezervările pentru perioada selectată
         reservations_by_loc: dict[int, list[tuple[datetime.date, datetime.date]]] = {}
@@ -534,14 +548,13 @@ def start_app(user, root=None):
                 return "Disponibil"
             first_ds = overl[0][0]
             if first_ds > start_dt:
-                until = (first_ds - datetime.timedelta(days=1)).strftime('%d.%m.%Y')
+                until = (first_ds - datetime.timedelta(days=1)).strftime("%d.%m.%Y")
                 return f"Disponibil până la {until}"
             last_de = overl[-1][1]
             if last_de < end_dt:
-                frm = (last_de + datetime.timedelta(days=1)).strftime('%d.%m.%Y')
+                frm = (last_de + datetime.timedelta(days=1)).strftime("%d.%m.%Y")
                 return f"Disponibil din {frm}"
             return ""
-
 
         # 7) Populează TreeView, aplicând filtrul de date doar când "Toate datele" NU e bifat
         display_index = 0
@@ -565,50 +578,62 @@ def start_app(user, root=None):
             else:
                 # afișare fără filtrul de date
                 status_text = status
-                tag = ("available","reserved","rented")[
-                    ["Disponibil","Rezervat","Închiriat"].index(status)
-                ] if status in ("Disponibil","Rezervat","Închiriat") else ""
+                tag = (
+                    ("available", "reserved", "rented")[
+                        ["Disponibil", "Rezervat", "Închiriat"].index(status)
+                    ]
+                    if status in ("Disponibil", "Rezervat", "Închiriat")
+                    else ""
+                )
 
             zebra = "evenrow" if display_index % 2 == 0 else "oddrow"
             display_index += 1
 
             tree.insert(
-                "", "end",
+                "",
+                "end",
                 iid=str(loc_id),
                 values=(display_index, city, county, addr, typ, status_text, rate),
-                tags=(tag, zebra)
+                tags=(tag, zebra),
             )
-
 
     def on_tree_select():
         # ascundem toate etichetele
         for w in (
-            lbl_client_label, lbl_client_value,
-            lbl_period_label, lbl_period_value,
-            lbl_ratecard_label, lbl_ratecard_value,
-            lbl_pret_vanz_label, lbl_pret_vanz_value,
-            lbl_pret_inch_label, lbl_pret_inch_value,
-            lbl_pret_flot_label, lbl_pret_flot_value,
-            lbl_rent_by_label, lbl_rent_by_value,
-            lbl_res_by_label, lbl_res_by_value,
-            lbl_next_rent_label, lbl_next_rent_value,
-
+            lbl_client_label,
+            lbl_client_value,
+            lbl_period_label,
+            lbl_period_value,
+            lbl_ratecard_label,
+            lbl_ratecard_value,
+            lbl_pret_vanz_label,
+            lbl_pret_vanz_value,
+            lbl_pret_inch_label,
+            lbl_pret_inch_value,
+            lbl_pret_flot_label,
+            lbl_pret_flot_value,
+            lbl_rent_by_label,
+            lbl_rent_by_value,
+            lbl_res_by_label,
+            lbl_res_by_value,
+            lbl_next_rent_label,
+            lbl_next_rent_value,
         ):
             w.pack_forget()
 
         sel = tree.selection()
         if not sel:
-            btn_edit.config(state='disabled')
-            btn_rent.config(state='disabled')
-            btn_decor.config(state='disabled')
+            btn_edit.config(state="disabled")
+            btn_rent.config(state="disabled")
+            btn_decor.config(state="disabled")
             btn_manage_decor.config(
-                state='normal',
+                state="normal",
                 command=lambda: open_manage_decor_window(root, None, load_locations),
             )
-            btn_release.config(state='disabled')
-            btn_delete.config(state='disabled')
+            btn_release.config(state="disabled")
+            btn_delete.config(state="disabled")
             img_label.config(image="", text="")
-            btn_download.config(state='disabled')
+            btn_download.config(state="disabled")
             return
 
         loc_id = int(sel[0])
@@ -629,10 +654,9 @@ def start_app(user, root=None):
         if ds and de:
             rent_row = cursor.execute(
                 "SELECT suma FROM rezervari WHERE loc_id=? AND data_start=? AND data_end=? ORDER BY id DESC LIMIT 1",
-                (loc_id, ds, de)
+                (loc_id, ds, de),
             ).fetchone()
         rent_price = rent_row[0] if rent_row else None
-
 
         # actualizare valori
         lbl_client_value.config(text=client or "-")
@@ -650,9 +674,9 @@ def start_app(user, root=None):
         else:
             img_label.config(image="", text="Fără preview")
 
-        btn_download.config(state='normal' if get_schita_path(code) else 'disabled')
+        btn_download.config(state="normal" if get_schita_path(code) else "disabled")
 
-        status = tree.item(sel[0])['values'][5]
+        status = tree.item(sel[0])["values"][5]
         reserved_info = None
         rented_info = None
         if status == "Rezervat":
@@ -695,10 +719,8 @@ def start_app(user, root=None):
             lbl_pret_flot_value.pack(anchor="center", pady=2)
             if reserved_info:
                 creator, end_d = reserved_info
-                days_left = (datetime.date.fromisoformat(end_d) -
-                             datetime.date.today()).days + 1
-                lbl_res_by_value.config(
-                    text=f"{creator} ({days_left} zile)")
+                days_left = (datetime.date.fromisoformat(end_d) - datetime.date.today()).days + 1
+                lbl_res_by_value.config(text=f"{creator} ({days_left} zile)")
                 lbl_res_by_label.pack(anchor="center", pady=2)
                 lbl_res_by_value.pack(anchor="center", pady=2)
             else:
@@ -711,34 +733,32 @@ def start_app(user, root=None):
                 ).fetchone()
                 if next_rent:
                     n_client, n_start, n_end = next_rent
-                    lbl_next_rent_value.config(
-                        text=f"{n_client}: {n_start} → {n_end}"
-                    )
+                    lbl_next_rent_value.config(text=f"{n_client}: {n_start} → {n_end}")
                     lbl_next_rent_label.pack(anchor="center", pady=2)
                     lbl_next_rent_value.pack(anchor="center", pady=2)
 
         if role in ("admin", "manager"):
-            btn_edit.config(state='normal')
-        
+            btn_edit.config(state="normal")
+
         # Butoane închiriere și eliberare
         if role != "manager":
             btn_rent.config(
                 text="Închiriază",
-                state='normal',
+                state="normal",
                 command=lambda: open_rent_window(root, loc_id, load_locations, user),
             )
             btn_decor.config(
-                state='normal' if status == "Închiriat" else 'disabled',
+                state="normal" if status == "Închiriat" else "disabled",
                 command=lambda: open_decor_window(root, loc_id, user),
             )
             btn_manage_decor.config(
-                state='normal',
+                state="normal",
                 command=lambda: open_manage_decor_window(root, loc_id, load_locations),
             )
         else:
-            btn_rent.config(state='disabled', command=lambda: None)
-            btn_decor.config(state='disabled', command=lambda: None)
-            btn_manage_decor.config(state='disabled', command=lambda: None)
+            btn_rent.config(state="disabled", command=lambda: None)
+            btn_decor.config(state="disabled", command=lambda: None)
+            btn_manage_decor.config(state="disabled", command=lambda: None)
 
         cutoff = (datetime.date.today() - datetime.timedelta(days=3)).isoformat()
         has_rentals = cursor.execute(
@@ -753,9 +773,7 @@ def start_app(user, root=None):
             if has_rentals:
                 btn_release.config(
                     state="normal",
-                    command=lambda: open_release_window(
-                        root, loc_id, load_locations, user
-                    ),
+                    command=lambda: open_release_window(root, loc_id, load_locations, user),
                 )
             else:
                 btn_release.config(state="disabled", command=lambda: None)
@@ -774,7 +792,11 @@ def start_app(user, root=None):
                     rid = rid_row[0]
                     btn_extend.config(
                         state="normal",
-                        command=lambda r=rid, ds=data.get("data_start"), de=data.get("data_end"), pid=data.get("parent_id"): open_edit_rent_window(root, r, load_locations, parent=(pid, ds, de)),
+                        command=lambda r=rid, ds=data.get("data_start"), de=data.get(
+                            "data_end"
+                        ), pid=data.get("parent_id"): open_edit_rent_window(
+                            root, r, load_locations, parent=(pid, ds, de)
+                        ),
                     )
                 else:
                     btn_extend.config(state="disabled", command=lambda: None)
@@ -788,30 +810,27 @@ def start_app(user, root=None):
             btn_extend.config(state="disabled", command=lambda: None)
 
         if role != "manager":
-            if status == "Disponibil" and not (
-                data.get("is_mobile") and not data.get("parent_id")
-            ):
+            if status == "Disponibil" and not (data.get("is_mobile") and not data.get("parent_id")):
                 btn_reserve.config(
                     text="Rezervă",
-                    state='normal',
-                    command=lambda: open_reserve_window(root, loc_id, load_locations, user)
+                    state="normal",
+                    command=lambda: open_reserve_window(root, loc_id, load_locations, user),
                 )
             elif status == "Rezervat" and reserved_info and reserved_info[0] == user["username"]:
                 btn_reserve.config(
                     text="Anulează rezervarea",
-                    state='normal',
-                    command=lambda: cancel_reservation(root, loc_id, load_locations)
+                    state="normal",
+                    command=lambda: cancel_reservation(root, loc_id, load_locations),
                 )
             else:
-                btn_reserve.config(text="Rezervă", state='disabled')
+                btn_reserve.config(text="Rezervă", state="disabled")
         else:
-            btn_reserve.config(text="Rezervă", state='disabled')
-
+            btn_reserve.config(text="Rezervă", state="disabled")
 
         if role in ("admin", "manager"):
-            btn_delete.config(state='normal')
+            btn_delete.config(state="normal")
         else:
-            btn_delete.config(state='disabled')
+            btn_delete.config(state="disabled")
 
     def download_schita():
         data = get_location_by_id(selected_id[0])
@@ -823,7 +842,7 @@ def start_app(user, root=None):
         if not path:
             messagebox.showerror("Eroare", "Nu există schița.")
             return
-        dst = filedialog.asksaveasfilename(defaultextension=".png", filetypes=[("PNG","*.png")])
+        dst = filedialog.asksaveasfilename(defaultextension=".png", filetypes=[("PNG", "*.png")])
         if dst:
             shutil.copy(path, dst)
 
@@ -870,9 +889,9 @@ def start_app(user, root=None):
     watch_updates()
     root.mainloop()
 
+
 if __name__ == "__main__":
     import db
+
     u = db.get_user("admin")
     start_app(u)
-
-
