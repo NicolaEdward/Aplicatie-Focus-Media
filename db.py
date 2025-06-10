@@ -866,7 +866,7 @@ def update_statusuri_din_rezervari():
                 FROM rezervari
                 WHERE rezervari.loc_id = locatii.id
                   AND ? BETWEEN data_start AND data_end
-                  AND suma IS NOT NULL
+                  AND suma IS NOT NULL AND suma > 0
                 ORDER BY data_start DESC
                 LIMIT 1
             ),
@@ -875,7 +875,7 @@ def update_statusuri_din_rezervari():
                 FROM rezervari
                 WHERE rezervari.loc_id = locatii.id
                   AND ? BETWEEN data_start AND data_end
-                  AND suma IS NOT NULL
+                  AND suma IS NOT NULL AND suma > 0
                 ORDER BY data_start DESC
                 LIMIT 1
             ),
@@ -884,7 +884,7 @@ def update_statusuri_din_rezervari():
                 FROM rezervari
                 WHERE rezervari.loc_id = locatii.id
                   AND ? BETWEEN data_start AND data_end
-                  AND suma IS NOT NULL
+                  AND suma IS NOT NULL AND suma > 0
                 ORDER BY data_start DESC
                 LIMIT 1
             ),
@@ -893,7 +893,7 @@ def update_statusuri_din_rezervari():
                 FROM rezervari
                 WHERE rezervari.loc_id = locatii.id
                   AND ? BETWEEN data_start AND data_end
-                  AND suma IS NOT NULL
+                  AND suma IS NOT NULL AND suma > 0
                 ORDER BY data_start DESC
                 LIMIT 1
             )
@@ -902,7 +902,7 @@ def update_statusuri_din_rezervari():
             FROM rezervari
             WHERE rezervari.loc_id = locatii.id
               AND ? BETWEEN data_start AND data_end
-              AND suma IS NOT NULL
+              AND suma IS NOT NULL AND suma > 0
         )
     """,
         (today, today, today, today, today),
