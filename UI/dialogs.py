@@ -1110,43 +1110,65 @@ def open_edit_decor_window(root, decor_id, load_cb=None):
     ttk.Button(win, text="Salvează", command=save).grid(row=3, column=0, columnspan=2, pady=10)
 
 
-def open_manage_decor_window(root, loc_id, load_cb):
-    """Manage decoration entries for a location."""
+def open_manage_decor_window(root, loc_id=None, load_cb=None):
+    """Manage decoration entries for a location or all locations."""
     cur = conn.cursor()
     cutoff = (datetime.date.today() - datetime.timedelta(days=5)).isoformat()
-    rows = cur.execute(
-        "SELECT id, data, decor_cost, prod_cost FROM decorari "
-        "WHERE loc_id=? AND data>=? ORDER BY data",
-        (loc_id, cutoff),
-    ).fetchall()
+
+    if loc_id:
+        rows = cur.execute(
+            "SELECT id, loc_id, data, decor_cost, prod_cost FROM decorari "
+            "WHERE loc_id=? AND data>=? ORDER BY data",
+            (loc_id, cutoff),
+        ).fetchall()
+    else:
+        rows = []
+
+    if not rows:
+        rows = cur.execute(
+            "SELECT id, loc_id, data, decor_cost, prod_cost FROM decorari "
+            "WHERE data>=? ORDER BY data",
+            (cutoff,),
+        ).fetchall()
+        loc_id = None
 
     if not rows:
         messagebox.showinfo("Decorări", "Nu există decorări de modificat.")
         return
 
     win = tk.Toplevel(root)
-    loc = get_location_by_id(loc_id)
-    if loc:
-        win.title(f"Decorări: {loc.get('city')}, {loc.get('address')}")
-        ttk.Label(
-            win,
-            text=f"{loc.get('city')}, {loc.get('address')}",
-            font=("Segoe UI", 9, "bold"),
-        ).grid(row=0, column=0, columnspan=3, padx=5, pady=(5, 0))
-        row_start = 1
+
+    if loc_id:
+        loc = get_location_by_id(loc_id)
+        if loc:
+            win.title(f"Decorări: {loc.get('city')}, {loc.get('address')}")
+            ttk.Label(
+                win,
+                text=f"{loc.get('city')}, {loc.get('address')}",
+                font=("Segoe UI", 9, "bold"),
+            ).grid(row=0, column=0, columnspan=3, padx=5, pady=(5, 0))
+            row_start = 1
+        else:
+            win.title(f"Decorări locație #{loc_id}")
+            row_start = 0
     else:
-        win.title(f"Decorări locație #{loc_id}")
+        win.title("Decorări recente")
         row_start = 0
 
     lst = tk.Listbox(win, width=50, height=10)
-    for did, data, dcost, pcost in rows:
+    for did, lid, data, dcost, pcost in rows:
         costs = []
         if dcost is not None:
             costs.append(str(dcost))
         if pcost is not None and pcost != 0:
             costs.append(f"prod {pcost}")
         cost_str = f" ({' + '.join(costs)})" if costs else ""
-        lst.insert("end", f"{data}{cost_str}")
+        if loc_id is None:
+            loc = get_location_by_id(lid)
+            loc_info = f"{loc.get('city')}, {loc.get('address')}" if loc else f"#{lid}"
+            lst.insert("end", f"{loc_info}: {data}{cost_str}")
+        else:
+            lst.insert("end", f"{data}{cost_str}")
     lst.grid(row=row_start, column=0, columnspan=3, padx=5, pady=5)
 
     def delete_selected():
@@ -1154,7 +1176,7 @@ def open_manage_decor_window(root, loc_id, load_cb):
         if not sel:
             messagebox.showwarning("Selectează", "Alege o decorare.")
             return
-        did, data = rows[sel[0]]
+        did, _lid, data, *_ = rows[sel[0]]
         if messagebox.askyesno("Șterge", "Ștergi decorarea selectată?"):
             cur.execute("DELETE FROM decorari WHERE id=?", (did,))
             conn.commit()
@@ -1166,7 +1188,7 @@ def open_manage_decor_window(root, loc_id, load_cb):
         if not sel:
             messagebox.showwarning("Selectează", "Alege o decorare.")
             return
-        did, _ = rows[sel[0]]
+        did, *_ = rows[sel[0]]
         open_edit_decor_window(win, did, load_cb)
 
     btn_row = row_start + 1
