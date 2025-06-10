@@ -833,6 +833,10 @@ def update_statusuri_din_rezervari(ttl: int = 300) -> None:
         "DELETE FROM rezervari WHERE data_end < ? AND suma IS NULL",
         (today,),
     )
+    cur.execute(
+        "DELETE FROM decorari WHERE rez_id IS NOT NULL "
+        "AND rez_id NOT IN (SELECT id FROM rezervari)"
+    )
 
     # 1) Resetăm totul la Disponibil
     cur.execute(
