@@ -1320,25 +1320,16 @@ def export_available_excel(
 
     def avail_msg(r):
         ds, de = r["data_start"], r["data_end"]
-        if ignore_dates:
-            if pd.notna(ds) and ds.date() > today:
-                until = (ds.date() - datetime.timedelta(days=1)).strftime("%d.%m.%Y")
-                return f"Disponibil până la {until}"
-            if pd.notna(de) and de.date() >= today:
-                frm = (de.date() + datetime.timedelta(days=1)).strftime("%d.%m.%Y")
-                return f"Disponibil din {frm}"
-            if r["status"] != "Disponibil" and pd.notna(de) and de.date() < today:
-                frm = (de.date() + datetime.timedelta(days=1)).strftime("%d.%m.%Y")
-                return f"Disponibil din {frm}"
-            return "Disponibil"
-        else:
-            if pd.notna(ds) and ds.date() > end_date:
-                until = (ds.date() - datetime.timedelta(days=1)).strftime("%d.%m.%Y")
-                return f"Disponibil până la {until}"
-            if pd.notna(de) and de.date() < start_date:
-                frm = (de.date() + datetime.timedelta(days=1)).strftime("%d.%m.%Y")
-                return f"Disponibil din {frm}"
-            return "Disponibil"
+        if pd.notna(ds) and ds.date() > today:
+            until = (ds.date() - datetime.timedelta(days=1)).strftime("%d.%m.%Y")
+            return f"Disponibil până la {until}"
+        if pd.notna(de) and de.date() >= today:
+            frm = (de.date() + datetime.timedelta(days=1)).strftime("%d.%m.%Y")
+            return f"Disponibil din {frm}"
+        if r["status"] != "Disponibil" and pd.notna(de) and de.date() < today:
+            frm = (de.date() + datetime.timedelta(days=1)).strftime("%d.%m.%Y")
+            return f"Disponibil din {frm}"
+        return "Disponibil"
 
     df["Availability"] = df.apply(avail_msg, axis=1)
 
