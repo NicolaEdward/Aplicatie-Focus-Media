@@ -1269,7 +1269,7 @@ def export_available_excel(
     import datetime
     import pandas as pd
     from tkinter import messagebox, filedialog
-    from db import read_sql_query
+    from db import read_sql_query, cursor
 
     # 1) Construim WHERE identic cu load_locations()
     cond, params = [], []
@@ -1282,20 +1282,13 @@ def export_available_excel(
     if search_term:
         cond.append("(city LIKE ? OR county LIKE ? OR address LIKE ?)")
         params += [f"%{search_term}%"] * 3
-    if not ignore_dates:
-        cond.append(
-            """
-            (data_start IS NULL
-             OR data_end   IS NULL
-             OR data_end   < ?
-             OR data_start > ?)
-        """
-        )
-        params += [start_date.isoformat(), end_date.isoformat()]
+    # Availability is determined separately using the ``rezervari`` table so
+    # we don't filter on the current ``data_start``/``data_end`` columns here.
 
     where = ("WHERE " + " AND ".join(cond)) if cond else ""
     sql = f"""
         SELECT
+          id,
           city, county, address, type,
           gps, photo_link,
           size, sqm, illumination,
@@ -1315,23 +1308,58 @@ def export_available_excel(
         )
         return
 
-    # 3) Calculăm mesajul de Availability
+    # 3) Preluăm rezervările relevante pentru calculul disponibilității
+    reservations_by_loc: dict[int, list[tuple[datetime.date, datetime.date]]] = {}
+    if not ignore_dates:
+        rows_res = cursor.execute(
+            "SELECT loc_id, data_start, data_end FROM rezervari "
+            "WHERE NOT (data_end < ? OR data_start > ?) ORDER BY data_start",
+            (start_date.isoformat(), end_date.isoformat()),
+        ).fetchall()
+        for loc_id_r, ds, de in rows_res:
+            reservations_by_loc.setdefault(loc_id_r, []).append(
+                (datetime.date.fromisoformat(ds), datetime.date.fromisoformat(de))
+            )
+
+    # 4) Calculăm mesajul de Availability
     today = datetime.datetime.now().date()
 
     def avail_msg(r):
+        loc_id = r["id"]
         ds, de = r["data_start"], r["data_end"]
-        if pd.notna(ds) and ds.date() > today:
-            until = (ds.date() - datetime.timedelta(days=1)).strftime("%d.%m.%Y")
-            return f"Disponibil până la {until}"
-        if pd.notna(de) and de.date() >= today:
-            frm = (de.date() + datetime.timedelta(days=1)).strftime("%d.%m.%Y")
-            return f"Disponibil din {frm}"
-        if r["status"] != "Disponibil" and pd.notna(de) and de.date() < today:
-            frm = (de.date() + datetime.timedelta(days=1)).strftime("%d.%m.%Y")
-            return f"Disponibil din {frm}"
-        return "Disponibil"
+        if ignore_dates:
+            if pd.notna(ds) and ds.date() > today:
+                until = (ds.date() - datetime.timedelta(days=1)).strftime("%d.%m.%Y")
+                return f"Disponibil până la {until}"
+            if pd.notna(de) and de.date() >= today:
+                frm = (de.date() + datetime.timedelta(days=1)).strftime("%d.%m.%Y")
+                return f"Disponibil din {frm}"
+            if r["status"] != "Disponibil" and pd.notna(de) and de.date() < today:
+                frm = (de.date() + datetime.timedelta(days=1)).strftime("%d.%m.%Y")
+                return f"Disponibil din {frm}"
+            return "Disponibil"
+        else:
+            periods = reservations_by_loc.get(loc_id, [])
+            if not periods:
+                return "Disponibil"
+            overl = [(s, e) for s, e in periods if not (e < start_date or s > end_date)]
+            if not overl:
+                return "Disponibil"
+            first_ds = overl[0][0]
+            if first_ds > start_date:
+                until = (first_ds - datetime.timedelta(days=1)).strftime("%d.%m.%Y")
+                return f"Disponibil până la {until}"
+            last_de = overl[-1][1]
+            if last_de < end_date:
+                frm = (last_de + datetime.timedelta(days=1)).strftime("%d.%m.%Y")
+                return f"Disponibil din {frm}"
+            return ""
 
     df["Availability"] = df.apply(avail_msg, axis=1)
+    if not ignore_dates:
+        df = df[df["Availability"] != ""].copy()
+
+    df.drop(columns=["id"], inplace=True)
 
     # 4) Coloane de export
     write_cols = [
