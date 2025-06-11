@@ -474,6 +474,9 @@ def start_app(user, root=None):
         btn_vendor.pack(side="left", padx=5, pady=5)
     btn_update.pack(side="left", padx=5, pady=5)
 
+    conn_status = ttk.Label(export_frame, text="Online \u25CF", foreground="green")
+    conn_status.pack(side="right", padx=5, pady=5)
+
     selected_id = [None]
 
     # --- Funcții auxiliare ---
@@ -887,6 +890,15 @@ def start_app(user, root=None):
         refresh_location_cache()
         load_locations()
 
+    DB_STATUS_INTERVAL = 5000  # ms
+
+    def update_db_status():
+        if db.is_online():
+            conn_status.config(text="Online \u25CF", foreground="green")
+        else:
+            conn_status.config(text="Offline \u25CF", foreground="red")
+        root.after(DB_STATUS_INTERVAL, update_db_status)
+
     def check_alerts():
         """Placeholder for future alert functionality."""
         print("check_alerts: not yet implemented")
@@ -914,6 +926,7 @@ def start_app(user, root=None):
     load_locations()
     check_alerts()
     watch_updates()
+    update_db_status()
     root.mainloop()
 
 

@@ -210,6 +210,15 @@ def reconnect() -> None:
 conn = _create_connection()
 cursor = conn.cursor()
 
+
+def is_online() -> bool:
+    """Return ``True`` if the database connection is alive."""
+    try:
+        cursor.execute("SELECT 1").fetchone()
+        return True
+    except Exception:
+        return False
+
 # --- simple in-memory cache for the locatii table ---
 _location_cache: list[dict] | None = None
 _cache_timestamp: float = 0.0
