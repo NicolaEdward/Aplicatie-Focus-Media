@@ -3529,12 +3529,8 @@ def open_clients_window(root, user=None):
 
     tree.bind("<Double-1>", lambda e: open_client_detail(tree, e))
 
-    _search_after = [None]
-
     def on_search_change(*args):
-        if _search_after[0] is not None:
-            win.after_cancel(_search_after[0])
-        _search_after[0] = win.after(300, refresh)
+        refresh()
 
     search_var.trace_add("write", on_search_change)
 

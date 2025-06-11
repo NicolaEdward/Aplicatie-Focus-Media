@@ -900,13 +900,10 @@ def start_app(user, root=None):
     combo_group.bind("<<ComboboxSelected>>", lambda e: load_locations())
     combo_status.bind("<<ComboboxSelected>>", lambda e: load_locations())
 
-    # small delay for search updates for smoother typing
-    _search_after = [None]
+    # update list instantly when search text changes
 
     def on_search_change(*args):
-        if _search_after[0] is not None:
-            root.after_cancel(_search_after[0])
-        _search_after[0] = root.after(300, load_locations)
+        load_locations()
 
     search_var.trace_add("write", on_search_change)
     filter_start.bind("<<DateEntrySelected>>", lambda e: (var_ignore.set(False), load_locations()))
