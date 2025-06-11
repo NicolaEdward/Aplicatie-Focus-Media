@@ -487,18 +487,27 @@ def cancel_reservation(root, loc_id, load_cb):
     load_cb()
 
 
-def open_reserve_window(root, loc_id, load_cb, user):
-    """Rezervă locația pentru 5 zile folosind doar numele clientului."""
-    loc_data = get_location_by_id(loc_id)
-    if loc_data and loc_data.get("is_mobile") and not loc_data.get("parent_id"):
-        messagebox.showwarning(
-            "Refuzat",
-            "Prismele mobile nu pot fi rezervate. Folosește închirierea.",
-        )
-        return
+def open_reserve_window(root, loc_ids, load_cb, user):
+    """Rezervă una sau mai multe locații pentru 5 zile folosind numele clientului."""
+
+    if isinstance(loc_ids, (list, tuple, set)):
+        ids = list(loc_ids)
+    else:
+        ids = [loc_ids]
+
+    for lid in ids:
+        loc_data = get_location_by_id(lid)
+        if loc_data and loc_data.get("is_mobile") and not loc_data.get("parent_id"):
+            messagebox.showwarning(
+                "Refuzat",
+                "Prismele mobile nu pot fi rezervate. Folosește închirierea.",
+            )
+            return
 
     win = tk.Toplevel(root)
-    win.title(f"Rezervă locația #{loc_id}")
+    win.title(
+        f"Rezervă locația #{ids[0]}" if len(ids) == 1 else f"Rezervă {len(ids)} locații"
+    )
 
     ttk.Label(win, text="Client:").grid(row=0, column=0, padx=5, pady=5)
     entry_client = ttk.Entry(win, width=30)
@@ -509,21 +518,27 @@ def open_reserve_window(root, loc_id, load_cb, user):
         if not name:
             messagebox.showwarning("Lipsește client", "Completează numele clientului.")
             return
+        if len(ids) > 1:
+            if not messagebox.askyesno(
+                "Confirmă", f"Vei rezerva {len(ids)} locații în același timp. Continui?"
+            ):
+                return
         start = datetime.date.today()
         end = start + datetime.timedelta(days=4)
         cur = conn.cursor()
         created_on = datetime.date.today().isoformat()
-        cur.execute(
-            "INSERT INTO rezervari (loc_id, client, data_start, data_end, created_by, created_on) VALUES (?, ?, ?, ?, ?, ?)",
-            (
-                loc_id,
-                name,
-                start.isoformat(),
-                end.isoformat(),
-                user["username"],
-                created_on,
-            ),
-        )
+        for lid in ids:
+            cur.execute(
+                "INSERT INTO rezervari (loc_id, client, data_start, data_end, created_by, created_on) VALUES (?, ?, ?, ?, ?, ?)",
+                (
+                    lid,
+                    name,
+                    start.isoformat(),
+                    end.isoformat(),
+                    user["username"],
+                    created_on,
+                ),
+            )
         conn.commit()
         update_statusuri_din_rezervari()
         load_cb()
@@ -534,20 +549,27 @@ def open_reserve_window(root, loc_id, load_cb, user):
     )
 
 
-def open_rent_window(root, loc_id, load_cb, user):
-    """Dialog pentru adăugarea unei închirieri în tabelul ``rezervari``.
+def open_rent_window(root, loc_ids, load_cb, user):
+    """Dialog pentru adăugarea unei închirieri în tabelul ``rezervari`` pentru una sau mai multe locații.
 
     Perioada aleasă trebuie să nu se suprapună peste o rezervare sau o
     închiriere existentă pentru aceeași locație. După salvare statusurile sunt
     recalculate prin ``update_statusuri_din_rezervari``.
     """
 
-    win = tk.Toplevel(root)
-    win.title(f"Închiriază locația #{loc_id}")
+    if isinstance(loc_ids, (list, tuple, set)):
+        ids = list(loc_ids)
+    else:
+        ids = [loc_ids]
 
-    loc_data = get_location_by_id(loc_id)
-    is_mobile = loc_data.get("is_mobile") if loc_data else 0
-    is_base_mobile = is_mobile and not loc_data.get("parent_id")
+    win = tk.Toplevel(root)
+    win.title(
+        f"Închiriază locația #{ids[0]}" if len(ids) == 1 else f"Închiriază {len(ids)} locații"
+    )
+
+    first = get_location_by_id(ids[0])
+    is_mobile = first.get("is_mobile") if first else 0
+    is_base_mobile = is_mobile and not first.get("parent_id")
 
     ttk.Label(win, text="Client:").grid(row=0, column=0, sticky="e", padx=5, pady=5)
 
@@ -595,7 +617,7 @@ def open_rent_window(root, loc_id, load_cb, user):
     row_next = len(labels) + 2
     ttk.Label(win, text="Preț decorare:").grid(row=row_next, column=0, sticky="e", padx=5, pady=5)
     entry_deco = ttk.Entry(win, width=30)
-    deco_default = loc_data.get("decoration_cost") if loc_data else None
+    deco_default = first.get("decoration_cost") if first else None
     if deco_default:
         entry_deco.insert(0, str(deco_default))
     entry_deco.grid(row=row_next, column=1, padx=5, pady=5)
@@ -605,7 +627,7 @@ def open_rent_window(root, loc_id, load_cb, user):
     chk_prod = ttk.Checkbutton(win, text="Add production cost", variable=var_prod, command=lambda: entry_prod.grid() if var_prod.get() else entry_prod.grid_remove())
     chk_prod.grid(row=row_next, column=0, sticky="e", padx=5, pady=5)
     entry_prod = ttk.Entry(win, width=30)
-    sqm_val = loc_data.get("sqm") if loc_data else 0
+    sqm_val = first.get("sqm") if first else 0
     try:
         prod_default = round(float(sqm_val or 0) * 7, 2)
     except Exception:
@@ -655,15 +677,14 @@ def open_rent_window(root, loc_id, load_cb, user):
         entry_gps = None
 
     def save_rent():
+
         client = cb_client.get().strip()
         if not client:
             messagebox.showwarning("Lipsește client", "Completează client.")
             return
 
         cur = conn.cursor()
-        row = cur.execute(
-            "SELECT id, tip FROM clienti WHERE nume=?", (client,)
-        ).fetchone()
+        row = cur.execute("SELECT id, tip FROM clienti WHERE nume=?", (client,)).fetchone()
         if row:
             client_id, tip = row
         else:
@@ -728,179 +749,159 @@ def open_rent_window(root, loc_id, load_cb, user):
         else:
             firma_id = None
 
-        # ``campaign_val`` already computed above
+        addr_val = entry_addr.get().strip() if entry_addr else ""
+        gps_val = entry_gps.get().strip() if entry_gps else ""
 
-        cur = conn.cursor()
+        for loc_id in ids:
+            cur = conn.cursor()
+            loc_data = get_location_by_id(loc_id)
+            is_mobile_l = loc_data.get("is_mobile") if loc_data else 0
+            is_base_mobile_l = is_mobile_l and not loc_data.get("parent_id")
 
-        # verificăm suprapuneri cu alte perioade
-        rows = cur.execute(
-            "SELECT suma FROM rezervari WHERE loc_id=? AND NOT (data_end < ? OR data_start > ?)",
-            (loc_id, start.isoformat(), end.isoformat()),
-        ).fetchall()
-        for (suma,) in rows:
-            # Orice închiriere existentă blochează intervalul. În cazul prismei
-            # mobile, ignorăm suprapunerile cu înregistrări care au suma ``0``
-            # (create pentru locația de bază).
-            if suma is None or suma > 0:
-                messagebox.showerror(
-                    "Perioadă ocupată",
-                    "Locația este deja rezervată sau închiriată în intervalul ales.",
-                )
-                return
-
-        if is_base_mobile:
-            cnt = cur.execute(
-                """
-                SELECT COUNT(*) FROM rezervari
-                 WHERE loc_id IN (SELECT id FROM locatii WHERE parent_id=?)
-                   AND NOT (data_end < ? OR data_start > ?)
-                   AND suma IS NOT NULL
-                """,
+            rows = cur.execute(
+                "SELECT suma FROM rezervari WHERE loc_id=? AND NOT (data_end < ? OR data_start > ?)",
                 (loc_id, start.isoformat(), end.isoformat()),
-            ).fetchone()[0]
-            if cnt >= 20:
-                messagebox.showerror(
-                    "Limită depășită",
-                    "Nu poți închiria mai mult de 20 de prisme simultan.",
-                )
-                return
+            ).fetchall()
+            for (suma,) in rows:
+                if suma is None or suma > 0:
+                    messagebox.showerror(
+                        "Perioadă ocupată",
+                        "Locația este deja rezervată sau închiriată în intervalul ales.",
+                    )
+                    return
 
-            addr_val = entry_addr.get().strip() if entry_addr else ""
-            gps_val = entry_gps.get().strip() if entry_gps else ""
-            if not addr_val or not gps_val:
-                messagebox.showwarning(
-                    "Lipsește adresa", "Completează adresa și GPS-ul."
-                )
-                return
+            if is_base_mobile_l:
+                cnt = cur.execute(
+                    "SELECT COUNT(*) FROM rezervari WHERE loc_id IN (SELECT id FROM locatii WHERE parent_id=?) AND NOT (data_end < ? OR data_start > ?) AND suma IS NOT NULL",
+                    (loc_id, start.isoformat(), end.isoformat()),
+                ).fetchone()[0]
+                if cnt >= 20:
+                    messagebox.showerror(
+                        "Limită depășită",
+                        "Nu poți închiria mai mult de 20 de prisme simultan.",
+                    )
+                    return
 
-            base = get_location_by_id(loc_id)
-            cur.execute(
-                """
-                INSERT INTO locatii (
-                    city, county, address, type, gps, code, size,
-                    photo_link, sqm, illumination, ratecard,
-                    pret_vanzare, pret_flotant, decoration_cost,
-                    observatii, grup, face, is_mobile, parent_id
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)
-                """,
-                [
-                    base.get("city"),
-                    base.get("county"),
-                    addr_val,
-                    base.get("type"),
-                    gps_val,
-                    base.get("code"),
-                    base.get("size"),
-                    base.get("photo_link"),
-                    base.get("sqm"),
-                    base.get("illumination"),
-                    base.get("ratecard"),
-                    base.get("pret_vanzare"),
-                    base.get("pret_flotant"),
-                    base.get("decoration_cost"),
-                    base.get("observatii"),
-                    base.get("grup"),
-                    base.get("face"),
-                    loc_id,
-                ],
-            )
-            new_loc_id = cur.lastrowid
-            created_on = datetime.date.today().isoformat()
-            cur.execute(
-                "INSERT INTO rezervari (loc_id, client, client_id, firma_id, data_start, data_end, suma, created_by, created_on, campaign, decor_cost, prod_cost)"
-                " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                (
-                    new_loc_id,
-                    client_display,
-                    client_id,
-                    firma_id,
-                    start.isoformat(),
-                    end.isoformat(),
-                    fee_val,
-                    user["username"],
-                    created_on,
-                    campaign_val or client_display,
-                    deco_val,
-                    prod_val,
-                ),
-            )
-            rez_id = cur.lastrowid
-            cur.execute(
-                "INSERT INTO rezervari (loc_id, client, client_id, firma_id, data_start, data_end, suma, created_by, created_on, campaign, decor_cost, prod_cost)"
-                " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                (
-                    loc_id,
-                    client_display,
-                    client_id,
-                    firma_id,
-                    start.isoformat(),
-                    end.isoformat(),
-                    0.0,
-                    user["username"],
-                    created_on,
-                    campaign_val or client_display,
-                    0.0,
-                    0.0,
-                ),
-            )
-        else:
-            # inserăm noua închiriere
-            created_on = datetime.date.today().isoformat()
-            cur.execute(
-                "INSERT INTO rezervari (loc_id, client, client_id, firma_id, data_start, data_end, suma, created_by, created_on, campaign, decor_cost, prod_cost)"
-                " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                (
-                    loc_id,
-                    client_display,
-                    client_id,
-                    firma_id,
-                    start.isoformat(),
-                    end.isoformat(),
-                    fee_val,
-                    user["username"],
-                    created_on,
-                    campaign_val or client_display,
-                    deco_val,
-                    prod_val,
-                ),
-            )
-            rez_id = cur.lastrowid
-        conn.commit()
+                if not addr_val or not gps_val:
+                    messagebox.showwarning(
+                        "Lipsește adresa", "Completează adresa și GPS-ul.",
+                    )
+                    return
 
-        if deco_val or prod_val:
-            dec_date = start.isoformat()
-            target_loc = new_loc_id if is_base_mobile else loc_id
-            if table_has_column("decorari", "rez_id"):
+                base = get_location_by_id(loc_id)
                 cur.execute(
-                    "INSERT INTO decorari (loc_id, rez_id, data, decor_cost, prod_cost, created_by) VALUES (?,?,?,?,?,?)",
+                    "INSERT INTO locatii (city, county, address, type, gps, code, size, photo_link, sqm, illumination, ratecard, pret_vanzare, pret_flotant, decoration_cost, observatii, grup, face, is_mobile, parent_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)",
+                    [
+                        base.get("city"),
+                        base.get("county"),
+                        addr_val,
+                        base.get("type"),
+                        gps_val,
+                        base.get("code"),
+                        base.get("size"),
+                        base.get("photo_link"),
+                        base.get("sqm"),
+                        base.get("illumination"),
+                        base.get("ratecard"),
+                        base.get("pret_vanzare"),
+                        base.get("pret_flotant"),
+                        base.get("decoration_cost"),
+                        base.get("observatii"),
+                        base.get("grup"),
+                        base.get("face"),
+                        loc_id,
+                    ],
+                )
+                new_loc_id = cur.lastrowid
+                created_on = datetime.date.today().isoformat()
+                cur.execute(
+                    "INSERT INTO rezervari (loc_id, client, client_id, firma_id, data_start, data_end, suma, created_by, created_on, campaign, decor_cost, prod_cost) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                     (
-                        target_loc,
-                        rez_id,
-                        dec_date,
+                        new_loc_id,
+                        client_display,
+                        client_id,
+                        firma_id,
+                        start.isoformat(),
+                        end.isoformat(),
+                        fee_val,
+                        user["username"],
+                        created_on,
+                        campaign_val or client_display,
                         deco_val,
                         prod_val,
-                        user.get("username"),
+                    ),
+                )
+                rez_id = cur.lastrowid
+                cur.execute(
+                    "INSERT INTO rezervari (loc_id, client, client_id, firma_id, data_start, data_end, suma, created_by, created_on, campaign, decor_cost, prod_cost) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    (
+                        loc_id,
+                        client_display,
+                        client_id,
+                        firma_id,
+                        start.isoformat(),
+                        end.isoformat(),
+                        0.0,
+                        user["username"],
+                        created_on,
+                        campaign_val or client_display,
+                        0.0,
+                        0.0,
                     ),
                 )
             else:
+                created_on = datetime.date.today().isoformat()
                 cur.execute(
-                    "INSERT INTO decorari (loc_id, data, decor_cost, prod_cost, created_by) VALUES (?,?,?,?,?)",
+                    "INSERT INTO rezervari (loc_id, client, client_id, firma_id, data_start, data_end, suma, created_by, created_on, campaign, decor_cost, prod_cost) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                     (
-                        target_loc,
-                        dec_date,
+                        loc_id,
+                        client_display,
+                        client_id,
+                        firma_id,
+                        start.isoformat(),
+                        end.isoformat(),
+                        fee_val,
+                        user["username"],
+                        created_on,
+                        campaign_val or client_display,
                         deco_val,
                         prod_val,
-                        user.get("username"),
                     ),
                 )
+                rez_id = cur.lastrowid
             conn.commit()
 
-        # actualizăm statusurile pe baza tuturor rezervărilor
-        update_statusuri_din_rezervari()
+            if deco_val or prod_val:
+                dec_date = start.isoformat()
+                target_loc = new_loc_id if is_base_mobile_l else loc_id
+                if table_has_column("decorari", "rez_id"):
+                    cur.execute(
+                        "INSERT INTO decorari (loc_id, rez_id, data, decor_cost, prod_cost, created_by) VALUES (?,?,?,?,?,?)",
+                        (
+                            target_loc,
+                            rez_id,
+                            dec_date,
+                            deco_val,
+                            prod_val,
+                            user.get("username"),
+                        ),
+                    )
+                else:
+                    cur.execute(
+                        "INSERT INTO decorari (loc_id, data, decor_cost, prod_cost, created_by) VALUES (?,?,?,?,?)",
+                        (
+                            target_loc,
+                            dec_date,
+                            deco_val,
+                            prod_val,
+                            user.get("username"),
+                        ),
+                    )
+                conn.commit()
 
+        update_statusuri_din_rezervari()
         load_cb()
         win.destroy()
-
     ttk.Button(win, text="Confirmă închiriere", command=save_rent).grid(
         row=row_extra, column=0, columnspan=3, pady=10
     )
