@@ -53,6 +53,10 @@ _Calendar.config = _safe_calendar_config
 
 DateEntry = _DateEntry
 
+# Intervalul (în milisecunde) la care aplicația verifică modificările
+# realizate de alți utilizatori în baza de date.
+REFRESH_INTERVAL = 300_000  # 5 minute
+
 if Style:
     _orig_update_style = _ttkstyle.Bootstyle.update_ttk_widget_style
 
@@ -72,6 +76,7 @@ from db import (
     maybe_refresh_location_cache,
     get_location_by_id,
     refresh_location_cache,
+    reconnect,
 )
 from utils import make_preview, get_schita_path
 from UI.dialogs import (
@@ -877,7 +882,8 @@ def start_app(user, root=None):
             load_locations()
 
     def manual_refresh():
-        """Force reload of the local cache from the database."""
+        """Reconnect to the database and force reload of the local cache."""
+        reconnect()
         refresh_location_cache()
         load_locations()
 
@@ -888,7 +894,7 @@ def start_app(user, root=None):
     def watch_updates():
         if maybe_refresh_location_cache():
             load_locations()
-        root.after(300000, watch_updates)  # 5 minute
+        root.after(REFRESH_INTERVAL, watch_updates)
 
     # bind filtre
     combo_group.bind("<<ComboboxSelected>>", lambda e: load_locations())
