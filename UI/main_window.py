@@ -77,6 +77,7 @@ from db import (
     get_location_by_id,
     refresh_location_cache,
     reconnect,
+    is_online,
 )
 from utils import make_preview, get_schita_path
 from UI.dialogs import (
@@ -893,7 +894,7 @@ def start_app(user, root=None):
     DB_STATUS_INTERVAL = 5000  # ms
 
     def update_db_status():
-        if db.is_online():
+        if is_online():
             conn_status.config(text="Online \u25CF", foreground="green")
         else:
             conn_status.config(text="Offline \u25CF", foreground="red")
