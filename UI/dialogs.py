@@ -1339,6 +1339,7 @@ def export_available_excel(
                 return f"Disponibil din {frm}"
             return "Disponibil"
         else:
+
             periods = reservations_by_loc.get(loc_id, [])
             if not periods:
                 return "Disponibil"
@@ -1354,6 +1355,7 @@ def export_available_excel(
                 frm = (last_de + datetime.timedelta(days=1)).strftime("%d.%m.%Y")
                 return f"Disponibil din {frm}"
             return ""
+
 
     df["Availability"] = df.apply(avail_msg, axis=1)
     if not ignore_dates:
