@@ -479,6 +479,7 @@ def start_app(user, root=None):
     conn_status.pack(side="right", padx=5, pady=5)
 
     selected_id = [None]
+    selected_ids = [[]]
 
     # --- Funcții auxiliare ---
     def refresh_groups():
@@ -655,6 +656,7 @@ def start_app(user, root=None):
             w.pack_forget()
 
         sel = tree.selection()
+        selected_ids[0] = [int(s) for s in sel]
         if not sel:
             btn_edit.config(state="disabled")
             btn_rent.config(state="disabled")
@@ -671,6 +673,29 @@ def start_app(user, root=None):
 
         loc_id = int(sel[0])
         selected_id[0] = loc_id
+        if len(sel) > 1:
+            img_label.config(image="", text="")
+            btn_download.config(state="disabled")
+            btn_edit.config(state="disabled")
+            btn_decor.config(state="disabled")
+            btn_manage_decor.config(state="disabled")
+            btn_release.config(state="disabled")
+            btn_delete.config(state="disabled")
+            if role != "manager":
+                btn_rent.config(
+                    text="Închiriază",
+                    state="normal",
+                    command=lambda: open_rent_window(root, selected_ids[0], load_locations, user),
+                )
+                btn_reserve.config(
+                    text="Rezervă",
+                    state="normal",
+                    command=lambda: open_reserve_window(root, selected_ids[0], load_locations, user),
+                )
+            else:
+                btn_rent.config(state="disabled")
+                btn_reserve.config(state="disabled")
+            return
 
         data = get_location_by_id(loc_id)
         if not data:
@@ -778,7 +803,7 @@ def start_app(user, root=None):
             btn_rent.config(
                 text="Închiriază",
                 state="normal",
-                command=lambda: open_rent_window(root, loc_id, load_locations, user),
+                command=lambda: open_rent_window(root, selected_ids[0], load_locations, user),
             )
             btn_decor.config(
                 state="normal" if status == "Închiriat" else "disabled",
@@ -847,7 +872,7 @@ def start_app(user, root=None):
                 btn_reserve.config(
                     text="Rezervă",
                     state="normal",
-                    command=lambda: open_reserve_window(root, loc_id, load_locations, user),
+                    command=lambda: open_reserve_window(root, selected_ids[0], load_locations, user),
                 )
             elif status == "Rezervat" and reserved_info and reserved_info[0] == user["username"]:
                 btn_reserve.config(
