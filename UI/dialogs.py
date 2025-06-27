@@ -3196,7 +3196,10 @@ def export_client_backup(month, year, client_id=None, firma_id=None, campaign=No
               FROM decorari
              WHERE loc_id=? AND data BETWEEN ? AND ?
                AND data BETWEEN ? AND ?
-               AND (rez_id=? OR rez_id IS NULL)
+               AND (
+                    rez_id IS NULL
+                    OR (rez_id=? AND data<>?)
+               )
             """,
             (
                 loc_id,
@@ -3205,6 +3208,7 @@ def export_client_backup(month, year, client_id=None, firma_id=None, campaign=No
                 ds,
                 de,
                 rez_id,
+                ds,
             ),
         )
         extra_deco, extra_prod = cur.fetchone() or (0.0, 0.0)
@@ -3336,7 +3340,10 @@ def export_all_backups(month, year):
               FROM decorari
              WHERE loc_id=? AND data BETWEEN ? AND ?
                AND data BETWEEN ? AND ?
-               AND (rez_id=? OR rez_id IS NULL)
+               AND (
+                    rez_id IS NULL
+                    OR (rez_id=? AND data<>?)
+               )
             """,
             (
                 loc_id,
@@ -3345,6 +3352,7 @@ def export_all_backups(month, year):
                 ds,
                 de,
                 rez_id,
+                ds,
             ),
         )
         extra_deco, extra_prod = cur.fetchone() or (0.0, 0.0)
