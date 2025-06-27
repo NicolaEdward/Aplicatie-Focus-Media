@@ -3190,13 +3190,18 @@ def export_client_backup(month, year, client_id=None, firma_id=None, campaign=No
                 prod_default = 0.0
             prod = prod_r if prod_r is not None else prod_default
 
+        # Sum decorations recorded separately and ignore the base
+        # entry added when the reservation was created.
         cur.execute(
             """
             SELECT COALESCE(SUM(decor_cost),0), COALESCE(SUM(prod_cost),0)
               FROM decorari
              WHERE loc_id=? AND data BETWEEN ? AND ?
                AND data BETWEEN ? AND ?
-               AND (rez_id=? OR rez_id IS NULL)
+               AND (
+                    rez_id IS NULL
+                    OR (rez_id=? AND data<>?)
+               )
             """,
             (
                 loc_id,
@@ -3205,6 +3210,7 @@ def export_client_backup(month, year, client_id=None, firma_id=None, campaign=No
                 ds,
                 de,
                 rez_id,
+                ds,
             ),
         )
         extra_deco, extra_prod = cur.fetchone() or (0.0, 0.0)
@@ -3336,7 +3342,10 @@ def export_all_backups(month, year):
               FROM decorari
              WHERE loc_id=? AND data BETWEEN ? AND ?
                AND data BETWEEN ? AND ?
-               AND (rez_id=? OR rez_id IS NULL)
+               AND (
+                    rez_id IS NULL
+                    OR (rez_id=? AND data<>?)
+               )
             """,
             (
                 loc_id,
@@ -3345,6 +3354,7 @@ def export_all_backups(month, year):
                 ds,
                 de,
                 rez_id,
+                ds,
             ),
         )
         extra_deco, extra_prod = cur.fetchone() or (0.0, 0.0)
