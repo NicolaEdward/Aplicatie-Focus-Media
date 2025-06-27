@@ -3190,6 +3190,8 @@ def export_client_backup(month, year, client_id=None, firma_id=None, campaign=No
                 prod_default = 0.0
             prod = prod_r if prod_r is not None else prod_default
 
+        # Sum decorations recorded separately and ignore the base
+        # entry added when the reservation was created.
         cur.execute(
             """
             SELECT COALESCE(SUM(decor_cost),0), COALESCE(SUM(prod_cost),0)
