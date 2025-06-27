@@ -219,7 +219,6 @@ def is_online() -> bool:
     except Exception:
         return False
 
-
 # --- simple in-memory cache for the locatii table ---
 _location_cache: list[dict] | None = None
 _cache_timestamp: float = 0.0
@@ -268,19 +267,6 @@ def table_has_column(table: str, column: str) -> bool:
         return cur.fetchone() is not None
     cur.execute(f"PRAGMA table_info({table})")
     return any(row[1] == column for row in cur.fetchall())
-
-
-def table_exists(table: str) -> bool:
-    """Return ``True`` if *table* exists in the current database."""
-    cur = conn.cursor()
-    if getattr(conn, "mysql", False):
-        cur.execute("SHOW TABLES LIKE ?", (table,))
-        return cur.fetchone() is not None
-    cur.execute(
-        "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
-        (table,),
-    )
-    return cur.fetchone() is not None
 
 
 def pandas_conn():
@@ -363,7 +349,9 @@ def ensure_index(table: str, index_name: str, column: str) -> None:
                 ctype = str(field[1]).lower()
                 if "text" in ctype or "blob" in ctype:
                     length = "(255)"
-                cur.execute(f"CREATE INDEX {index_name} ON {table}({column}{length})")
+                cur.execute(
+                    f"CREATE INDEX {index_name} ON {table}({column}{length})"
+                )
     else:
         cursor.execute(f"CREATE INDEX IF NOT EXISTS {index_name} ON {table}({column})")
 
@@ -494,9 +482,7 @@ def init_db():
         }
 
         if "face" not in existing:
-            cur.execute(
-                "ALTER TABLE locatii ADD COLUMN face VARCHAR(32) DEFAULT 'Fața A'"
-            )
+            cur.execute("ALTER TABLE locatii ADD COLUMN face VARCHAR(32) DEFAULT 'Fața A'")
             conn.commit()
 
         for col, definition in to_add.items():
@@ -572,7 +558,6 @@ def init_clienti_table():
                 cur.execute(f"ALTER TABLE clienti ADD COLUMN {col} {definition}")
                 conn.commit()
 
-
 def init_client_contacts_table():
     if getattr(conn, "mysql", False):
         cursor.execute(
@@ -602,7 +587,6 @@ def init_client_contacts_table():
         )
         """
         )
-
 
 def init_firme_table():
     if getattr(conn, "mysql", False):
@@ -634,7 +618,6 @@ def init_firme_table():
     else:
         existing = {c[1] for c in cursor.execute("PRAGMA table_info(firme)").fetchall()}
     # no optional columns at the moment
-
 
 def init_rezervari_table():
     if getattr(conn, "mysql", False):
@@ -853,33 +836,28 @@ def update_statusuri_din_rezervari(ttl: int = 300) -> None:
 
     today = datetime.date.today().isoformat()
     cur = conn.cursor()
-    has_decorari = table_exists("decorari")
-    has_client_id = table_has_column("locatii", "client_id")
-    has_mobile = table_has_column("locatii", "is_mobile")
-    has_parent = table_has_column("locatii", "parent_id")
 
     # Ștergem rezervările expirate (fără sumă) care nu au fost anulate
     cur.execute(
         "DELETE FROM rezervari WHERE data_end < ? AND suma IS NULL",
         (today,),
     )
-    if has_decorari:
-        cur.execute(
-            "DELETE FROM decorari WHERE rez_id IS NOT NULL "
-            "AND rez_id NOT IN (SELECT id FROM rezervari)"
-        )
+    cur.execute(
+        "DELETE FROM decorari WHERE rez_id IS NOT NULL "
+        "AND rez_id NOT IN (SELECT id FROM rezervari)"
+    )
 
     # 1) Resetăm totul la Disponibil
-    reset_sql = [
-        "UPDATE locatii SET",
-        "status='Disponibil',",
-        "client=NULL,",
-    ]
-    if has_client_id:
-        reset_sql.append("client_id=NULL,")
-    reset_sql.append("data_start=NULL,")
-    reset_sql.append("data_end=NULL")
-    cur.execute("\n".join(reset_sql))
+    cur.execute(
+        """
+        UPDATE locatii
+        SET status='Disponibil',
+            client=NULL,
+            client_id=NULL,
+            data_start=NULL,
+            data_end=NULL
+    """
+    )
 
     # 2) Marcăm rezervările curente fără sumă ca 'Rezervat'
     cur.execute(
@@ -922,71 +900,67 @@ def update_statusuri_din_rezervari(ttl: int = 300) -> None:
     )
 
     # 3) Marcăm închirierile curente ca 'Închiriat'
-    sql_lines = [
-        "UPDATE locatii",
-        "SET status      = 'Închiriat',",
-        "    client      = (",
-        "        SELECT client",
-        "        FROM rezervari",
-        "        WHERE rezervari.loc_id = locatii.id",
-        "          AND ? BETWEEN data_start AND data_end",
-        "          AND suma IS NOT NULL AND suma > 0",
-        "        ORDER BY data_start DESC",
-        "        LIMIT 1",
-        "    ),",
-    ]
-    if has_client_id:
-        sql_lines += [
-            "    client_id   = (",
-            "        SELECT client_id",
-            "        FROM rezervari",
-            "        WHERE rezervari.loc_id = locatii.id",
-            "          AND ? BETWEEN data_start AND data_end",
-            "          AND suma IS NOT NULL AND suma > 0",
-            "        ORDER BY data_start DESC",
-            "        LIMIT 1",
-            "    ),",
-        ]
-    sql_lines += [
-        "    data_start  = (",
-        "        SELECT data_start",
-        "        FROM rezervari",
-        "        WHERE rezervari.loc_id = locatii.id",
-        "          AND ? BETWEEN data_start AND data_end",
-        "          AND suma IS NOT NULL AND suma > 0",
-        "        ORDER BY data_start DESC",
-        "        LIMIT 1",
-        "    ),",
-        "    data_end    = (",
-        "        SELECT data_end",
-        "        FROM rezervari",
-        "        WHERE rezervari.loc_id = locatii.id",
-        "          AND ? BETWEEN data_start AND data_end",
-        "          AND suma IS NOT NULL AND suma > 0",
-        "        ORDER BY data_start DESC",
-        "        LIMIT 1",
-        "    )",
-        "WHERE EXISTS (",
-        "    SELECT 1",
-        "    FROM rezervari",
-        "    WHERE rezervari.loc_id = locatii.id",
-        "      AND ? BETWEEN data_start AND data_end",
-        "      AND suma IS NOT NULL AND suma > 0",
-        ")",
-    ]
-    cur.execute("\n".join(sql_lines), (today,) * (5 if has_client_id else 4))
+    cur.execute(
+        """
+        UPDATE locatii
+        SET status      = 'Închiriat',
+            client      = (
+                SELECT client
+                FROM rezervari
+                WHERE rezervari.loc_id = locatii.id
+                  AND ? BETWEEN data_start AND data_end
+                  AND suma IS NOT NULL AND suma > 0
+                ORDER BY data_start DESC
+                LIMIT 1
+            ),
+            client_id   = (
+                SELECT client_id
+                FROM rezervari
+                WHERE rezervari.loc_id = locatii.id
+                  AND ? BETWEEN data_start AND data_end
+                  AND suma IS NOT NULL AND suma > 0
+                ORDER BY data_start DESC
+                LIMIT 1
+            ),
+            data_start  = (
+                SELECT data_start
+                FROM rezervari
+                WHERE rezervari.loc_id = locatii.id
+                  AND ? BETWEEN data_start AND data_end
+                  AND suma IS NOT NULL AND suma > 0
+                ORDER BY data_start DESC
+                LIMIT 1
+            ),
+            data_end    = (
+                SELECT data_end
+                FROM rezervari
+                WHERE rezervari.loc_id = locatii.id
+                  AND ? BETWEEN data_start AND data_end
+                  AND suma IS NOT NULL AND suma > 0
+                ORDER BY data_start DESC
+                LIMIT 1
+            )
+        WHERE EXISTS (
+            SELECT 1
+            FROM rezervari
+            WHERE rezervari.loc_id = locatii.id
+              AND ? BETWEEN data_start AND data_end
+              AND suma IS NOT NULL AND suma > 0
+        )
+    """,
+        (today, today, today, today, today),
+    )
 
     # Mark expired mobile instances as hidden
-    if has_mobile and has_parent:
-        cur.execute(
-            """
-            UPDATE locatii
-               SET status='Expirat'
-             WHERE is_mobile=1 AND parent_id IS NOT NULL
-               AND data_end IS NOT NULL AND data_end < ?
-            """,
-            (today,),
-        )
+    cur.execute(
+        """
+        UPDATE locatii
+           SET status='Expirat'
+         WHERE is_mobile=1 AND parent_id IS NOT NULL
+           AND data_end IS NOT NULL AND data_end < ?
+        """,
+        (today,),
+    )
 
     conn.commit()
     _status_timestamp = time.time()
@@ -1046,9 +1020,7 @@ def check_login(username: str, password: str):
     return None
 
 
-def add_client_contact(
-    client_id: int, nume: str, rol: str, email: str, phone: str
-) -> None:
+def add_client_contact(client_id: int, nume: str, rol: str, email: str, phone: str) -> None:
     cur = conn.cursor()
     cur.execute(
         "INSERT INTO client_contacts (client_id, nume, rol, email, phone) VALUES (?,?,?,?,?)",
